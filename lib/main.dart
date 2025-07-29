@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/debt_screen.dart';
+import 'screens/reportes_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ProductListScreen(),
     SalesScreen(),
     DebtScreen(),
+    ReportesScreen(), // ✅ nuevo
   ];
 
   @override
@@ -49,6 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Ventas',
           ),
           BottomNavigationBarItem(icon: Icon(Icons.money_off), label: 'Deudas'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: 'Reportes',
+          ), // ✅ nuevo
         ],
       ),
     );

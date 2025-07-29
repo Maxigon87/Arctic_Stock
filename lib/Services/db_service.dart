@@ -148,4 +148,31 @@ class DBService {
       whereArgs: [ventaId],
     );
   }
+
+  Future<List<Map<String, dynamic>>> getStockProductos() async {
+    final db = await database;
+    return await db.query('productos');
+  }
+
+  Future<List<Map<String, dynamic>>> getVentasDelMes(String mes) async {
+    final db = await database;
+    return await db.rawQuery(
+      '''
+    SELECT * FROM ventas
+    WHERE strftime('%m', fecha) = ? 
+  ''',
+      [mes],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getDeudasDelMes(String mes) async {
+    final db = await database;
+    return await db.rawQuery(
+      '''
+    SELECT * FROM deudas
+    WHERE strftime('%m', fecha) = ? 
+  ''',
+      [mes],
+    );
+  }
 }
