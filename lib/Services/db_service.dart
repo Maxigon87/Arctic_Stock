@@ -42,12 +42,11 @@ class DBService {
 
     await db.execute('''
       CREATE TABLE ventas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        productoId INTEGER,
-        cantidad INTEGER,
-        total REAL,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente TEXT,
         fecha TEXT,
-        FOREIGN KEY (productoId) REFERENCES productos (id)
+        metodoPago TEXT,
+        total REAL
       )
     ''');
 
@@ -56,9 +55,22 @@ class DBService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cliente TEXT NOT NULL,
         monto REAL NOT NULL,
-        fecha TEXT
+        fecha TEXT,
+        metodoPago TEXT,
+        descripcion TEXT
       )
     ''');
+    await db.execute('''
+      CREATE TABLE items_venta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ventaId INTEGER,
+        productoId INTEGER,
+        cantidad INTEGER,
+        subtotal REAL,
+        FOREIGN KEY (ventaId) REFERENCES ventas (id),
+        FOREIGN KEY (productoId) REFERENCES productos (id)
+  )
+''');
   }
 
   // ✅ CRUD (igual que antes, no cambia nada)
@@ -89,7 +101,8 @@ class DBService {
 
   Future<List<Map<String, dynamic>>> getVentas() async {
     final db = await database;
-    return await db.query('ventas');
+    final List<Map<String, dynamic>> ventas = await db.query('ventas');
+    return ventas;
   }
 
   Future<int> insertDeuda(Map<String, dynamic> data) async {
@@ -99,6 +112,40 @@ class DBService {
 
   Future<List<Map<String, dynamic>>> getDeudas() async {
     final db = await database;
-    return await db.query('deudas');
+    final List<Map<String, dynamic>> deudas = await db.query('deudas');
+    return deudas;
+  }
+
+  Future<int> insertVentaBase(Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.insert('ventas', data);
+  }
+
+  Future<int> insertItemVenta(Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.insert('items_venta', data);
+  }
+
+  Future<List<Map<String, dynamic>>> getItemsByVenta(int ventaId) async {
+    final db = await database;
+    return await db.rawQuery(
+      '''
+    SELECT iv.cantidad, iv.subtotal, p.nombre AS producto, p.precio AS precioUnitario
+    FROM items_venta iv
+    INNER JOIN productos p ON iv.productoId = p.id
+    WHERE iv.ventaId = ?
+  ''',
+      [ventaId],
+    );
+  }
+
+  Future<void> updateVentaTotal(int ventaId, double total) async {
+    final db = await database;
+    await db.update(
+      'ventas',
+      {'total': total},
+      where: 'id = ?',
+      whereArgs: [ventaId],
+    );
   }
 }
