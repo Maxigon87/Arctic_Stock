@@ -7,7 +7,6 @@ import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/dashboard_screen.dart';
-//import 'screens/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -46,27 +45,37 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final lightTheme = ThemeData(
       brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.green,
+        brightness: Brightness.light, // ✅ Fix
+      ),
       scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.green, foregroundColor: Colors.white),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
     );
 
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.teal,
+        brightness: Brightness.dark, // ✅ Fix
+      ),
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black87, foregroundColor: Colors.white),
+        backgroundColor: Colors.black87,
+        foregroundColor: Colors.white,
+      ),
     );
 
     return AnimatedTheme(
       data: _themeMode == ThemeMode.dark ? darkTheme : lightTheme,
-      duration: const Duration(milliseconds: 400), // ✅ Animación suave
+      duration: const Duration(milliseconds: 400),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),
         child: MaterialApp(
-          key: ValueKey(_themeMode), // ✅ Fuerza el fade al cambiar
+          key: ValueKey(_themeMode),
           debugShowCheckedModeBanner: false,
           title: "Sistema Jeremías",
           theme: lightTheme,
@@ -100,19 +109,21 @@ class _HomeScreenState extends State<HomeScreen>
     _HomeOption("Reportes", Icons.analytics, Colors.orange),
     _HomeOption("Historial", Icons.folder_open, Colors.purple),
     _HomeOption("Clientes", Icons.people, Colors.teal),
-    // _HomeOption("Dashboard", Icons.dashboard, Colors.indigo), // 🔜 Agregar Dashboar d
+    _HomeOption("Dashboard", Icons.dashboard, Colors.indigo), // ✅ agregado
   ];
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
-    _controller.forward(); // ✅ Inicia animación al cargar
+    _controller.forward();
   }
 
   @override
@@ -130,8 +141,8 @@ class _HomeScreenState extends State<HomeScreen>
           IconButton(
             icon: Icon(
               Theme.of(context).brightness == Brightness.dark
-                  ? Icons.wb_sunny // ☀️ muestra sol en dark
-                  : Icons.nights_stay, // 🌙 muestra luna en light
+                  ? Icons.wb_sunny
+                  : Icons.nights_stay,
             ),
             onPressed: widget.onToggleTheme,
           ),
@@ -190,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen>
       ReportesScreen(),
       HistorialArchivosScreen(),
       ClientesScreen(),
-      DashboardScreen(),
+      DashboardScreen(), // ✅ ahora sí disponible
     ];
     Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
   }
