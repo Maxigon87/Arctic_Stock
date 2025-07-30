@@ -2,11 +2,21 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'dart:io';
 import '../models/cliente.dart';
+import 'dart:async';
 
 class DBService {
   static final DBService _instance = DBService._internal();
   factory DBService() => _instance;
   DBService._internal();
+  // 🔹 StreamController para notificar cambios
+  final StreamController<void> _dbChangeController =
+      StreamController.broadcast();
+
+// 🔹 Getter para que otros escuchen
+  Stream<void> get onDatabaseChanged => _dbChangeController.stream;
+
+// 🔹 Método para emitir eventos
+  void notifyDbChange() => _dbChangeController.add(null);
 
   static Database? _db;
 
@@ -100,17 +110,25 @@ class DBService {
 
   Future<int> updateProducto(Map<String, dynamic> data, int id) async {
     final db = await database;
-    return await db.update('productos', data, where: 'id = ?', whereArgs: [id]);
+    final count =
+        await db.update('productos', data, where: 'id = ?', whereArgs: [id]);
+    notifyDbChange(); // ✅ actualiza stock, reportes y listas
+    return count;
   }
 
   Future<int> deleteProducto(int id) async {
     final db = await database;
-    return await db.delete('productos', where: 'id = ?', whereArgs: [id]);
+    final count =
+        await db.delete('productos', where: 'id = ?', whereArgs: [id]);
+    notifyDbChange(); // ✅ notifica
+    return count;
   }
 
   Future<int> insertVenta(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('ventas', data);
+    final id = await db.insert('ventas', data);
+    notifyDbChange(); // ✅ avisa al Dashboard
+    return id;
   }
 
   Future<List<Map<String, dynamic>>> getVentas() async {
@@ -126,13 +144,9 @@ class DBService {
 
   Future<int> insertDeuda(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('deudas', {
-      'clienteId': data['clienteId'],
-      'monto': data['monto'],
-      'fecha': data['fecha'],
-      'estado': data['estado'],
-      'descripcion': data['descripcion'],
-    });
+    final id = await db.insert('deudas', data);
+    notifyDbChange(); // ✅ avisa a los gráficos y listas
+    return id;
   }
 
   Future<List<Map<String, dynamic>>> getDeudas() async {
@@ -148,17 +162,21 @@ class DBService {
 
   Future<int> insertVentaBase(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('ventas', {
+    final id = await db.insert('ventas', {
       'clienteId': data['clienteId'],
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
     });
+    notifyDbChange(); // ✅ agregado
+    return id;
   }
 
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('items_venta', data);
+    final id = await db.insert('items_venta', data);
+    notifyDbChange(); // ✅ notifica al Dashboard y otras pantallas
+    return id;
   }
 
   Future<List<Map<String, dynamic>>> getItemsByVenta(int ventaId) async {
@@ -182,6 +200,7 @@ class DBService {
       where: 'id = ?',
       whereArgs: [ventaId],
     );
+    notifyDbChange(); // ✅ afecta reportes, debe avisar
   }
 
   Future<List<Map<String, dynamic>>> getStockProductos() async {
@@ -227,14 +246,18 @@ class DBService {
 // Actualizar cliente
   Future<int> updateCliente(Cliente cliente) async {
     final db = await database;
-    return await db.update('clientes', cliente.toMap(),
+    final count = await db.update('clientes', cliente.toMap(),
         where: 'id = ?', whereArgs: [cliente.id]);
+    notifyDbChange(); // ✅ avisa cambio
+    return count;
   }
 
 // Eliminar cliente
   Future<int> deleteCliente(int id) async {
     final db = await database;
-    return await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
+    final count = await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
+    notifyDbChange(); // ✅ avisa que cambió la lista de clientes
+    return count;
   }
 
   Future<Map<String, dynamic>?> getVentaById(int ventaId) async {
@@ -321,5 +344,86 @@ class DBService {
     WHERE $where
     ORDER BY d.fecha DESC
   ''', args);
+  }
+
+  // 🔹 Total ventas de un día
+  Future<double> getTotalVentasDia(DateTime fecha) async {
+    final db = await database;
+    final dateStr = fecha.toIso8601String().substring(0, 10);
+    final res = await db.rawQuery(
+      "SELECT SUM(total) as total FROM ventas WHERE fecha LIKE ?",
+      ["$dateStr%"],
+    );
+    return (res.first['total'] as num?)?.toDouble() ?? 0;
+  }
+
+// 🔹 Total ventas del mes
+  Future<double> getTotalVentasMes(DateTime fecha) async {
+    final db = await database;
+    final mes = fecha.month.toString().padLeft(2, '0');
+    final anio = fecha.year.toString();
+    final res = await db.rawQuery(
+      "SELECT SUM(total) as total FROM ventas WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?",
+      [mes, anio],
+    );
+    return (res.first['total'] as num?)?.toDouble() ?? 0;
+  }
+
+// 🔹 Total de deudas pendientes
+  Future<double> getTotalDeudasPendientes() async {
+    final db = await database;
+    final res = await db.rawQuery(
+      "SELECT SUM(monto) as total FROM deudas WHERE estado = 'Pendiente'",
+    );
+    return (res.first['total'] as num?)?.toDouble() ?? 0;
+  }
+
+// 🔹 Producto más vendido
+  Future<String> getProductoMasVendido() async {
+    final db = await database;
+    final res = await db.rawQuery('''
+    SELECT p.nombre, SUM(iv.cantidad) as totalVendida
+    FROM items_venta iv
+    INNER JOIN productos p ON iv.productoId = p.id
+    GROUP BY p.nombre
+    ORDER BY totalVendida DESC
+    LIMIT 1
+  ''');
+    return res.isNotEmpty ? res.first['nombre'] as String : "Sin datos";
+  }
+
+  // 🔹 Ventas últimos 7 días
+  Future<List<Map<String, dynamic>>> getVentasUltimos7Dias() async {
+    final db = await database;
+    final res = await db.rawQuery('''
+    SELECT strftime('%d', fecha) AS dia, SUM(total) AS total
+    FROM ventas
+    WHERE fecha >= date('now','-7 day')
+    GROUP BY dia
+    ORDER BY dia ASC
+  ''');
+
+    return res
+        .map((e) =>
+            {'dia': e['dia'], 'total': (e['total'] as num?)?.toDouble() ?? 0})
+        .toList();
+  }
+
+// 🔹 Distribución de métodos de pago (en %)
+  Future<Map<String, double>> getDistribucionMetodosPago() async {
+    final db = await database;
+    final res = await db.rawQuery('''
+    SELECT metodoPago, COUNT(*) as cantidad
+    FROM ventas
+    GROUP BY metodoPago
+  ''');
+
+    double total = res.fold(0, (sum, e) => sum + (e['cantidad'] as int));
+    Map<String, double> distribucion = {};
+    for (var e in res) {
+      distribucion[e['metodoPago'] as String] =
+          ((e['cantidad'] as int) / total) * 100;
+    }
+    return distribucion;
   }
 }

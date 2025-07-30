@@ -6,6 +6,7 @@ import 'screens/reportes_screen.dart';
 import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/dashboard_screen.dart';
 //import 'screens/home_screen.dart';
 
 void main() {
@@ -99,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen>
     _HomeOption("Reportes", Icons.analytics, Colors.orange),
     _HomeOption("Historial", Icons.folder_open, Colors.purple),
     _HomeOption("Clientes", Icons.people, Colors.teal),
+    // _HomeOption("Dashboard", Icons.dashboard, Colors.indigo), // 🔜 Agregar Dashboar d
   ];
 
   @override
@@ -188,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen>
       ReportesScreen(),
       HistorialArchivosScreen(),
       ClientesScreen(),
+      DashboardScreen(),
     ];
     Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
   }
