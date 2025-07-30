@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../models/cliente.dart'; // ✅ necesario
 import '../services/db_service.dart';
 import 'detalle_venta_screen.dart';
+
+List<Map<String, dynamic>> _ventasFiltradas = [];
+String _filtroMetodoPago = "";
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({Key? key}) : super(key: key);
@@ -10,21 +14,58 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  late Future<List<Map<String, dynamic>>> _ventasFuture;
-  final List<Map<String, dynamic>> _carrito = [];
-  String _cliente = "";
+  Cliente? _clienteSeleccionado; // ✅ solo usamos este
+  List<Cliente> _clientes = [];
   String _metodoPago = "Efectivo";
+  final List<Map<String, dynamic>> _carrito = [];
+  late Future<List<Map<String, dynamic>>> _ventasFuture;
 
   @override
   void initState() {
     super.initState();
     _loadVentas();
+    _cargarClientes();
+  }
+
+  void _agregarClienteRapido() {
+    final nombreCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Nuevo Cliente"),
+        content: TextField(
+            controller: nombreCtrl,
+            decoration: const InputDecoration(labelText: "Nombre")),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () async {
+              if (nombreCtrl.text.isEmpty) return;
+              final nuevo = Cliente(nombre: nombreCtrl.text);
+              final id = await DBService().insertCliente(nuevo);
+              _clienteSeleccionado = Cliente(id: id, nombre: nombreCtrl.text);
+              await _cargarClientes();
+              Navigator.pop(context);
+              setState(() {});
+            },
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _loadVentas() {
     setState(() {
       _ventasFuture = DBService().getVentas();
     });
+  }
+
+  Future<void> _cargarClientes() async {
+    _clientes = await DBService().getClientes();
+    setState(() {});
   }
 
   Future<List<Map<String, dynamic>>> _getProductos() async {
@@ -82,8 +123,8 @@ class _SalesScreenState extends State<SalesScreen> {
                     final producto = productos.firstWhere(
                       (p) => p['id'] == selectedProductoId,
                     );
-                    final double precio = (producto['precio'] as num)
-                        .toDouble();
+                    final double precio =
+                        (producto['precio'] as num).toDouble();
 
                     _carrito.add({
                       'productoId': selectedProductoId,
@@ -123,9 +164,23 @@ class _SalesScreenState extends State<SalesScreen> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    decoration: const InputDecoration(labelText: "Cliente"),
-                    onChanged: (val) => _cliente = val,
+                  DropdownButton<Cliente>(
+                    value: _clienteSeleccionado,
+                    isExpanded: true,
+                    hint: const Text("Seleccionar cliente"),
+                    items: [
+                      ..._clientes.map((c) =>
+                          DropdownMenuItem(value: c, child: Text(c.nombre))),
+                      const DropdownMenuItem(
+                          value: null, child: Text("➕ Agregar nuevo cliente")),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) {
+                        _agregarClienteRapido();
+                      } else {
+                        setState(() => _clienteSeleccionado = value);
+                      }
+                    },
                   ),
                   DropdownButton<String>(
                     value: _metodoPago,
@@ -168,7 +223,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
     // 1. Crear venta base
     final ventaId = await DBService().insertVentaBase({
-      'cliente': _cliente,
+      'clienteId': _clienteSeleccionado?.id,
       'fecha': DateTime.now().toIso8601String(),
       'metodoPago': _metodoPago,
       'total': total,
@@ -187,10 +242,10 @@ class _SalesScreenState extends State<SalesScreen> {
     // 3. Si es fiado, crear deuda automática
     if (_metodoPago == "Fiado") {
       await DBService().insertDeuda({
-        'cliente': _cliente,
+        'clienteId': _clienteSeleccionado?.id,
         'monto': total,
         'fecha': DateTime.now().toIso8601String(),
-        'metodoPago': 'Pendiente',
+        'estado': 'Pendiente',
         'descripcion': 'Deuda generada automáticamente por venta fiada',
       });
     }
@@ -231,6 +286,31 @@ class _SalesScreenState extends State<SalesScreen> {
               padding: EdgeInsets.all(8.0),
               child: Text("Carrito vacío. Agrega productos."),
             ),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: "Buscar cliente...",
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (val) async {
+              final results = await DBService().buscarVentas(cliente: val);
+              setState(() => _ventasFiltradas = results);
+            },
+          ),
+          const SizedBox(height: 8),
+          DropdownButton<String>(
+            value: _filtroMetodoPago.isEmpty ? null : _filtroMetodoPago,
+            hint: const Text("Filtrar por método de pago"),
+            items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (val) async {
+              _filtroMetodoPago = val ?? "";
+              final results =
+                  await DBService().buscarVentas(metodoPago: _filtroMetodoPago);
+              setState(() => _ventasFiltradas = results);
+            },
+          ),
 
           // 🔹 Ventas registradas en DB
           Expanded(
@@ -244,7 +324,10 @@ class _SalesScreenState extends State<SalesScreen> {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
-                final ventas = snapshot.data ?? [];
+                final ventas = _ventasFiltradas.isNotEmpty
+                    ? _ventasFiltradas
+                    : (snapshot.data ?? []);
+
                 if (ventas.isEmpty) {
                   return const Center(
                     child: Text('No hay ventas registradas.'),
@@ -264,13 +347,8 @@ class _SalesScreenState extends State<SalesScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => DetalleVentaScreen(
-                              ventaId: v['id'],
-                              cliente: v['cliente'] ?? '',
-                              metodoPago: v['metodoPago'] ?? '',
-                              total: (v['total'] as num).toDouble(),
-                              fecha: v['fecha'] ?? '',
-                            ),
+                            builder: (_) =>
+                                DetalleVentaScreen(ventaId: v['id']),
                           ),
                         );
                       },
