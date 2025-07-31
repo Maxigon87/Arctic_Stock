@@ -1,69 +1,50 @@
+<<<<<<< HEAD
 📝 PROYECTO Artic Stock – CHECKPOINT 01
 ✅ Estado actual del proyecto
 Plataforma actual: Flutter Desktop (Windows) usando sqflite_common_ffi
+=======
+# 📦 Sistema Jeremías – Gestión de Ventas, Deudas y Reportes
+>>>>>>> 375c87a87edaa6d343cd60dd0ac49556bbe69a9b
 
-Funciona en: Windows ✅ (SQLite persiste)
+![Flutter](https://img.shields.io/badge/Flutter-3.22+-blue?logo=flutter)
+![SQLite](https://img.shields.io/badge/SQLite-Integrado-orange?logo=sqlite)
+![Status](https://img.shields.io/badge/Status-En%20Desarrollo-brightgreen)
 
-No funciona en: Flutter Web ❌ (no soporta SQLite)
+## 🚀 Descripción
+**Sistema Jeremías** es una aplicación Flutter diseñada para la gestión de:
+- ✅ **Productos**
+- ✅ **Ventas** (con clientes y métodos de pago)
+- ✅ **Deudas** (control de fiados y estados)
+- ✅ **Reportes PDF / Excel**
+- ✅ **Dashboard con estadísticas y gráficos**
+- ✅ **Modo claro/oscuro con guardado de preferencias**
 
-Objetivo logrado: CRUD de Productos completo (Agregar, Editar, Eliminar)
+💡 Ideal para pequeños negocios que necesitan una solución simple y potente.
 
-Estado UI: Lista de productos funcional con menú de edición/eliminación
+---
 
-📂 Estructura de archivos actual
-less
-Copiar
-Editar
-lib/
- ├─ models/
- │   ├─ producto.dart
- │   ├─ venta.dart
- │   └─ deuda.dart
- ├─ screens/
- │   └─ product_list_screen.dart   // CRUD completo de productos
- └─ services/
-     └─ db_service.dart           // Base SQLite usando sqflite_common_ffi
-main.dart                         // Carga ProductListScreen como home
-📦 Dependencias actuales en pubspec.yaml
-yaml
-Copiar
-Editar
-dependencies:
-  flutter:
-    sdk: flutter
-  sqflite_common_ffi: ^2.3.1
-  path: ^1.8.3
-✅ Funcionalidades terminadas
-✔️ Base de datos SQLite funcional (sqflite_common_ffi)
-✔️ Tablas creadas: productos, ventas, deudas
-✔️ CRUD completo para productos (insert, get, update, delete)
-✔️ UI de productos con:
+## 🖥️ **Características principales**
 
-Listado dinámico desde DB
+- 📋 **CRUD completo** para productos, clientes y deudas.
+- 💰 **Registro de ventas** con soporte para fiados y generación automática de deudas.
+- 📄 **Exportación de reportes** en **PDF** y **Excel**.
+- 📊 **Dashboard interactivo** con:
+  - Ventas de los últimos 7 días.
+  - Métodos de pago (gráfico circular).
+  - KPIs en tiempo real.
+- 🌙 **Modo oscuro/claro** con animación y persistencia de estado.
+- 🔄 **Actualización en tiempo real** gracias a `notifyDbChange()`.
 
-Botón + para agregar productos
+---
 
-Menú de 3 puntos para Editar/Eliminar
+## 🛠️ **Tecnologías usadas**
 
-🎯 Próximos pasos (Semana 2)
-Agregar pantallas Ventas y Deudas (sales_screen.dart y debt_screen.dart).
+- **Flutter 3.22+**
+- **SQLite** con `sqflite_common_ffi`
+- **PDF & Excel** con paquetes `pdf`, `printing` y `excel`
+- **Gráficos** con `fl_chart`
+- **Persistencia de tema** con `shared_preferences`
 
-Implementar BottomNavigationBar para navegar entre Productos, Ventas y Deudas.
+---
 
-Conectar Ventas y Deudas con sus tablas (getVentas(), getDeudas(), etc.).
-
-UI básica para registrar ventas y deudas.
-
-✅ Nota importante
-Para correr en Windows:
-
-bash
-Copiar
-Editar
-flutter run -d windows
-Visual Studio ya está instalado y configurado.
-
-Para Web no usar SQLite (no compatible).
-
-🚀 Siguiente acción cuando retomemos
-👉 Implementar navegación con BottomNavigationBar y crear pantallas vacías de Ventas y Deudas.
+## 📂 **Estructura del proyecto**
