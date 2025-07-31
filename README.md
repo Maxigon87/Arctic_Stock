@@ -1,4 +1,4 @@
-📝 PROYECTO JEREMIAS – CHECKPOINT 01
+📝 PROYECTO Artic Stock – CHECKPOINT 01
 ✅ Estado actual del proyecto
 Plataforma actual: Flutter Desktop (Windows) usando sqflite_common_ffi
 

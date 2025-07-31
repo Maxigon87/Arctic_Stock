@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/db_service.dart';
+import '../widgets/artic_background.dart';
+import '../widgets/artic_kpi_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -21,22 +23,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadDashboardData();
-    // ✅ Escucha cambios en la DB
-    DBService().onDatabaseChanged.listen((_) {
-      _loadDashboardData(); // 🔄 Recarga datos y refresca gráficos
-    });
+    DBService().onDatabaseChanged.listen((_) => _loadDashboardData());
   }
 
   Future<void> _loadDashboardData() async {
     final db = DBService();
-
     ventasHoy = await db.getTotalVentasDia(DateTime.now());
     ventasMes = await db.getTotalVentasMes(DateTime.now());
     deudasPendientes = await db.getTotalDeudasPendientes();
     productoTop = await db.getProductoMasVendido();
     ventasDias = await db.getVentasUltimos7Dias();
     metodosPago = await db.getDistribucionMetodosPago();
-
     setState(() {});
   }
 
@@ -44,59 +41,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("📊 Dashboard")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            _buildKpiCard("Ventas de Hoy",
-                "💰 \$${ventasHoy.toStringAsFixed(2)}", Colors.green),
-            _buildKpiCard("Ventas del Mes",
-                "📆 \$${ventasMes.toStringAsFixed(2)}", Colors.blue),
-            _buildKpiCard(
-                "Deudas Pendientes",
-                "💸 \$${deudasPendientes.toStringAsFixed(2)}",
-                Colors.redAccent),
-            _buildKpiCard(
-                "Producto Más Vendido", "🏆 $productoTop", Colors.orange),
-            const SizedBox(height: 20),
+      body: ArticBackground(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: SingleChildScrollView(
+            // ✅ evita overflow de gráficos
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 🔥 KPI Cards Árticas
+                ArticKpiCard(
+                  title: "Ventas de Hoy",
+                  value: "💰 \$${ventasHoy.toStringAsFixed(2)}",
+                  accentColor: Colors.green,
+                ),
+                ArticKpiCard(
+                  title: "Ventas del Mes",
+                  value: "📆 \$${ventasMes.toStringAsFixed(2)}",
+                  accentColor: Colors.blue,
+                ),
+                ArticKpiCard(
+                  title: "Deudas Pendientes",
+                  value: "💸 \$${deudasPendientes.toStringAsFixed(2)}",
+                  accentColor: Colors.red,
+                ),
+                ArticKpiCard(
+                  title: "Producto Más Vendido",
+                  value: "🏆 $productoTop",
+                  accentColor: Colors.orange,
+                ),
 
-            // 📊 Ventas de los últimos 7 días
-            const Text("📊 Ventas últimos 7 días",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 200, child: _buildBarChart()),
+                const SizedBox(height: 20),
 
-            const SizedBox(height: 30),
+                // 📊 Gráfico de barras
+                const Text("📊 Ventas últimos 7 días",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 220, child: _buildBarChart()),
 
-            // 🥧 Distribución de métodos de pago
-            const Text("🥧 Métodos de pago",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 200, child: _buildPieChart()),
-          ],
+                const SizedBox(height: 30),
+
+                // 🥧 Gráfico de pastel
+                const Text("🥧 Métodos de pago",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 240, child: _buildPieChart()),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildKpiCard(String title, String value, Color color) {
-    return Card(
-      color: color.withOpacity(0.9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        title: Text(title,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold)),
-        trailing: Text(value,
-            style: const TextStyle(color: Colors.white, fontSize: 16)),
-      ),
-    );
-  }
-
-  /// 📊 **Gráfico de barras: ventas últimos 7 días**
+  /// 📊 **Gráfico de barras**
   Widget _buildBarChart() {
-    if (ventasDias.isEmpty) return const Center(child: Text("Sin datos"));
+    if (ventasDias.isEmpty) {
+      return const Center(
+          child: Text("Sin datos", style: TextStyle(color: Colors.white)));
+    }
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
@@ -108,10 +111,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               showTitles: true,
               getTitlesWidget: (value, meta) {
                 int index = value.toInt();
-                if (index < ventasDias.length) {
-                  return Text(ventasDias[index]['dia']);
-                }
-                return const Text("");
+                return index < ventasDias.length
+                    ? Text(ventasDias[index]['dia'],
+                        style: const TextStyle(color: Colors.white))
+                    : const Text("");
               },
             ),
           ),
@@ -119,26 +122,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
         barGroups: List.generate(ventasDias.length, (i) {
           return BarChartGroupData(x: i, barRods: [
             BarChartRodData(
-                toY: (ventasDias[i]['total'] as double),
-                color: Colors.greenAccent)
+              toY: (ventasDias[i]['total'] as double),
+              color: Colors.cyanAccent,
+              borderRadius: BorderRadius.circular(4),
+            )
           ]);
         }),
       ),
     );
   }
 
-  /// 🥧 **Gráfico de pastel: métodos de pago**
+  /// 🥧 **Gráfico de pastel**
   Widget _buildPieChart() {
-    if (metodosPago.isEmpty) return const Center(child: Text("Sin datos"));
+    if (metodosPago.isEmpty) {
+      return const Center(
+          child: Text("Sin datos", style: TextStyle(color: Colors.white)));
+    }
     return PieChart(
       PieChartData(
+        centerSpaceRadius: 40,
+        sectionsSpace: 2,
         sections: metodosPago.entries.map((e) {
           return PieChartSectionData(
             title: "${e.key}\n${e.value.toStringAsFixed(0)}%",
             value: e.value,
             color: _getColorForMetodo(e.key),
-            radius: 60,
-            titleStyle: const TextStyle(color: Colors.white, fontSize: 12),
+            radius: 70,
+            titleStyle: const TextStyle(
+                color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           );
         }).toList(),
       ),
@@ -148,13 +159,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Color _getColorForMetodo(String metodo) {
     switch (metodo) {
       case "Efectivo":
-        return Colors.green;
+        return Colors.greenAccent;
       case "Tarjeta":
-        return Colors.blue;
+        return Colors.blueAccent;
       case "Transferencia":
-        return Colors.orange;
+        return Colors.orangeAccent;
       case "Fiado":
-        return Colors.red;
+        return Colors.redAccent;
       default:
         return Colors.grey;
     }
