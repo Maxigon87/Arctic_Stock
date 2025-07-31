@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/cliente.dart'; // ✅ necesario
+import '../models/cliente.dart';
 import '../services/db_service.dart';
 import 'detalle_venta_screen.dart';
-
-List<Map<String, dynamic>> _ventasFiltradas = [];
-String _filtroMetodoPago = "";
+import '../widgets/artic_background.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({Key? key}) : super(key: key);
@@ -14,7 +12,7 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  Cliente? _clienteSeleccionado; // ✅ solo usamos este
+  Cliente? _clienteSeleccionado;
   List<Cliente> _clientes = [];
   String _metodoPago = "Efectivo";
   final List<Map<String, dynamic>> _carrito = [];
@@ -27,40 +25,8 @@ class _SalesScreenState extends State<SalesScreen> {
     _cargarClientes();
   }
 
-  void _agregarClienteRapido() {
-    final nombreCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Nuevo Cliente"),
-        content: TextField(
-            controller: nombreCtrl,
-            decoration: const InputDecoration(labelText: "Nombre")),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar")),
-          ElevatedButton(
-            onPressed: () async {
-              if (nombreCtrl.text.isEmpty) return;
-              final nuevo = Cliente(nombre: nombreCtrl.text);
-              final id = await DBService().insertCliente(nuevo);
-              _clienteSeleccionado = Cliente(id: id, nombre: nombreCtrl.text);
-              await _cargarClientes();
-              Navigator.pop(context);
-              setState(() {});
-            },
-            child: const Text("Guardar"),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _loadVentas() {
-    setState(() {
-      _ventasFuture = DBService().getVentas();
-    });
+    setState(() => _ventasFuture = DBService().getVentas());
   }
 
   Future<void> _cargarClientes() async {
@@ -68,189 +34,226 @@ class _SalesScreenState extends State<SalesScreen> {
     setState(() {});
   }
 
-  Future<List<Map<String, dynamic>>> _getProductos() async {
-    return await DBService().getProductos();
+  Future<List<Map<String, dynamic>>> _getProductos() async =>
+      await DBService().getProductos();
+
+  /// 🔹 Agregar cliente rápido
+  void _agregarClienteRapido() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Nuevo Cliente"),
+        content: TextField(
+            controller: ctrl,
+            decoration: const InputDecoration(labelText: "Nombre")),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar")),
+          ElevatedButton(
+              onPressed: () async {
+                if (ctrl.text.isEmpty) return;
+                final nuevo = Cliente(nombre: ctrl.text);
+                final id = await DBService().insertCliente(nuevo);
+                _clienteSeleccionado = Cliente(id: id, nombre: ctrl.text);
+                await _cargarClientes();
+                Navigator.pop(context);
+              },
+              child: const Text("Guardar"))
+        ],
+      ),
+    );
   }
 
-  // 🔹 Modal para agregar productos al carrito
+  /// 🔹 Modal para agregar producto
   void _showAddItemDialog() async {
     final productos = await _getProductos();
     if (productos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay productos registrados.")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("No hay productos.")));
       return;
     }
 
-    int? selectedProductoId = productos.first['id'];
+    int? selectedId = productos.first['id'];
     int cantidad = 1;
 
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Agregar producto al carrito"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButton<int>(
-                    value: selectedProductoId,
-                    items: productos.map<DropdownMenuItem<int>>((p) {
-                      return DropdownMenuItem<int>(
-                        value: p['id'],
-                        child: Text(p['nombre']),
-                      );
-                    }).toList(),
-                    onChanged: (value) =>
-                        setState(() => selectedProductoId = value),
-                  ),
-                  TextField(
-                    decoration: const InputDecoration(labelText: "Cantidad"),
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) => cantidad = int.tryParse(val) ?? 1,
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Agregar producto"),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButton<int>(
+                  value: selectedId,
+                  items: productos
+                      .map((p) => DropdownMenuItem<int>(
+                          value: p['id'] as int, child: Text(p['nombre'])))
+                      .toList(),
+                  onChanged: (v) => setState(() => selectedId = v)),
+              TextField(
+                  decoration: const InputDecoration(labelText: "Cantidad"),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => cantidad = int.tryParse(v) ?? 1)
+            ]),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Cancelar")),
+              ElevatedButton(
                   onPressed: () {
-                    final producto = productos.firstWhere(
-                      (p) => p['id'] == selectedProductoId,
-                    );
-                    final double precio =
-                        (producto['precio'] as num).toDouble();
-
+                    final p =
+                        productos.firstWhere((e) => e['id'] == selectedId);
+                    final precio = (p['precio'] as num).toDouble();
                     _carrito.add({
-                      'productoId': selectedProductoId,
-                      'nombre': producto['nombre'],
+                      'productoId': selectedId,
+                      'nombre': p['nombre'],
                       'cantidad': cantidad,
-                      'subtotal': precio * cantidad,
+                      'subtotal': precio * cantidad
                     });
-                    Navigator.pop(context);
+                    Navigator.pop(ctx);
                     setState(() {});
                   },
-                  child: const Text("Agregar"),
-                ),
-              ],
-            );
-          },
-        );
+                  child: const Text("Agregar"))
+            ],
+          );
+        });
       },
     );
   }
 
-  // 🔹 Modal para datos generales de la venta
-  void _showConfirmVentaDialog() {
-    if (_carrito.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Agrega productos antes de confirmar.")),
-      );
-      return;
-    }
-
+  /// ✅ Modal Carrito con efecto ártico
+  void _showCarritoModal() {
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Confirmar Venta"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButton<Cliente>(
-                    value: _clienteSeleccionado,
-                    isExpanded: true,
-                    hint: const Text("Seleccionar cliente"),
-                    items: [
-                      ..._clientes.map((c) =>
-                          DropdownMenuItem(value: c, child: Text(c.nombre))),
-                      const DropdownMenuItem(
-                          value: null, child: Text("➕ Agregar nuevo cliente")),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        _agregarClienteRapido();
-                      } else {
-                        setState(() => _clienteSeleccionado = value);
-                      }
-                    },
-                  ),
-                  DropdownButton<String>(
-                    value: _metodoPago,
-                    items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (val) => setState(() => _metodoPago = val!),
-                  ),
-                  Text(
-                    "Total: \$${_carrito.fold(0.0, (sum, item) => sum + (item['subtotal'] as double))}",
-                  ),
-                ],
-              ),
-              actions: [
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+          ),
+          padding: const EdgeInsets.all(10),
+          child: StatefulBuilder(builder: (context, setModalState) {
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text("🛒 Carrito",
+                  style: TextStyle(
+                      fontSize: 22,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              SizedBox(height: 200, child: _buildCarritoList(setModalState)),
+              _buildTotalSection(),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancelar",
+                        style: TextStyle(color: Colors.white))),
                 ElevatedButton(
-                  onPressed: () async {
-                    await _confirmarVenta();
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Confirmar"),
-                ),
-              ],
-            );
-          },
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showConfirmVentaDialog();
+                    },
+                    child: const Text("Confirmar Venta"))
+              ])
+            ]);
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarritoList(Function(void Function()) setModalState) {
+    return ListView.builder(
+      itemCount: _carrito.length,
+      itemBuilder: (context, i) {
+        final item = _carrito[i];
+        return ListTile(
+          title:
+              Text(item['nombre'], style: const TextStyle(color: Colors.white)),
+          subtitle: Text("Cant: ${item['cantidad']}",
+              style: const TextStyle(color: Colors.white70)),
+          trailing: Text("\$${item['subtotal'].toStringAsFixed(2)}",
+              style: const TextStyle(color: Colors.cyanAccent)),
+          onLongPress: () => setModalState(() => _carrito.removeAt(i)),
         );
       },
     );
   }
 
-  // 🔹 Insertar la venta y sus items en la DB
-  Future<void> _confirmarVenta() async {
-    final total = _carrito.fold(
-      0.0,
-      (sum, item) => sum + (item['subtotal'] as double),
+  Widget _buildTotalSection() {
+    final total =
+        _carrito.fold<double>(0, (s, c) => s + (c['subtotal'] as double));
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Text("💵 Total: \$${total.toStringAsFixed(2)}",
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold)),
     );
+  }
 
-    // 1. Crear venta base
+  /// 🔹 Confirmación de Venta
+  void _showConfirmVentaDialog() {
+    if (_carrito.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Carrito vacío.")));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Confirmar Venta"),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          DropdownButton<Cliente>(
+              hint: const Text("Seleccionar cliente"),
+              value: _clienteSeleccionado,
+              items: _clientes
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c.nombre)))
+                  .toList(),
+              onChanged: (v) => setState(() => _clienteSeleccionado = v)),
+          DropdownButton<String>(
+              value: _metodoPago,
+              items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (v) => setState(() => _metodoPago = v!)),
+          Text(
+              "Total: \$${_carrito.fold<double>(0, (s, c) => s + (c['subtotal'] as double)).toStringAsFixed(2)}")
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar")),
+          ElevatedButton(
+              onPressed: () async {
+                await _confirmarVenta();
+                Navigator.pop(context);
+              },
+              child: const Text("Confirmar"))
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmarVenta() async {
+    final total =
+        _carrito.fold<double>(0, (s, c) => s + (c['subtotal'] as double));
     final ventaId = await DBService().insertVentaBase({
       'clienteId': _clienteSeleccionado?.id,
       'fecha': DateTime.now().toIso8601String(),
       'metodoPago': _metodoPago,
-      'total': total,
+      'total': total
     });
-
-    // 2. Insertar productos en items_venta
     for (var item in _carrito) {
       await DBService().insertItemVenta({
         'ventaId': ventaId,
         'productoId': item['productoId'],
         'cantidad': item['cantidad'],
-        'subtotal': item['subtotal'],
+        'subtotal': item['subtotal']
       });
     }
-
-    // 3. Si es fiado, crear deuda automática
-    if (_metodoPago == "Fiado") {
-      await DBService().insertDeuda({
-        'clienteId': _clienteSeleccionado?.id,
-        'monto': total,
-        'fecha': DateTime.now().toIso8601String(),
-        'estado': 'Pendiente',
-        'descripcion': 'Deuda generada automáticamente por venta fiada',
-      });
-    }
-
-    // 4. Limpiar carrito y refrescar ventas
     _carrito.clear();
     _loadVentas();
     setState(() {});
@@ -260,123 +263,50 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Ventas con Carrito')),
-      body: Column(
-        children: [
-          // 🔹 Carrito actual
-          if (_carrito.isNotEmpty)
-            Expanded(
-              flex: 1,
-              child: ListView.builder(
-                itemCount: _carrito.length,
-                itemBuilder: (context, index) {
-                  final item = _carrito[index];
+      body: Column(children: [
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _ventasFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const Center(child: CircularProgressIndicator());
+              final ventas = snapshot.data ?? [];
+              if (ventas.isEmpty)
+                return const Center(child: Text("No hay ventas registradas."));
+              return ListView.builder(
+                itemCount: ventas.length,
+                itemBuilder: (ctx, i) {
+                  final v = ventas[i];
                   return ListTile(
-                    title: Text(item['nombre']),
-                    subtitle: Text('Cantidad: ${item['cantidad']}'),
-                    trailing: Text('\$${item['subtotal']}'),
-                    onLongPress: () {
-                      setState(() => _carrito.removeAt(index));
-                    },
+                    title: Text("Venta ID: ${v['id']} - ${v['cliente']}"),
+                    subtitle: Text(
+                        "Pago: ${v['metodoPago']} - Total: \$${v['total']}"),
+                    trailing: Text(v['fecha']),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                DetalleVentaScreen(ventaId: v['id']))),
                   );
                 },
-              ),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text("Carrito vacío. Agrega productos."),
-            ),
-          TextField(
-            decoration: const InputDecoration(
-              labelText: "Buscar cliente...",
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (val) async {
-              final results = await DBService().buscarVentas(cliente: val);
-              setState(() => _ventasFiltradas = results);
+              );
             },
           ),
-          const SizedBox(height: 8),
-          DropdownButton<String>(
-            value: _filtroMetodoPago.isEmpty ? null : _filtroMetodoPago,
-            hint: const Text("Filtrar por método de pago"),
-            items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                .toList(),
-            onChanged: (val) async {
-              _filtroMetodoPago = val ?? "";
-              final results =
-                  await DBService().buscarVentas(metodoPago: _filtroMetodoPago);
-              setState(() => _ventasFiltradas = results);
-            },
-          ),
-
-          // 🔹 Ventas registradas en DB
-          Expanded(
-            flex: 1,
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _ventasFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                final ventas = _ventasFiltradas.isNotEmpty
-                    ? _ventasFiltradas
-                    : (snapshot.data ?? []);
-
-                if (ventas.isEmpty) {
-                  return const Center(
-                    child: Text('No hay ventas registradas.'),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: ventas.length,
-                  itemBuilder: (context, index) {
-                    final v = ventas[index];
-                    return ListTile(
-                      title: Text('Venta ID: ${v['id']} - ${v['cliente']}'),
-                      subtitle: Text(
-                        'Pago: ${v['metodoPago']} - Total: \$${v['total']}',
-                      ),
-                      trailing: Text(v['fecha']),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                DetalleVentaScreen(ventaId: v['id']),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
+        )
+      ]),
+      floatingActionButton:
+          Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+        FloatingActionButton(
             heroTag: "addItem",
             onPressed: _showAddItemDialog,
-            child: const Icon(Icons.add_shopping_cart),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton(
-            heroTag: "confirmVenta",
-            onPressed: _showConfirmVentaDialog,
-            backgroundColor: Colors.green,
-            child: const Icon(Icons.check),
-          ),
-        ],
-      ),
+            child: const Icon(Icons.add_shopping_cart)),
+        const SizedBox(height: 10),
+        FloatingActionButton(
+            heroTag: "carrito",
+            onPressed: _showCarritoModal,
+            backgroundColor: Colors.blueAccent,
+            child: const Icon(Icons.shopping_cart))
+      ]),
     );
   }
 }

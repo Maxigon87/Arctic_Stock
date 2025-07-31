@@ -44,75 +44,90 @@ class DBService {
 
   Future _createTables(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE productos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT NOT NULL,
-        precio REAL NOT NULL
-      )
-    ''');
+    CREATE TABLE categorias (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL UNIQUE
+    )
+  ''');
 
     await db.execute('''
-  CREATE TABLE clientes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL,
-    telefono TEXT,
-    email TEXT,
-    direccion TEXT
-  )
-''');
+    CREATE TABLE productos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      precio REAL NOT NULL,
+      categoria_id INTEGER,
+      FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+    )
+  ''');
 
     await db.execute('''
-  CREATE TABLE ventas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    clienteId INTEGER,
-    fecha TEXT NOT NULL,
-    metodoPago TEXT NOT NULL,
-    total REAL NOT NULL,
-    FOREIGN KEY (clienteId) REFERENCES clientes(id)
-  )
-''');
+    CREATE TABLE clientes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      telefono TEXT,
+      email TEXT,
+      direccion TEXT
+    )
+  ''');
 
     await db.execute('''
-  CREATE TABLE deudas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    clienteId INTEGER,
-    monto REAL NOT NULL,
-    fecha TEXT NOT NULL,
-    estado TEXT NOT NULL,
-    descripcion TEXT,
-    FOREIGN KEY (clienteId) REFERENCES clientes(id)
-  )
-''');
+    CREATE TABLE ventas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clienteId INTEGER,
+      fecha TEXT NOT NULL,
+      metodoPago TEXT NOT NULL,
+      total REAL NOT NULL,
+      FOREIGN KEY (clienteId) REFERENCES clientes(id)
+    )
+  ''');
 
     await db.execute('''
-      CREATE TABLE items_venta (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ventaId INTEGER,
-        productoId INTEGER,
-        cantidad INTEGER,
-        subtotal REAL,
-        FOREIGN KEY (ventaId) REFERENCES ventas (id),
-        FOREIGN KEY (productoId) REFERENCES productos (id)
-  )
-''');
+    CREATE TABLE deudas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clienteId INTEGER,
+      monto REAL NOT NULL,
+      fecha TEXT NOT NULL,
+      estado TEXT NOT NULL,
+      descripcion TEXT,
+      FOREIGN KEY (clienteId) REFERENCES clientes(id)
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE items_venta (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ventaId INTEGER,
+      productoId INTEGER,
+      cantidad INTEGER,
+      subtotal REAL,
+      FOREIGN KEY (ventaId) REFERENCES ventas (id),
+      FOREIGN KEY (productoId) REFERENCES productos (id)
+    )
+  ''');
   }
 
   // ✅ CRUD (igual que antes, no cambia nada)
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('productos', data);
-  }
-
-  Future<List<Map<String, dynamic>>> getProductos() async {
-    final db = await database;
-    return await db.query('productos');
+    return await db.insert('productos', {
+      'nombre': data['nombre'],
+      'precio': data['precio'],
+      'categoria_id': data['categoria_id']
+    });
   }
 
   Future<int> updateProducto(Map<String, dynamic> data, int id) async {
     final db = await database;
-    final count =
-        await db.update('productos', data, where: 'id = ?', whereArgs: [id]);
-    notifyDbChange(); // ✅ actualiza stock, reportes y listas
+    final count = await db.update(
+        'productos',
+        {
+          'nombre': data['nombre'],
+          'precio': data['precio'],
+          'categoria_id': data['categoria_id']
+        },
+        where: 'id = ?',
+        whereArgs: [id]);
+    notifyDbChange();
     return count;
   }
 
@@ -425,5 +440,84 @@ class DBService {
           ((e['cantidad'] as int) / total) * 100;
     }
     return distribucion;
+  }
+
+  // Crear tabla categorias y agregar categoria_id a productos
+  Future<void> createTables(Database db) async {
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS categorias (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL UNIQUE
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS productos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      precio REAL NOT NULL,
+      stock INTEGER NOT NULL,
+      categoria_id INTEGER,
+      FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+    )
+  ''');
+  }
+
+  // Obtener todas las categorías
+  Future<List<Map<String, dynamic>>> getCategorias() async {
+    final db = await database;
+    return await db.query('categorias', orderBy: 'nombre ASC');
+  }
+
+// Insertar nueva categoría
+  Future<int> insertCategoria(String nombre) async {
+    final db = await database;
+    return await db.insert('categorias', {'nombre': nombre});
+  }
+
+// Obtener productos con filtro por categoría y búsqueda
+  Future<List<Map<String, dynamic>>> getProductos(
+      {String? search, int? categoriaId}) async {
+    final db = await database;
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (search != null && search.isNotEmpty) {
+      where += " AND p.nombre LIKE ?";
+      args.add('%$search%');
+    }
+    if (categoriaId != null) {
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
+    return await db.rawQuery('''
+    SELECT p.id, p.nombre, p.precio, p.categoria_id, c.nombre AS categoria_nombre
+    FROM productos p
+    LEFT JOIN categorias c ON p.categoria_id = c.id
+    WHERE $where
+    ORDER BY p.nombre ASC
+  ''', args);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllCategorias() async {
+    final db = await database;
+    return await db.query('categorias', orderBy: 'nombre ASC');
+  }
+
+  Future<int> addCategoria(String nombre) async {
+    final db = await database;
+    return await db.insert('categorias', {'nombre': nombre});
+  }
+
+  Future<int> updateCategoria(int id, String nombre) async {
+    final db = await database;
+    return await db.update('categorias', {'nombre': nombre},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteCategoria(int id) async {
+    final db = await database;
+    return await db.delete('categorias', where: 'id = ?', whereArgs: [id]);
   }
 }
