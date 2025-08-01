@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
+import '../widgets/artic_background.dart';
+import '../widgets/artic_container.dart';
 
 import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
@@ -71,34 +73,59 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Historial de Archivos")),
-      body: archivos.isEmpty
-          ? const Center(child: Text("No hay archivos guardados"))
-          : ListView.builder(
-              itemCount: archivos.length,
-              itemBuilder: (_, i) {
-                final file = archivos[i] as File;
-                final name = file.path.split('/').last;
-                return ListTile(
-                  leading: Icon(name.endsWith('.pdf')
-                      ? Icons.picture_as_pdf
-                      : Icons.insert_drive_file),
-                  title: Text(name),
-                  subtitle: Text(file.path),
-                  onTap: () => _abrirArchivo(file),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                          icon: const Icon(Icons.share),
-                          onPressed: () => _compartirArchivo(file)),
-                      IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => _borrarArchivo(file)),
-                    ],
-                  ),
-                );
-              },
-            ),
+      body: ArticBackground(
+        child: ArticContainer(
+          child: archivos.isEmpty
+              ? const Center(child: Text("No hay archivos guardados"))
+              : ListView.builder(
+                  shrinkWrap: true, // ✅ importante para que no rompa layout
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: archivos.length,
+                  itemBuilder: (_, i) {
+                    final file = archivos[i] as File;
+                    final name = file.path.split('/').last;
+
+                    return Card(
+                      // ✅ ahora con estilo de tarjeta
+                      elevation: 3,
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        leading: Icon(
+                          name.endsWith('.pdf')
+                              ? Icons.picture_as_pdf
+                              : Icons.insert_drive_file,
+                          color: Colors.cyanAccent,
+                        ),
+                        title: Text(name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(file.path,
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 12)),
+                        onTap: () => _abrirArchivo(file),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.share, color: Colors.blue),
+                              onPressed: () => _compartirArchivo(file),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _borrarArchivo(file),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_kpi_card.dart';
+import '../widgets/artic_container.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -18,6 +19,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String productoTop = "Sin datos";
   List<Map<String, dynamic>> ventasDias = [];
   Map<String, double> metodosPago = {};
+  int? categoriaSeleccionada;
+  DateTime? desde;
+  DateTime? hasta;
+  List<Map<String, dynamic>> categorias = [];
+  final DBService dbService = DBService();
 
   @override
   void initState() {
@@ -37,18 +43,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {});
   }
 
+  Widget _buildFiltrosDashboard() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButton<int>(
+                hint: Text("Categoría"),
+                value: categoriaSeleccionada,
+                items: categorias.map((c) {
+                  return DropdownMenuItem<int>(
+                    value: c['id'] as int,
+                    child: Text(c['nombre']),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  setState(() => categoriaSeleccionada = v);
+                  _loadDashboardData();
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton(
+              onPressed: () async {
+                final rango = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime.now(),
+                );
+                if (rango != null) {
+                  setState(() {
+                    desde = rango.start;
+                    hasta = rango.end;
+                  });
+                  _loadDashboardData();
+                }
+              },
+              child: const Text("Filtrar Fecha"),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("📊 Dashboard")),
       body: ArticBackground(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
+        child: ArticContainer(
+          // ✅ reemplaza el Padding
           child: SingleChildScrollView(
-            // ✅ evita overflow de gráficos
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildFiltrosDashboard(),
+
                 // 🔥 KPI Cards Árticas
                 ArticKpiCard(
                   title: "Ventas de Hoy",

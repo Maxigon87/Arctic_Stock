@@ -1,8 +1,14 @@
+import 'package:ArticStock/widgets/artic_background.dart';
+import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import '../services/db_service.dart';
 
 class ProductListScreen extends StatefulWidget {
-  const ProductListScreen({super.key});
+  final bool
+      selectMode; // ✅ si true, permite seleccionar producto y devolverlo a la pantalla anterior
+
+  const ProductListScreen({Key? key, this.selectMode = false})
+      : super(key: key);
 
   @override
   State<ProductListScreen> createState() => _ProductListScreenState();
@@ -35,7 +41,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     setState(() => productos = data);
   }
 
-  /// 🔹 DIALOGO AGREGAR PRODUCTO
+  /// ✅ Diálogo para agregar un producto
   void _showAddDialog() {
     final nombreCtrl = TextEditingController();
     final precioCtrl = TextEditingController();
@@ -51,19 +57,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                    controller: nombreCtrl,
-                    decoration: const InputDecoration(labelText: 'Nombre')),
+                  controller: nombreCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                ),
                 TextField(
-                    controller: precioCtrl,
-                    decoration: const InputDecoration(labelText: 'Precio'),
-                    keyboardType: TextInputType.number),
+                  controller: precioCtrl,
+                  decoration: const InputDecoration(labelText: 'Precio'),
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<int>(
                   decoration: const InputDecoration(labelText: "Categoría"),
                   value: catSeleccionada,
                   items: categorias
                       .map((c) => DropdownMenuItem<int>(
-                          value: c['id'], child: Text(c['nombre'])))
+                            value: c['id'] as int,
+                            child: Text(c['nombre']),
+                          ))
                       .toList(),
                   onChanged: (val) =>
                       setLocalState(() => catSeleccionada = val),
@@ -72,21 +82,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancelar')),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
               ElevatedButton(
                 onPressed: () async {
                   final nombre = nombreCtrl.text.trim();
-                  final precio =
-                      double.tryParse(precioCtrl.text.replaceAll(',', '.')) ??
-                          -1;
+                  final precio = double.tryParse(precioCtrl.text) ?? -1;
                   if (nombre.isEmpty || precio <= 0) return;
 
                   await db.insertProducto({
                     'nombre': nombre,
                     'precio': precio,
-                    'categoria_id': catSeleccionada
+                    'categoria_id': catSeleccionada,
                   });
+
                   Navigator.pop(ctx);
                   _loadProductos();
                 },
@@ -99,7 +109,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  /// 🔹 DIALOGO EDITAR PRODUCTO
+  /// ✅ Diálogo para editar producto
   void _showEditDialog(Map<String, dynamic> producto) {
     final nombreCtrl = TextEditingController(text: producto['nombre']);
     final precioCtrl =
@@ -128,7 +138,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   value: catSeleccionada,
                   items: categorias
                       .map((c) => DropdownMenuItem<int>(
-                          value: c['id'], child: Text(c['nombre'])))
+                            value: c['id'] as int,
+                            child: Text(c['nombre']),
+                          ))
                       .toList(),
                   onChanged: (val) =>
                       setLocalState(() => catSeleccionada = val),
@@ -148,8 +160,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   await db.updateProducto({
                     'nombre': nombre,
                     'precio': precio,
-                    'categoria_id': catSeleccionada
+                    'categoria_id': catSeleccionada,
                   }, producto['id']);
+
                   Navigator.pop(ctx);
                   _loadProductos();
                 },
@@ -162,13 +175,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  /// 🔹 ELIMINAR
   Future<void> _deleteProducto(int id) async {
     await db.deleteProducto(id);
     _loadProductos();
   }
 
-  /// 🔹 FILTROS
   Widget _buildFiltros() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -188,12 +199,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
           DropdownButton<int>(
             value: selectedCategoriaId,
             hint: const Text("Categoría"),
-            items: categorias.map<DropdownMenuItem<int>>((c) {
-              return DropdownMenuItem<int>(
-                value: c['id'] as int,
-                child: Text(c['nombre']),
-              );
-            }).toList(),
+            items: categorias
+                .map((c) => DropdownMenuItem<int>(
+                      value: c['id'] as int,
+                      child: Text(c['nombre']),
+                    ))
+                .toList(),
             onChanged: (value) {
               setState(() => selectedCategoriaId = value);
               _loadProductos();
@@ -207,45 +218,62 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Productos')),
-      body: Column(
-        children: [
-          _buildFiltros(),
-          Expanded(
-            child: productos.isEmpty
-                ? const Center(child: Text('No hay productos'))
-                : ListView.builder(
-                    itemCount: productos.length,
-                    itemBuilder: (ctx, i) {
-                      final p = productos[i];
-                      return Card(
-                        child: ListTile(
-                          title: Text(p['nombre']),
-                          subtitle: Text(
-                              'Precio: \$${p['precio']} | Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'edit') _showEditDialog(p);
-                              if (value == 'delete') _deleteProducto(p['id']);
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                  value: 'edit', child: Text('Editar')),
-                              PopupMenuItem(
-                                  value: 'delete', child: Text('Eliminar')),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+      appBar: AppBar(
+          title:
+              Text(widget.selectMode ? 'Seleccionar Producto' : 'Productos')),
+      body: ArticBackground(
+        child: ArticContainer(
+          child: Column(
+            children: [
+              _buildFiltros(),
+              Expanded(
+                child: productos.isEmpty
+                    ? const Center(child: Text('No hay productos'))
+                    : ListView.builder(
+                        itemCount: productos.length,
+                        itemBuilder: (ctx, i) {
+                          final p = productos[i];
+                          return Card(
+                            child: ListTile(
+                              title: Text(p['nombre']),
+                              subtitle: Text(
+                                  'Precio: \$${p['precio']} | Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                              onTap: widget.selectMode
+                                  ? () => Navigator.pop(context,
+                                      p) // ✅ Si está en modo selección, devuelve el producto
+                                  : null,
+                              trailing: widget.selectMode
+                                  ? null
+                                  : PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'edit') _showEditDialog(p);
+                                        if (value == 'delete')
+                                          _deleteProducto(p['id']);
+                                      },
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(
+                                            value: 'edit',
+                                            child: Text('Editar')),
+                                        PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Eliminar')),
+                                      ],
+                                    ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.selectMode
+          ? null
+          : FloatingActionButton(
+              onPressed: _showAddDialog,
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }

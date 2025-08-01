@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/cliente.dart';
 import '../services/db_service.dart';
+import '../widgets/artic_background.dart';
+import '../widgets/artic_container.dart';
 
 class ClientesScreen extends StatefulWidget {
   const ClientesScreen({Key? key}) : super(key: key);
@@ -111,44 +113,61 @@ class _ClientesScreenState extends State<ClientesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Clientes")),
-      body: FutureBuilder<List<Cliente>>(
-        future: _clientesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
-          final clientes = snapshot.data ?? [];
-          if (clientes.isEmpty) {
-            return const Center(child: Text("No hay clientes registrados"));
-          }
+      body: ArticBackground(
+        child: ArticContainer(
+          child: FutureBuilder<List<Cliente>>(
+            future: _clientesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
 
-          return ListView.builder(
-            itemCount: clientes.length,
-            itemBuilder: (context, index) {
-              final c = clientes[index];
-              return ListTile(
-                title: Text(c.nombre),
-                subtitle: Text(c.telefono ?? ""),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.orange),
-                      onPressed: () => _showClienteDialog(cliente: c),
+              final clientes = snapshot.data ?? [];
+              if (clientes.isEmpty) {
+                return const Center(child: Text("No hay clientes registrados"));
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                itemCount: clientes.length,
+                itemBuilder: (context, index) {
+                  final c = clientes[index];
+                  return Card(
+                    elevation: 3,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      title: Text(c.nombre,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(c.telefono ?? "",
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 13)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => _showClienteDialog(cliente: c),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteCliente(c.id!),
+                          ),
+                        ],
+                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteCliente(c.id!),
-                    ),
-                  ],
-                ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showClienteDialog(),

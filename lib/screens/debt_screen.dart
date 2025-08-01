@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/cliente.dart';
 import '../services/db_service.dart';
+import '../widgets/artic_background.dart';
+import '../widgets/artic_container.dart';
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({Key? key}) : super(key: key);
@@ -15,6 +17,11 @@ class _DebtScreenState extends State<DebtScreen> {
   String _filtroEstado = "";
   Cliente? _clienteSeleccionado;
   List<Cliente> _clientes = [];
+  String? estadoSeleccionado;
+  DateTime? desde;
+  DateTime? hasta;
+
+  final dbService = DBService();
 
   @override
   void initState() {
@@ -165,92 +172,172 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
+  Future<void> _cargarDeudasFiltradas() async {
+    setState(() {
+      _deudasFuture = dbService.buscarDeudasAvanzado(
+        clienteId: _clienteSeleccionado?.id,
+        estado: estadoSeleccionado,
+        desde: desde,
+        hasta: hasta,
+      );
+    });
+  }
+
+  Widget _buildFiltros() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButton<Cliente>(
+                hint: Text("Cliente"),
+                value: _clienteSeleccionado,
+                items: _clientes.map((c) {
+                  return DropdownMenuItem(value: c, child: Text(c.nombre));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _clienteSeleccionado = value);
+                  _cargarDeudasFiltradas();
+                },
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: DropdownButton<String>(
+                hint: Text("Estado"),
+                value: estadoSeleccionado,
+                items: ["Pendiente", "Pagada"].map((e) {
+                  return DropdownMenuItem(value: e, child: Text(e));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => estadoSeleccionado = value);
+                  _cargarDeudasFiltradas();
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 10),
+        ElevatedButton(
+          onPressed: () async {
+            final rango = await showDateRangePicker(
+              context: context,
+              firstDate: DateTime(2022),
+              lastDate: DateTime.now(),
+            );
+            if (rango != null) {
+              setState(() {
+                desde = rango.start;
+                hasta = rango.end;
+              });
+              _cargarDeudasFiltradas();
+            }
+          },
+          child: Text("Filtrar por Fecha"),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Deudas')),
-      body: Column(
-        children: [
-          // 🔹 Buscador de cliente
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                labelText: "Buscar cliente...",
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+      body: ArticBackground(
+        child: ArticContainer(
+          child: Column(
+            children: [
+              // 🔹 Buscador de cliente
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: "Buscar cliente...",
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (val) async {
+                  if (val.isEmpty) {
+                    setState(() => _deudasFiltradas = []);
+                  } else {
+                    final results =
+                        await DBService().buscarDeudas(cliente: val);
+                    setState(() => _deudasFiltradas = results);
+                  }
+                },
               ),
-              onChanged: (val) async {
-                if (val.isEmpty) {
-                  setState(() => _deudasFiltradas = []);
-                } else {
-                  final results = await DBService().buscarDeudas(cliente: val);
-                  setState(() => _deudasFiltradas = results);
-                }
-              },
-            ),
-          ),
 
-          // 🔹 Filtro por estado
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DropdownButton<String>(
-              value: _filtroEstado.isEmpty ? null : _filtroEstado,
-              isExpanded: true,
-              hint: const Text("Filtrar por estado"),
-              items: ["Pendiente", "Pagada"]
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (val) async {
-                _filtroEstado = val ?? "";
-                if (_filtroEstado.isEmpty) {
-                  setState(() => _deudasFiltradas = []);
-                } else {
-                  final results =
-                      await DBService().buscarDeudas(estado: _filtroEstado);
-                  setState(() => _deudasFiltradas = results);
-                }
-              },
-            ),
-          ),
+              const SizedBox(height: 10),
 
-          // 🔹 Lista de deudas
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _deudasFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+              // 🔹 Filtro por estado
+              DropdownButton<String>(
+                value: _filtroEstado.isEmpty ? null : _filtroEstado,
+                isExpanded: true,
+                hint: const Text("Filtrar por estado"),
+                items: ["Pendiente", "Pagada"]
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (val) async {
+                  _filtroEstado = val ?? "";
+                  if (_filtroEstado.isEmpty) {
+                    setState(() => _deudasFiltradas = []);
+                  } else {
+                    final results =
+                        await DBService().buscarDeudas(estado: _filtroEstado);
+                    setState(() => _deudasFiltradas = results);
+                  }
+                },
+              ),
 
-                final deudas = _deudasFiltradas.isNotEmpty
-                    ? _deudasFiltradas
-                    : (snapshot.data ?? []);
+              const SizedBox(height: 12),
 
-                if (deudas.isEmpty) {
-                  return const Center(
-                      child: Text('No hay deudas registradas 💸'));
-                }
+              // 🔹 Lista de deudas
+              Expanded(
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _deudasFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
 
-                return ListView.builder(
-                  itemCount: deudas.length,
-                  itemBuilder: (context, index) {
-                    final d = deudas[index];
-                    return ListTile(
-                      title: Text('${d['cliente']} - \$${d['monto']}'),
-                      subtitle: Text(
-                          'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
-                      trailing: Text(d['fecha'] ?? ''),
+                    final deudas = _deudasFiltradas.isNotEmpty
+                        ? _deudasFiltradas
+                        : (snapshot.data ?? []);
+
+                    if (deudas.isEmpty) {
+                      return const Center(
+                          child: Text('No hay deudas registradas 💸'));
+                    }
+
+                    return ListView.builder(
+                      itemCount: deudas.length,
+                      itemBuilder: (context, index) {
+                        final d = deudas[index];
+                        return Card(
+                          elevation: 3,
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            title: Text(
+                              '${d['cliente']} - \$${d['monto']}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(
+                                'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
+                            trailing: Text(d['fecha'] ?? ''),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddDeudaDialog,

@@ -324,6 +324,42 @@ class DBService {
   ''', args);
   }
 
+  Future<List<Map<String, dynamic>>> buscarVentasAvanzado({
+    int? clienteId,
+    String? metodoPago,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    final db = await database;
+
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (clienteId != null) {
+      where += " AND v.clienteId = ?";
+      args.add(clienteId);
+    }
+
+    if (metodoPago != null && metodoPago.isNotEmpty) {
+      where += " AND v.metodoPago = ?";
+      args.add(metodoPago);
+    }
+
+    if (desde != null && hasta != null) {
+      where += " AND v.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    }
+
+    return await db.rawQuery('''
+    SELECT v.*, COALESCE(c.nombre, 'Sin Cliente') AS clienteNombre
+    FROM ventas v
+    LEFT JOIN clientes c ON v.clienteId = c.id
+    WHERE $where
+    ORDER BY v.fecha DESC
+  ''', args);
+  }
+
   Future<List<Map<String, dynamic>>> buscarDeudas({
     String? cliente,
     String? estado,
@@ -362,61 +398,160 @@ class DBService {
   }
 
   // 🔹 Total ventas de un día
-  Future<double> getTotalVentasDia(DateTime fecha) async {
+  Future<double> getTotalVentasDia(DateTime fecha,
+      {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
-    final dateStr = fecha.toIso8601String().substring(0, 10);
-    final res = await db.rawQuery(
-      "SELECT SUM(total) as total FROM ventas WHERE fecha LIKE ?",
-      ["$dateStr%"],
-    );
-    return (res.first['total'] as num?)?.toDouble() ?? 0;
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    // Filtrar por fecha específica o rango
+    if (desde != null && hasta != null) {
+      where += " AND v.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    } else {
+      final dateStr = fecha.toIso8601String().substring(0, 10);
+      where += " AND v.fecha LIKE ?";
+      args.add("$dateStr%");
+    }
+
+    // Filtro por categoría
+    String join = "";
+    if (categoriaId != null) {
+      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
+          "INNER JOIN productos p ON iv.productoId = p.id ";
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
+    final res = await db.rawQuery('''
+    SELECT SUM(v.total) as total
+    FROM ventas v
+    $join
+    WHERE $where
+  ''', args);
+
+    return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
 // 🔹 Total ventas del mes
-  Future<double> getTotalVentasMes(DateTime fecha) async {
+  Future<double> getTotalVentasMes(DateTime fecha,
+      {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
-    final mes = fecha.month.toString().padLeft(2, '0');
-    final anio = fecha.year.toString();
-    final res = await db.rawQuery(
-      "SELECT SUM(total) as total FROM ventas WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?",
-      [mes, anio],
-    );
-    return (res.first['total'] as num?)?.toDouble() ?? 0;
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (desde != null && hasta != null) {
+      where += " AND v.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    } else {
+      final mes = fecha.month.toString().padLeft(2, '0');
+      final anio = fecha.year.toString();
+      where +=
+          " AND strftime('%m', v.fecha) = ? AND strftime('%Y', v.fecha) = ?";
+      args.add(mes);
+      args.add(anio);
+    }
+
+    String join = "";
+    if (categoriaId != null) {
+      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
+          "INNER JOIN productos p ON iv.productoId = p.id ";
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
+    final res = await db.rawQuery('''
+    SELECT SUM(v.total) as total
+    FROM ventas v
+    $join
+    WHERE $where
+  ''', args);
+
+    return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
 // 🔹 Total de deudas pendientes
-  Future<double> getTotalDeudasPendientes() async {
+  Future<double> getTotalDeudasPendientes({int? categoriaId}) async {
     final db = await database;
-    final res = await db.rawQuery(
-      "SELECT SUM(monto) as total FROM deudas WHERE estado = 'Pendiente'",
-    );
-    return (res.first['total'] as num?)?.toDouble() ?? 0;
+    String join = "";
+    String where = "d.estado = 'Pendiente'";
+    List<dynamic> args = [];
+
+    if (categoriaId != null) {
+      join = "INNER JOIN ventas v ON d.clienteId = v.clienteId "
+          "INNER JOIN items_venta iv ON v.id = iv.ventaId "
+          "INNER JOIN productos p ON iv.productoId = p.id ";
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
+    final res = await db.rawQuery('''
+    SELECT SUM(d.monto) as total
+    FROM deudas d
+    $join
+    WHERE $where
+  ''', args);
+
+    return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
 // 🔹 Producto más vendido
-  Future<String> getProductoMasVendido() async {
+  Future<String> getProductoMasVendido(
+      {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (desde != null && hasta != null) {
+      where += " AND v.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    }
+
+    if (categoriaId != null) {
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
     final res = await db.rawQuery('''
     SELECT p.nombre, SUM(iv.cantidad) as totalVendida
     FROM items_venta iv
     INNER JOIN productos p ON iv.productoId = p.id
+    INNER JOIN ventas v ON iv.ventaId = v.id
+    WHERE $where
     GROUP BY p.nombre
     ORDER BY totalVendida DESC
     LIMIT 1
-  ''');
+  ''', args);
+
     return res.isNotEmpty ? res.first['nombre'] as String : "Sin datos";
   }
 
   // 🔹 Ventas últimos 7 días
-  Future<List<Map<String, dynamic>>> getVentasUltimos7Dias() async {
+  Future<List<Map<String, dynamic>>> getVentasUltimos7Dias(
+      {int? categoriaId}) async {
     final db = await database;
+    String join = "";
+    String where = "v.fecha >= date('now','-7 day')";
+    List<dynamic> args = [];
+
+    if (categoriaId != null) {
+      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
+          "INNER JOIN productos p ON iv.productoId = p.id ";
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
     final res = await db.rawQuery('''
-    SELECT strftime('%d', fecha) AS dia, SUM(total) AS total
-    FROM ventas
-    WHERE fecha >= date('now','-7 day')
+    SELECT strftime('%d', v.fecha) AS dia, SUM(v.total) AS total
+    FROM ventas v
+    $join
+    WHERE $where
     GROUP BY dia
     ORDER BY dia ASC
-  ''');
+  ''', args);
 
     return res
         .map((e) =>
@@ -425,13 +560,27 @@ class DBService {
   }
 
 // 🔹 Distribución de métodos de pago (en %)
-  Future<Map<String, double>> getDistribucionMetodosPago() async {
+  Future<Map<String, double>> getDistribucionMetodosPago(
+      {int? categoriaId}) async {
     final db = await database;
+    String join = "";
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (categoriaId != null) {
+      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
+          "INNER JOIN productos p ON iv.productoId = p.id ";
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
     final res = await db.rawQuery('''
-    SELECT metodoPago, COUNT(*) as cantidad
-    FROM ventas
-    GROUP BY metodoPago
-  ''');
+    SELECT v.metodoPago, COUNT(*) as cantidad
+    FROM ventas v
+    $join
+    WHERE $where
+    GROUP BY v.metodoPago
+  ''', args);
 
     double total = res.fold(0, (sum, e) => sum + (e['cantidad'] as int));
     Map<String, double> distribucion = {};
@@ -519,5 +668,70 @@ class DBService {
   Future<int> deleteCategoria(int id) async {
     final db = await database;
     return await db.delete('categorias', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Map<String, dynamic>>> buscarDeudasAvanzado({
+    int? clienteId,
+    String? estado,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    final db = await database;
+
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (clienteId != null) {
+      where += " AND d.clienteId = ?";
+      args.add(clienteId);
+    }
+
+    if (estado != null && estado.isNotEmpty) {
+      where += " AND d.estado = ?";
+      args.add(estado);
+    }
+
+    if (desde != null && hasta != null) {
+      where += " AND d.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    }
+
+    return await db.rawQuery('''
+    SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+           COALESCE(c.nombre, 'Sin Cliente') AS clienteNombre
+    FROM deudas d
+    LEFT JOIN clientes c ON d.clienteId = c.id
+    WHERE $where
+    ORDER BY d.fecha DESC
+  ''', args);
+  }
+
+  Future<List<Map<String, dynamic>>> getVentasFiltradasParaReporte({
+    int? clienteId,
+    String? metodoPago,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    return await buscarVentasAvanzado(
+      clienteId: clienteId,
+      metodoPago: metodoPago,
+      desde: desde,
+      hasta: hasta,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getDeudasFiltradasParaReporte({
+    int? clienteId,
+    String? estado,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    return await buscarDeudasAvanzado(
+      clienteId: clienteId,
+      estado: estado,
+      desde: desde,
+      hasta: hasta,
+    );
   }
 }

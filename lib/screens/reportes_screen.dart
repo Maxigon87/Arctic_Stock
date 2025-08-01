@@ -1,3 +1,5 @@
+import 'package:ArticStock/widgets/artic_background.dart';
+import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,125 +11,208 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
+import '../models/cliente.dart';
 
-class ReportesScreen extends StatelessWidget {
+class ReportesScreen extends StatefulWidget {
   const ReportesScreen({Key? key}) : super(key: key);
 
-  Future<void> _generarReporteMensual(BuildContext context) async {
-    final mesActual = DateTime.now().month.toString().padLeft(2, '0');
-    final stock = await DBService().getStockProductos();
-    final ventas = await DBService().getVentasDelMes(mesActual);
-    final deudas = await DBService().getDeudasDelMes(mesActual);
+  @override
+  State<ReportesScreen> createState() => _ReportesScreenState();
+}
 
-    double totalVentas = ventas.fold(0, (sum, v) => sum + (v['total'] ?? 0));
-    double totalDeudas = deudas.fold(0, (sum, d) => sum + (d['monto'] ?? 0));
+class _ReportesScreenState extends State<ReportesScreen> {
+  Cliente? _clienteSeleccionado;
+  String? metodoSeleccionado;
+  String? estadoSeleccionado;
+  DateTime? desde;
+  DateTime? hasta;
+  List<Cliente> _clientes = [];
+  final dbService = DBService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarClientes();
+  }
+
+  Future<void> _cargarClientes() async {
+    final clientes = await dbService.getClientes();
+    setState(() => _clientes = clientes);
+  }
+
+  /// ✅ Filtros en UI
+  Widget _buildFiltrosReportes() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButton<Cliente>(
+                hint: Text("Cliente"),
+                value: _clienteSeleccionado,
+                items: _clientes.map((c) {
+                  return DropdownMenuItem(value: c, child: Text(c.nombre));
+                }).toList(),
+                onChanged: (v) => setState(() => _clienteSeleccionado = v),
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: DropdownButton<String>(
+                hint: Text("Método Pago"),
+                value: metodoSeleccionado,
+                items: ["Efectivo", "Tarjeta", "Transferencia"].map((m) {
+                  return DropdownMenuItem(value: m, child: Text(m));
+                }).toList(),
+                onChanged: (v) => setState(() => metodoSeleccionado = v),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButton<String>(
+                hint: Text("Estado Deuda"),
+                value: estadoSeleccionado,
+                items: ["Pendiente", "Pagada"].map((e) {
+                  return DropdownMenuItem(value: e, child: Text(e));
+                }).toList(),
+                onChanged: (v) => setState(() => estadoSeleccionado = v),
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () async {
+                  final rango = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2022),
+                    lastDate: DateTime.now(),
+                  );
+                  if (rango != null) {
+                    setState(() {
+                      desde = rango.start;
+                      hasta = rango.end;
+                    });
+                  }
+                },
+                child: Text("Elegir Fechas"),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// ✅ Generar PDF con datos filtrados
+  Future<void> _generarReporteFiltrado(BuildContext context) async {
+    final ventas = await dbService.getVentasFiltradasParaReporte(
+      clienteId: _clienteSeleccionado?.id,
+      metodoPago: metodoSeleccionado,
+      desde: desde,
+      hasta: hasta,
+    );
+
+    final deudas = await dbService.getDeudasFiltradasParaReporte(
+      clienteId: _clienteSeleccionado?.id,
+      estado: estadoSeleccionado,
+      desde: desde,
+      hasta: hasta,
+    );
+
+    double totalVentas = ventas.fold(0, (s, v) => s + (v['total'] ?? 0));
+    double totalDeudas = deudas.fold(0, (s, d) => s + (d['monto'] ?? 0));
 
     final pdf = pw.Document();
-
-    // ✅ Construcción del PDF igual que antes...
     pdf.addPage(
       pw.Page(
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text("📊 Reporte Mensual - $mesActual",
-                  style: pw.TextStyle(
-                      fontSize: 22, fontWeight: pw.FontWeight.bold)),
-              // ... resto igual
-            ],
-          );
-        },
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text("📊 Reporte Filtrado",
+                style:
+                    pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Total Ventas: \$${totalVentas.toStringAsFixed(2)}"),
+            pw.Text("Total Deudas: \$${totalDeudas.toStringAsFixed(2)}"),
+          ],
+        ),
       ),
     );
 
-    // ✅ Guardar en carpeta fija con nombre dinámico
     final dir = await FileHelper.getReportesDir();
-    final filename = FileNamer.reportePdf();
-    final file = File('${dir.path}/$filename');
+    final file = File('${dir.path}/${FileNamer.reportePdf()}');
     await file.writeAsBytes(await pdf.save());
 
-    // ✅ Mostrar snack y abrir visor
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Reporte PDF guardado en: ${file.path}")),
+      SnackBar(content: Text("✅ Reporte PDF guardado: ${file.path}")),
     );
-
-    // ✅ Previsualizar PDF en visor nativo
     await Printing.layoutPdf(onLayout: (_) async => await pdf.save());
   }
 
-  Future<void> _exportarExcelMensual(BuildContext context) async {
-    final mesActual = DateTime.now().month.toString().padLeft(2, '0');
-    final stock = await DBService().getStockProductos();
-    final ventas = await DBService().getVentasDelMes(mesActual);
-    final deudas = await DBService().getDeudasDelMes(mesActual);
-
-    final excel = Excel.createExcel();
-    final sheet = excel['Reporte_Mensual'];
-
-    // ✅ (Contenido igual que antes)
-    // ...
-
-    // ✅ Guardar en carpeta fija con nombre dinámico
-    final dir = await FileHelper.getReportesDir();
-    final filename = FileNamer.reporteExcel();
-    final filePath = '${dir.path}/$filename';
-    final fileBytes = excel.encode();
-    final file = File(filePath)
-      ..createSync(recursive: true)
-      ..writeAsBytesSync(fileBytes!);
-
-    // ✅ Snack y compartir
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Reporte Excel guardado en: $filePath")),
+  /// ✅ Exportar Excel con filtros
+  Future<void> _exportarExcelFiltrado(BuildContext context) async {
+    final ventas = await dbService.getVentasFiltradasParaReporte(
+      clienteId: _clienteSeleccionado?.id,
+      metodoPago: metodoSeleccionado,
+      desde: desde,
+      hasta: hasta,
+    );
+    final deudas = await dbService.getDeudasFiltradasParaReporte(
+      clienteId: _clienteSeleccionado?.id,
+      estado: estadoSeleccionado,
+      desde: desde,
+      hasta: hasta,
     );
 
-    await Share.shareXFiles([XFile(file.path)],
-        text: "📊 Reporte Jeremías - $mesActual");
+    final excel = Excel.createExcel();
+    final sheet = excel['Reporte_Filtrado'];
+    sheet.appendRow(["Ventas"]);
+    ventas.forEach(
+        (v) => sheet.appendRow([v['id'], v['clienteNombre'], v['total']]));
+    sheet.appendRow([]);
+    sheet.appendRow(["Deudas"]);
+    deudas.forEach(
+        (d) => sheet.appendRow([d['id'], d['clienteNombre'], d['monto']]));
+
+    final dir = await FileHelper.getReportesDir();
+    final file = File('${dir.path}/${FileNamer.reporteExcel()}')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(excel.encode()!);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ Excel guardado: ${file.path}")),
+    );
+    await Share.shareXFiles([XFile(file.path)], text: "📊 Reporte Filtrado");
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Reporte Mensual")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.picture_as_pdf),
-              label: const Text("Generar Reporte PDF"),
-              onPressed: () => _generarReporteMensual(context),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.table_chart),
-              label: const Text("Exportar Reporte Excel"),
-              onPressed: () => _exportarExcelMensual(context),
-            ),
-          ],
+      appBar: AppBar(title: Text("Reportes Filtrados")),
+      body: ArticBackground(
+        child: ArticContainer(
+          child: Column(
+            children: [
+              _buildFiltrosReportes(),
+              SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: Icon(Icons.picture_as_pdf),
+                label: Text("Generar PDF"),
+                onPressed: () => _generarReporteFiltrado(context),
+              ),
+              SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: Icon(Icons.table_chart),
+                label: Text("Exportar Excel"),
+                onPressed: () => _exportarExcelFiltrado(context),
+              ),
+            ],
+          ),
         ),
       ),
     );
-  }
-}
-
-class FileHelper {
-  static Future<Directory> getVentasDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final ventasDir = Directory('${dir.path}/JeremiasVentas');
-    if (!await ventasDir.exists()) {
-      await ventasDir.create(recursive: true);
-    }
-    return ventasDir;
-  }
-
-  static Future<Directory> getReportesDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final reportesDir = Directory('${dir.path}/JeremiasReportes');
-    if (!await reportesDir.exists()) {
-      await reportesDir.create(recursive: true);
-    }
-    return reportesDir;
   }
 }
