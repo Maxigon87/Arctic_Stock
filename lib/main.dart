@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:ArticStock/Services/db_service.dart';
 import 'package:flutter/material.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
@@ -13,11 +15,8 @@ import 'screens/artic_login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ Inicializa control de ventana
   await windowManager.ensureInitialized();
 
-  // ✅ Configura opciones iniciales
   WindowOptions windowOptions = const WindowOptions(
     center: true,
     backgroundColor: Colors.transparent,
@@ -26,7 +25,7 @@ void main() async {
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize(); // 🔥 Se abre maximizada
+    await windowManager.maximize();
     await windowManager.show();
     await windowManager.focus();
   });
@@ -86,17 +85,13 @@ class _MyAppState extends State<MyApp> {
     return AnimatedTheme(
       data: _themeMode == ThemeMode.dark ? darkTheme : lightTheme,
       duration: const Duration(milliseconds: 400),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        child: MaterialApp(
-          key: ValueKey(_themeMode),
-          debugShowCheckedModeBanner: false,
-          title: "Artic Stock",
-          theme: lightTheme,
-          darkTheme: darkTheme,
-          themeMode: _themeMode,
-          home: ArticLoginScreen(onToggleTheme: _toggleTheme),
-        ),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: "Artic Stock",
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: _themeMode,
+        home: ArticLoginScreen(onToggleTheme: _toggleTheme),
       ),
     );
   }
@@ -115,6 +110,8 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  late StreamSubscription _dbSub;
+  int _productosSinStock = 0;
 
   final List<_HomeOption> _options = const [
     _HomeOption("Productos", Icons.shopping_bag, Colors.blue),
@@ -136,11 +133,21 @@ class _HomeScreenState extends State<HomeScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
     _controller.forward();
+
+    _loadProductosSinStock();
+    _dbSub =
+        DBService().onDatabaseChanged.listen((_) => _loadProductosSinStock());
+  }
+
+  Future<void> _loadProductosSinStock() async {
+    final count = await DBService().getProductosSinStockCount();
+    if (mounted) setState(() => _productosSinStock = count);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _dbSub.cancel();
     super.dispose();
   }
 
@@ -183,6 +190,8 @@ class _HomeScreenState extends State<HomeScreen>
                       title: opt.title,
                       icon: opt.icon,
                       color: opt.color,
+                      badgeCount:
+                          opt.title == "Productos" ? _productosSinStock : null,
                       onTap: () => _navigateTo(context, index),
                     );
                   },
@@ -233,11 +242,12 @@ class _HomeOption {
   const _HomeOption(this.title, this.icon, this.color);
 }
 
-class _AnimatedHomeCard extends StatefulWidget {
+class _AnimatedHomeCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final int? badgeCount;
 
   const _AnimatedHomeCard({
     Key? key,
@@ -245,144 +255,59 @@ class _AnimatedHomeCard extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
+    this.badgeCount,
   }) : super(key: key);
 
   @override
-  State<_AnimatedHomeCard> createState() => _AnimatedHomeCardState();
-}
-
-class _AnimatedHomeCardState extends State<_AnimatedHomeCard>
-    with SingleTickerProviderStateMixin {
-  bool _hovering = false;
-  bool _pressed = false;
-  late AnimationController _shineController;
-
-  @override
-  void initState() {
-    super.initState();
-    _shineController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shineController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    double scale = _hovering ? 1.05 : 1.0;
-    if (_pressed) scale = 0.97;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() {
-        _hovering = false;
-        _pressed = false;
-      }),
-      child: AnimatedScale(
-        scale: scale,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.elasticOut,
-        child: Stack(
-          children: [
-            // 🔥 Fondo base del botón
-            Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFFFFF), Color(0xFFE6F7FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                    color: Colors.white.withOpacity(0.6), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.cyanAccent.withOpacity(_hovering ? 0.4 : 0.2),
-                    blurRadius: _hovering ? 20 : 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-
-            // ❄️ Capa animada de brillo en el borde
-            AnimatedBuilder(
-              animation: _shineController,
-              builder: (context, child) {
-                return ShaderMask(
-                  shaderCallback: (bounds) {
-                    return LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.0),
-                        Colors.white.withOpacity(0.6),
-                        Colors.white.withOpacity(0.0),
-                      ],
-                      stops: [0.2, 0.5, 0.8],
-                      begin: Alignment(-1.0 + 2.0 * _shineController.value, 0),
-                      end: Alignment(1.0 + 2.0 * _shineController.value, 0),
-                      tileMode: TileMode.clamp,
-                    ).createShader(bounds);
-                  },
-                  blendMode: BlendMode.srcATop,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.transparent, width: 2),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // 🌟 Contenido (Icono + Texto)
-            Material(
-              color: Colors.transparent,
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [Colors.white, Color(0xFFE6F7FF)]),
               borderRadius: BorderRadius.circular(18),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                splashColor: Colors.blueAccent.withOpacity(0.1),
-                onTapDown: (_) => setState(() => _pressed = true),
-                onTapCancel: () => setState(() => _pressed = false),
-                onTapUp: (_) => setState(() => _pressed = false),
-                onTap: widget.onTap,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(widget.icon,
-                            size: 42, color: Colors.blue.shade700),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.title,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(
-                                  color: Colors.white.withOpacity(0.7),
-                                  offset: Offset(0, 1),
-                                  blurRadius: 2),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              boxShadow: [
+                BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: Offset(0, 4))
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 42, color: color),
+                const SizedBox(height: 8),
+                Text(title,
+                    style:
+                        TextStyle(color: color, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+        if (badgeCount != null && badgeCount! > 0)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                  color: Colors.red, shape: BoxShape.circle),
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              child: Text(
+                '$badgeCount',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }

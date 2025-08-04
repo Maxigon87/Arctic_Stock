@@ -38,7 +38,13 @@ class DBService {
 
     return await databaseFactory.openDatabase(
       path,
-      options: OpenDatabaseOptions(version: 1, onCreate: _createTables),
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: _createTables,
+        onOpen: (db) async {
+          await _ensureStockColumn(db); // ✅ Aquí se asegura la columna 'stock'
+        },
+      ),
     );
   }
 
@@ -106,27 +112,41 @@ class DBService {
   ''');
   }
 
+  Future<void> _ensureStockColumn(Database db) async {
+    final res = await db.rawQuery("PRAGMA table_info(productos);");
+    final hasStock = res.any((col) => col['name'] == 'stock');
+    if (!hasStock) {
+      await db
+          .execute("ALTER TABLE productos ADD COLUMN stock INTEGER DEFAULT 0;");
+    }
+  }
+
   // ✅ CRUD (igual que antes, no cambia nada)
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
-    return await db.insert('productos', {
+    final id = await db.insert('productos', {
       'nombre': data['nombre'],
       'precio': data['precio'],
+      'stock': data['stock'] ?? 0,
       'categoria_id': data['categoria_id']
     });
+    notifyDbChange();
+    return id;
   }
 
   Future<int> updateProducto(Map<String, dynamic> data, int id) async {
     final db = await database;
     final count = await db.update(
-        'productos',
-        {
-          'nombre': data['nombre'],
-          'precio': data['precio'],
-          'categoria_id': data['categoria_id']
-        },
-        where: 'id = ?',
-        whereArgs: [id]);
+      'productos',
+      {
+        'nombre': data['nombre'],
+        'precio': data['precio'],
+        'stock': data['stock'] ?? 0,
+        'categoria_id': data['categoria_id']
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     notifyDbChange();
     return count;
   }
@@ -141,8 +161,13 @@ class DBService {
 
   Future<int> insertVenta(Map<String, dynamic> data) async {
     final db = await database;
-    final id = await db.insert('ventas', data);
-    notifyDbChange(); // ✅ avisa al Dashboard
+    final id = await db.insert('ventas', {
+      'clienteId': data['clienteId'], // ✅ puede ser null
+      'fecha': data['fecha'],
+      'metodoPago': data['metodoPago'],
+      'total': data['total'],
+    });
+    notifyDbChange();
     return id;
   }
 
@@ -150,7 +175,7 @@ class DBService {
     final db = await database;
     return await db.rawQuery('''
     SELECT v.id, v.fecha, v.metodoPago, v.total,
-           c.nombre AS cliente
+           COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
     FROM ventas v
     LEFT JOIN clientes c ON v.clienteId = c.id
     ORDER BY v.fecha DESC
@@ -168,7 +193,7 @@ class DBService {
     final db = await database;
     return await db.rawQuery('''
     SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-           c.nombre AS cliente
+          Coalesce(c.nombre, 'Consumidor Final') AS clienteNombre 
     FROM deudas d
     LEFT JOIN clientes c ON d.clienteId = c.id
     ORDER BY d.fecha DESC
@@ -178,19 +203,37 @@ class DBService {
   Future<int> insertVentaBase(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('ventas', {
-      'clienteId': data['clienteId'],
+      'clienteId': data['clienteId'], // ✅ puede ser null
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
     });
-    notifyDbChange(); // ✅ agregado
+    notifyDbChange();
     return id;
   }
 
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;
+
+    // ✅ Verificar stock antes de vender
+    final producto = await db.query('productos',
+        columns: ['stock'], where: 'id = ?', whereArgs: [data['productoId']]);
+
+    final stockActual =
+        (producto.isNotEmpty ? producto.first['stock'] as int : 0);
+
+    if (stockActual < (data['cantidad'] ?? 1)) {
+      throw Exception("Stock insuficiente para completar la venta");
+    }
+
+    // ✅ Si hay stock suficiente, inserta el item
     final id = await db.insert('items_venta', data);
-    notifyDbChange(); // ✅ notifica al Dashboard y otras pantallas
+
+    // ✅ Descuenta stock
+    await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
+        [data['cantidad'], data['productoId']]);
+
+    notifyDbChange();
     return id;
   }
 
@@ -279,7 +322,7 @@ class DBService {
     final db = await database;
     final res = await db.rawQuery('''
     SELECT v.id, v.fecha, v.metodoPago, v.total,
-           c.nombre AS cliente
+          Coalesce(c.nombre, 'Consumidor Final') AS clienteNombre 
     FROM ventas v
     LEFT JOIN clientes c ON v.clienteId = c.id
     WHERE v.id = ?
@@ -316,7 +359,7 @@ class DBService {
 
     return await db.rawQuery('''
     SELECT v.id, v.fecha, v.metodoPago, v.total,
-           COALESCE(c.nombre, 'Sin asignar') AS cliente
+           COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
     FROM ventas v
     LEFT JOIN clientes c ON v.clienteId = c.id
     WHERE $where
@@ -352,7 +395,7 @@ class DBService {
     }
 
     return await db.rawQuery('''
-    SELECT v.*, COALESCE(c.nombre, 'Sin Cliente') AS clienteNombre
+    SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
     FROM ventas v
     LEFT JOIN clientes c ON v.clienteId = c.id
     WHERE $where
@@ -389,7 +432,7 @@ class DBService {
     // 🔹 Consulta con JOIN a clientes
     return await db.rawQuery('''
     SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-           COALESCE(c.nombre, 'Sin asignar') AS cliente
+          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
     FROM deudas d
     LEFT JOIN clientes c ON d.clienteId = c.id
     WHERE $where
@@ -641,7 +684,7 @@ class DBService {
     }
 
     return await db.rawQuery('''
-    SELECT p.id, p.nombre, p.precio, p.categoria_id, c.nombre AS categoria_nombre
+    SELECT p.id, p.nombre, p.precio, p.stock, p.categoria_id, c.nombre AS categoria_nombre
     FROM productos p
     LEFT JOIN categorias c ON p.categoria_id = c.id
     WHERE $where
@@ -699,7 +742,7 @@ class DBService {
 
     return await db.rawQuery('''
     SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-           COALESCE(c.nombre, 'Sin Cliente') AS clienteNombre
+          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
     FROM deudas d
     LEFT JOIN clientes c ON d.clienteId = c.id
     WHERE $where
@@ -733,5 +776,33 @@ class DBService {
       desde: desde,
       hasta: hasta,
     );
+  }
+
+  Future<void> setStock(int productoId, int cantidad) async {
+    final db = await database;
+    await db.update('productos', {'stock': cantidad},
+        where: 'id = ?', whereArgs: [productoId]);
+    notifyDbChange();
+  }
+
+  Future<void> incrementarStock(int productoId, int cantidad) async {
+    final db = await database;
+    await db.rawUpdate('UPDATE productos SET stock = stock + ? WHERE id = ?',
+        [cantidad, productoId]);
+    notifyDbChange();
+  }
+
+  Future<void> decrementarStock(int productoId, int cantidad) async {
+    final db = await database;
+    await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
+        [cantidad, productoId]);
+    notifyDbChange();
+  }
+
+  Future<int> getProductosSinStockCount() async {
+    final db = await database;
+    final res = await db.rawQuery(
+        'SELECT COUNT(*) AS cantidad FROM productos WHERE stock <= 0');
+    return (res.isNotEmpty ? res.first['cantidad'] as int : 0);
   }
 }

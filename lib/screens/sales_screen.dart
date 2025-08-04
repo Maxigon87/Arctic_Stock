@@ -123,13 +123,16 @@ class _SalesScreenState extends State<SalesScreen> {
                   const SizedBox(height: 12),
 
                   /// 🔹 Cliente
-                  DropdownButtonFormField<Cliente>(
+                  /// 🔹 Cliente
+                  DropdownButtonFormField<Cliente?>(
                     value: _clienteSeleccionado,
-                    hint: const Text("Selecciona un cliente"),
-                    items: _clientes
-                        .map((c) =>
-                            DropdownMenuItem(value: c, child: Text(c.nombre)))
-                        .toList(),
+                    hint: const Text("Cliente (opcional)"),
+                    items: [
+                      const DropdownMenuItem<Cliente?>(
+                          value: null, child: Text("Consumidor Final")),
+                      ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
+                          value: c, child: Text(c.nombre))),
+                    ],
                     onChanged: (value) =>
                         setLocalState(() => _clienteSeleccionado = value),
                   ),
@@ -189,8 +192,11 @@ class _SalesScreenState extends State<SalesScreen> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("Agregar Producto"),
-                    onPressed: _seleccionarProducto,
+                    onPressed: () => _seleccionarProducto(() {
+                      setLocalState(() {}); // ✅ Fuerza rebuild del modal
+                    }),
                   ),
+
                   const SizedBox(height: 10),
 
                   ElevatedButton.icon(
@@ -210,7 +216,7 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   /// ✅ Seleccionar producto desde lista
-  void _seleccionarProducto() async {
+  void _seleccionarProducto([VoidCallback? onProductoAgregado]) async {
     final producto = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -218,6 +224,14 @@ class _SalesScreenState extends State<SalesScreen> {
     );
 
     if (producto != null) {
+      final stock = producto['stock'] ?? 0;
+      if (stock <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("⚠️ Este producto no tiene stock disponible")),
+        );
+        return;
+      }
       setState(() {
         final precio = (producto['precio'] as num).toDouble();
         _carrito.add({
@@ -228,21 +242,22 @@ class _SalesScreenState extends State<SalesScreen> {
           'subtotal': precio,
         });
       });
+      if (onProductoAgregado != null) {
+        onProductoAgregado();
+      }
     }
   }
 
   /// ✅ Confirmar venta
+  /// ✅ Confirmar venta (modificado para permitir cliente null)
   Future<void> _confirmarVenta() async {
-    if (_clienteSeleccionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ Selecciona un cliente")));
-      return;
-    }
     if (_carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("⚠️ El carrito está vacío")));
       return;
     }
+
+    // ✅ Solo bloquea si es fiado y no hay cliente
     if (metodoSeleccionado == 'Fiado' && _clienteSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("⚠️ No puedes fiar sin cliente")));
@@ -251,40 +266,51 @@ class _SalesScreenState extends State<SalesScreen> {
 
     final total = _carrito.fold(0.0, (sum, i) => sum + i['subtotal']);
 
-    final ventaId = await dbService.insertVentaBase({
-      'clienteId': _clienteSeleccionado?.id,
-      'fecha': DateTime.now().toIso8601String(),
-      'metodoPago': metodoSeleccionado ?? 'Efectivo',
-      'total': total,
-    });
-
-    for (var i in _carrito) {
-      await dbService.insertItemVenta({
-        'ventaId': ventaId,
-        'productoId': i['productoId'],
-        'cantidad': i['cantidad'],
-        'subtotal': i['subtotal'],
-      });
-    }
-
-    if (metodoSeleccionado == 'Fiado') {
-      await dbService.insertDeuda({
+    try {
+      // ✅ Primero insertamos la venta
+      final ventaId = await dbService.insertVentaBase({
         'clienteId': _clienteSeleccionado?.id,
-        'monto': total,
         'fecha': DateTime.now().toIso8601String(),
-        'estado': 'Pendiente',
-        'descripcion': 'Venta fiada',
+        'metodoPago': metodoSeleccionado ?? 'Efectivo',
+        'total': total,
       });
+
+      // ✅ Luego insertamos cada item y verificamos stock
+      for (var i in _carrito) {
+        await dbService.insertItemVenta({
+          'ventaId': ventaId,
+          'productoId': i['productoId'],
+          'cantidad': i['cantidad'],
+          'subtotal': i['subtotal'],
+        });
+      }
+
+      // ✅ Si es fiado y hay cliente, registra deuda
+      if (metodoSeleccionado == 'Fiado' && _clienteSeleccionado != null) {
+        await dbService.insertDeuda({
+          'clienteId': _clienteSeleccionado!.id,
+          'monto': total,
+          'fecha': DateTime.now().toIso8601String(),
+          'estado': 'Pendiente',
+          'descripcion': 'Venta fiada',
+        });
+      }
+
+      // ✅ Refrescar UI
+      setState(() {
+        _carrito.clear();
+        _ventasFuture = dbService.getVentas();
+      });
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Venta registrada correctamente!")));
+    } catch (e) {
+      // ❌ Si no hay stock, mostramos mensaje y no seguimos
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Error: ${e.toString()}")),
+      );
     }
-
-    setState(() {
-      _carrito.clear();
-      _ventasFuture = dbService.getVentas();
-    });
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Venta registrada correctamente!")));
   }
 
   /// 🔍 Filtros de búsqueda
@@ -294,13 +320,15 @@ class _SalesScreenState extends State<SalesScreen> {
         Row(
           children: [
             Expanded(
-              child: DropdownButton<Cliente>(
-                hint: const Text("Cliente"),
+              child: DropdownButton<Cliente?>(
+                hint: const Text("Cliente (opcional)"),
                 value: _clienteSeleccionado,
-                items: _clientes
-                    .map((c) =>
-                        DropdownMenuItem(value: c, child: Text(c.nombre)))
-                    .toList(),
+                items: [
+                  const DropdownMenuItem<Cliente?>(
+                      value: null, child: Text("Consumidor Final")),
+                  ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
+                      value: c, child: Text(c.nombre))),
+                ],
                 onChanged: (value) {
                   setState(() => _clienteSeleccionado = value);
                   _cargarVentasFiltradas();
@@ -372,13 +400,22 @@ class _SalesScreenState extends State<SalesScreen> {
                       itemCount: ventas.length,
                       itemBuilder: (context, index) {
                         final venta = ventas[index];
-                        return ListTile(
-                          title: Text(
-                              "Venta #${venta['id']} - ${venta['clienteNombre'] ?? 'Cliente'}"),
-                          subtitle: Text(
-                              "Total: \$${venta['total']} - Método: ${venta['metodoPago']}"),
-                          trailing:
-                              Text(venta['fecha'].toString().split('T').first),
+
+                        // ✅ Si clienteNombre es null o vacío, usar "Consumidor Final"
+                        final cliente =
+                            (venta['clienteNombre']?.toString().isNotEmpty ??
+                                    false)
+                                ? venta['clienteNombre']
+                                : 'Consumidor Final';
+
+                        return Card(
+                          child: ListTile(
+                            title: Text("Venta #${venta['id']} - $cliente"),
+                            subtitle: Text(
+                                "Total: \$${venta['total']} - Método: ${venta['metodoPago']}"),
+                            trailing: Text(
+                                venta['fecha'].toString().split('T').first),
+                          ),
                         );
                       },
                     );
