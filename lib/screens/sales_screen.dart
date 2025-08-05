@@ -96,6 +96,7 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   /// 🛒 **Carrito**
+  /// 🛒 **Carrito**
   void _abrirCarrito() {
     showModalBottomSheet(
       context: context,
@@ -107,6 +108,10 @@ class _SalesScreenState extends State<SalesScreen> {
         minChildSize: 0.5,
         builder: (_, scroll) {
           return StatefulBuilder(builder: (context, setLocalState) {
+            // ✅ Calcular total en cada rebuild
+            double totalCarrito =
+                _carrito.fold(0.0, (sum, p) => sum + p['subtotal']);
+
             return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -122,8 +127,7 @@ class _SalesScreenState extends State<SalesScreen> {
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
 
-                  /// 🔹 Cliente
-                  /// 🔹 Cliente
+                  // 🔹 Cliente
                   DropdownButtonFormField<Cliente?>(
                     value: _clienteSeleccionado,
                     hint: const Text("Cliente (opcional)"),
@@ -137,7 +141,6 @@ class _SalesScreenState extends State<SalesScreen> {
                         setLocalState(() => _clienteSeleccionado = value),
                   ),
 
-                  /// ➕ Botón agregar cliente
                   TextButton.icon(
                     icon: const Icon(Icons.person_add, color: Colors.teal),
                     label: const Text("Agregar Cliente"),
@@ -152,7 +155,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   const SizedBox(height: 10),
 
-                  /// 🔹 Método de pago
+                  // 🔹 Método de pago
                   DropdownButtonFormField<String>(
                     value: metodoSeleccionado ?? "Efectivo",
                     hint: const Text("Método de Pago"),
@@ -165,7 +168,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   const SizedBox(height: 15),
 
-                  /// 🔹 Lista de productos agregados
+                  // 🔹 Lista de productos en carrito
                   Expanded(
                     child: _carrito.isEmpty
                         ? const Center(child: Text("Carrito vacío"))
@@ -174,21 +177,88 @@ class _SalesScreenState extends State<SalesScreen> {
                             itemCount: _carrito.length,
                             itemBuilder: (_, i) {
                               final p = _carrito[i];
-                              return ListTile(
-                                title: Text(p['nombre']),
-                                subtitle: Text(
-                                    "Cant: ${p['cantidad']}  -  \$${p['subtotal']}"),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () =>
-                                      setLocalState(() => _carrito.removeAt(i)),
-                                ),
+                              return Column(
+                                children: [
+                                  ListTile(
+                                    title: Text(p['nombre']),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text("Precio: \$${p['precio']}"),
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                  Icons.remove_circle,
+                                                  color: Colors.redAccent),
+                                              onPressed: () {
+                                                if (p['cantidad'] > 1) {
+                                                  setLocalState(() {
+                                                    p['cantidad']--;
+                                                    p['subtotal'] =
+                                                        p['precio'] *
+                                                            p['cantidad'];
+                                                  });
+                                                }
+                                              },
+                                            ),
+                                            Text("Cant: ${p['cantidad']}",
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            IconButton(
+                                              icon: const Icon(Icons.add_circle,
+                                                  color: Colors.green),
+                                              onPressed: () {
+                                                setLocalState(() {
+                                                  p['cantidad']++;
+                                                  p['subtotal'] = p['precio'] *
+                                                      p['cantidad'];
+                                                });
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                            "Subtotal: \$${p['subtotal'].toStringAsFixed(2)}"),
+                                      ],
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.delete,
+                                          color: Colors.red),
+                                      onPressed: () => setLocalState(
+                                          () => _carrito.removeAt(i)),
+                                    ),
+                                  ),
+                                  if (i < _carrito.length - 1)
+                                    const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 4),
+                                      child: Divider(
+                                          thickness: 1, color: Colors.grey),
+                                    ),
+                                  // ✅ ahora no hay en el último item
+                                ],
                               );
                             },
                           ),
                   ),
 
+                  // 🔥 TOTAL DE LA COMPRA
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      "TOTAL: \$${totalCarrito.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal),
+                    ),
+                  ),
+
+                  // 🔹 Botón agregar producto
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("Agregar Producto"),
@@ -199,6 +269,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   const SizedBox(height: 10),
 
+                  // 🔹 Botón confirmar venta
                   ElevatedButton.icon(
                     style:
                         ElevatedButton.styleFrom(backgroundColor: Colors.green),

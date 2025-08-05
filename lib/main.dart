@@ -158,9 +158,11 @@ class _HomeScreenState extends State<HomeScreen>
         title: const Text("Artic Stock"),
         actions: [
           IconButton(
-            icon: Icon(Theme.of(context).brightness == Brightness.dark
-                ? Icons.wb_sunny
-                : Icons.nights_stay),
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.wb_sunny
+                  : Icons.nights_stay,
+            ),
             onPressed: widget.onToggleTheme,
           ),
         ],
@@ -179,9 +181,9 @@ class _HomeScreenState extends State<HomeScreen>
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount:
                         MediaQuery.of(context).size.width > 900 ? 3 : 2,
-                    crossAxisSpacing: 15,
-                    mainAxisSpacing: 15,
-                    childAspectRatio: 1.1,
+                    crossAxisSpacing: 20,
+                    mainAxisSpacing: 20,
+                    childAspectRatio: 1.3, // 🔥 ajusta proporción a tu gusto
                   ),
                   itemCount: _options.length,
                   itemBuilder: (context, index) {
@@ -214,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen>
       ClientesScreen(),
       DashboardScreen(),
     ];
-    Navigator.of(context).push(_createRoute(screens[index]));
+    Navigator.of(context).push(_createRoute(screens[index])).then((_) {
+      _loadProductosSinStock();
+    });
   }
 
   Route _createRoute(Widget page) {
@@ -265,6 +269,11 @@ class _AnimatedHomeCard extends StatelessWidget {
         GestureDetector(
           onTap: onTap,
           child: Container(
+            constraints: const BoxConstraints(
+              minWidth: 160,
+              maxWidth: 180,
+              minHeight: 140,
+            ),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                   colors: [Colors.white, Color(0xFFE6F7FF)]),
