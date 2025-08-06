@@ -112,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _scaleAnimation;
   late StreamSubscription _dbSub;
   int _productosSinStock = 0;
+  bool _animarBadge = false;
 
   final List<_HomeOption> _options = const [
     _HomeOption("Productos", Icons.shopping_bag, Colors.blue),
@@ -141,7 +142,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadProductosSinStock() async {
     final count = await DBService().getProductosSinStockCount();
-    if (mounted) setState(() => _productosSinStock = count);
+
+    if (mounted && count != _productosSinStock) {
+      setState(() {
+        _productosSinStock = count;
+        _animarBadge = true; // 🔥 dispara animación
+      });
+
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _animarBadge = false);
+      });
+    }
   }
 
   @override
@@ -194,6 +205,8 @@ class _HomeScreenState extends State<HomeScreen>
                       color: opt.color,
                       badgeCount:
                           opt.title == "Productos" ? _productosSinStock : null,
+                      animateBadge:
+                          opt.title == "Productos" ? _animarBadge : false, // ✅
                       onTap: () => _navigateTo(context, index),
                     );
                   },
@@ -252,15 +265,17 @@ class _AnimatedHomeCard extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final int? badgeCount;
+  final bool animateBadge;
 
   const _AnimatedHomeCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.icon,
     required this.color,
     required this.onTap,
     this.badgeCount,
-  }) : super(key: key);
+    this.animateBadge = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -301,18 +316,25 @@ class _AnimatedHomeCard extends StatelessWidget {
           Positioned(
             top: 8,
             right: 8,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                  color: Colors.red, shape: BoxShape.circle),
-              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-              child: Text(
-                '$badgeCount',
-                style: const TextStyle(
+            child: AnimatedScale(
+              scale: animateBadge ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
-                    fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),

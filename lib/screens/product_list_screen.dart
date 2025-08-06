@@ -20,6 +20,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   List<Map<String, dynamic>> categorias = [];
   int? selectedCategoriaId;
   String searchQuery = "";
+  bool _mostrarSoloAgotados = false;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final data = await db.getProductos(
       search: searchQuery,
       categoriaId: selectedCategoriaId,
+      soloAgotados: _mostrarSoloAgotados, // ✅ se filtran si está activo
     );
     setState(() => productos = data);
   }
@@ -220,6 +222,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.selectMode ? 'Seleccionar Producto' : 'Productos'),
+        actions: [
+          IconButton(
+            tooltip: _mostrarSoloAgotados
+                ? 'Mostrar todos los productos'
+                : 'Mostrar solo sin stock',
+            icon: Icon(
+              _mostrarSoloAgotados
+                  ? Icons.list_alt
+                  : Icons.warning_amber_rounded,
+              color: _mostrarSoloAgotados ? Colors.teal : Colors.redAccent,
+            ),
+            onPressed: () {
+              setState(() {
+                _mostrarSoloAgotados = !_mostrarSoloAgotados;
+              });
+              _loadProductos();
+            },
+          ),
+        ],
       ),
       body: ArticBackground(
         child: ArticContainer(
@@ -236,136 +257,133 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           final sinStock = (p['stock'] ?? 0) <= 0;
 
                           return Opacity(
-                              opacity: sinStock ? 0.5 : 1.0,
-                              child: Card(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: BorderSide(
-                                    color: sinStock
-                                        ? Colors.red
-                                        : Colors.transparent,
-                                    width: 2,
-                                  ),
+                            opacity: sinStock ? 0.5 : 1.0,
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: sinStock
+                                      ? Colors.red
+                                      : Colors.transparent,
+                                  width: 2,
                                 ),
-                                child: Stack(
-                                  children: [
-                                    // 🔹 Contenido principal del producto
-                                    ListTile(
-                                      title: Text(p['nombre']),
-                                      subtitle: Text(
-                                        'Precio: \$${p['precio']} | '
-                                        'Stock: ${p['stock'] ?? 0} | '
-                                        'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}',
-                                        style: TextStyle(
-                                          color: sinStock ? Colors.red : null,
-                                          fontWeight: sinStock
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
+                              ),
+                              child: Stack(
+                                children: [
+                                  ListTile(
+                                    title: Text(p['nombre']),
+                                    subtitle: Text(
+                                      'Precio: \$${p['precio']} | '
+                                      'Stock: ${p['stock'] ?? 0} | '
+                                      'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}',
+                                      style: TextStyle(
+                                        color: sinStock ? Colors.red : null,
+                                        fontWeight: sinStock
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
-                                      onTap: widget.selectMode
-                                          ? (sinStock
-                                              ? null // ❌ Deshabilitado si no hay stock
-                                              : () => Navigator.pop(context, p))
-                                          : null,
-                                      trailing: widget.selectMode
-                                          ? null
-                                          : PopupMenuButton<String>(
-                                              onSelected: (value) async {
-                                                if (value == 'edit')
-                                                  _showEditDialog(p);
-                                                if (value == 'delete')
-                                                  _deleteProducto(p['id']);
-                                                if (value == 'addStock') {
-                                                  final cantidad =
-                                                      await _showAddStockDialog(
-                                                          context);
-                                                  if (cantidad != null &&
-                                                      cantidad > 0) {
+                                    ),
+                                    onTap: widget.selectMode
+                                        ? (sinStock
+                                            ? null
+                                            : () => Navigator.pop(context, p))
+                                        : null,
+                                    trailing: widget.selectMode
+                                        ? null
+                                        : PopupMenuButton<String>(
+                                            onSelected: (value) async {
+                                              if (value == 'edit') {
+                                                _showEditDialog(p);
+                                              }
+                                              if (value == 'delete') {
+                                                _deleteProducto(p['id']);
+                                              }
+                                              if (value == 'addStock') {
+                                                final cantidad =
+                                                    await _showAddStockDialog(
+                                                        context);
+                                                if (cantidad != null &&
+                                                    cantidad > 0) {
+                                                  await DBService()
+                                                      .incrementarStock(
+                                                          p['id'], cantidad);
+                                                  _loadProductos();
+                                                }
+                                              }
+                                              if (value == 'removeStock') {
+                                                final cantidad =
+                                                    await _showRemoveStockDialog(
+                                                        context,
+                                                        p['stock'] ?? 0);
+                                                if (cantidad != null &&
+                                                    cantidad > 0) {
+                                                  if ((p['stock'] ?? 0) >=
+                                                      cantidad) {
                                                     await DBService()
-                                                        .incrementarStock(
+                                                        .decrementarStock(
                                                             p['id'], cantidad);
                                                     _loadProductos();
+                                                  } else {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                          content: Text(
+                                                              "No puedes restar más de lo disponible")),
+                                                    );
                                                   }
                                                 }
-                                                if (value == 'removeStock') {
-                                                  final cantidad =
-                                                      await _showRemoveStockDialog(
-                                                          context,
-                                                          p['stock'] ?? 0);
-                                                  if (cantidad != null &&
-                                                      cantidad > 0) {
-                                                    if ((p['stock'] ?? 0) >=
-                                                        cantidad) {
-                                                      await DBService()
-                                                          .decrementarStock(
-                                                              p['id'],
-                                                              cantidad);
-                                                      _loadProductos();
-                                                    } else {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                "No puedes restar más de lo disponible")),
-                                                      );
-                                                    }
-                                                  }
-                                                }
-                                              },
-                                              itemBuilder: (context) => const [
-                                                PopupMenuItem(
-                                                    value: 'edit',
-                                                    child: Text('Editar')),
-                                                PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Text('Eliminar')),
-                                                PopupMenuItem(
-                                                    value: 'addStock',
-                                                    child:
-                                                        Text('Agregar Stock')),
-                                                PopupMenuItem(
-                                                    value: 'removeStock',
-                                                    child:
-                                                        Text('Restar Stock')),
-                                              ],
-                                            ),
-                                    ),
-
-                                    // 🔥 Badge flotante "SIN STOCK"
-                                    if (sinStock)
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red.shade700,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black26,
-                                                blurRadius: 4,
-                                                offset: Offset(0, 2),
-                                              ),
+                                              }
+                                            },
+                                            itemBuilder: (context) => const [
+                                              PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Text('Editar')),
+                                              PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text('Eliminar')),
+                                              PopupMenuItem(
+                                                  value: 'addStock',
+                                                  child: Text('Agregar Stock')),
+                                              PopupMenuItem(
+                                                  value: 'removeStock',
+                                                  child: Text('Restar Stock')),
                                             ],
                                           ),
-                                          child: const Text(
-                                            "SIN STOCK",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12,
+                                  ),
+                                  if (sinStock)
+                                    Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade700,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Colors.black26,
+                                              blurRadius: 4,
+                                              offset: Offset(0, 2),
                                             ),
+                                          ],
+                                        ),
+                                        child: const Text(
+                                          "SIN STOCK",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ));
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
                         },
                       ),
               ),

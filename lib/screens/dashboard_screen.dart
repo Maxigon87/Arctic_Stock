@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/db_service.dart';
@@ -25,11 +26,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> categorias = [];
   final DBService dbService = DBService();
 
+  /// ✅ NUEVO: KPI Productos sin stock
+  int _productosSinStock = 0;
+  late StreamSubscription _dbSub;
+
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
-    DBService().onDatabaseChanged.listen((_) => _loadDashboardData());
+    // ✅ Suscripción para refrescar KPI cuando cambia la base
+    _dbSub = DBService().onDatabaseChanged.listen((_) => _loadDashboardData());
+  }
+
+  @override
+  void dispose() {
+    _dbSub.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
@@ -40,7 +52,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     productoTop = await db.getProductoMasVendido();
     ventasDias = await db.getVentasUltimos7Dias();
     metodosPago = await db.getDistribucionMetodosPago();
-    setState(() {});
+    _productosSinStock = await db.getProductosSinStockCount();
+
+    if (mounted) setState(() {});
   }
 
   Widget _buildFiltrosDashboard() {
@@ -50,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Expanded(
               child: DropdownButton<int>(
-                hint: Text("Categoría"),
+                hint: const Text("Categoría"),
                 value: categoriaSeleccionada,
                 items: categorias.map((c) {
                   return DropdownMenuItem<int>(
@@ -95,14 +109,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(title: const Text("📊 Dashboard")),
       body: ArticBackground(
         child: ArticContainer(
-          // ✅ reemplaza el Padding
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildFiltrosDashboard(),
 
-                // 🔥 KPI Cards Árticas
+                // ✅ KPI nuevo: Productos sin stock (con alerta)
+                AnimatedOpacity(
+                  opacity: _productosSinStock > 0 ? 0.6 : 1.0,
+                  duration: const Duration(milliseconds: 500),
+                  child: ArticKpiCard(
+                    title: "Productos sin stock",
+                    value: "$_productosSinStock",
+                    accentColor:
+                        _productosSinStock > 0 ? Colors.redAccent : Colors.teal,
+                    icon: Icons.warning_amber_rounded,
+                  ),
+                ),
+
+                // 🔥 Otros KPI
                 ArticKpiCard(
                   title: "Ventas de Hoy",
                   value: "💰 \$${ventasHoy.toStringAsFixed(2)}",
@@ -123,10 +149,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   value: "🏆 $productoTop",
                   accentColor: Colors.orange,
                 ),
+                ArticKpiCard(
+                  title: "Productos sin Stock",
+                  value: "⚠️ $_productosSinStock",
+                  accentColor: Colors.redAccent,
+                ),
 
                 const SizedBox(height: 20),
 
-                // 📊 Gráfico de barras
                 const Text("📊 Ventas últimos 7 días",
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -134,7 +164,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 const SizedBox(height: 30),
 
-                // 🥧 Gráfico de pastel
                 const Text("🥧 Métodos de pago",
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -147,7 +176,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// 📊 **Gráfico de barras**
   Widget _buildBarChart() {
     if (ventasDias.isEmpty) {
       return const Center(
@@ -185,7 +213,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// 🥧 **Gráfico de pastel**
   Widget _buildPieChart() {
     if (metodosPago.isEmpty) {
       return const Center(

@@ -319,26 +319,52 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
-  /// ✅ Confirmar venta
   /// ✅ Confirmar venta (modificado para permitir cliente null)
   Future<void> _confirmarVenta() async {
     if (_carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ El carrito está vacío")));
+        const SnackBar(content: Text("⚠️ El carrito está vacío")),
+      );
       return;
     }
 
-    // ✅ Solo bloquea si es fiado y no hay cliente
     if (metodoSeleccionado == 'Fiado' && _clienteSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ No puedes fiar sin cliente")));
+        const SnackBar(content: Text("⚠️ No puedes fiar sin cliente")),
+      );
       return;
     }
 
+    // ✅ 1. Verificar stock antes de procesar
+    final productosAgotados = <String>[];
+
+    for (var item in _carrito) {
+      final producto = await dbService.getProductoById(item['productoId']);
+
+      if (producto == null) {
+        productosAgotados
+            .add("Producto desconocido (ID: ${item['productoId']})");
+        continue;
+      }
+
+      final stock = producto['stock'] ?? 0;
+      if (stock < item['cantidad']) {
+        productosAgotados.add(
+          "${producto['nombre']} (Stock: $stock / Necesita: ${item['cantidad']})",
+        );
+      }
+    }
+
+    // ✅ 2. Si hay productos sin stock, mostrar alerta y salir
+    if (productosAgotados.isNotEmpty) {
+      _mostrarAlertaStockInsuficiente(productosAgotados);
+      return;
+    }
+
+    // ✅ 3. Registrar la venta si todo está OK
     final total = _carrito.fold(0.0, (sum, i) => sum + i['subtotal']);
 
     try {
-      // ✅ Primero insertamos la venta
       final ventaId = await dbService.insertVentaBase({
         'clienteId': _clienteSeleccionado?.id,
         'fecha': DateTime.now().toIso8601String(),
@@ -346,7 +372,6 @@ class _SalesScreenState extends State<SalesScreen> {
         'total': total,
       });
 
-      // ✅ Luego insertamos cada item y verificamos stock
       for (var i in _carrito) {
         await dbService.insertItemVenta({
           'ventaId': ventaId,
@@ -356,7 +381,6 @@ class _SalesScreenState extends State<SalesScreen> {
         });
       }
 
-      // ✅ Si es fiado y hay cliente, registra deuda
       if (metodoSeleccionado == 'Fiado' && _clienteSeleccionado != null) {
         await dbService.insertDeuda({
           'clienteId': _clienteSeleccionado!.id,
@@ -367,7 +391,6 @@ class _SalesScreenState extends State<SalesScreen> {
         });
       }
 
-      // ✅ Refrescar UI
       setState(() {
         _carrito.clear();
         _ventasFuture = dbService.getVentas();
@@ -375,9 +398,9 @@ class _SalesScreenState extends State<SalesScreen> {
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Venta registrada correctamente!")));
+        const SnackBar(content: Text("✅ Venta registrada correctamente!")),
+      );
     } catch (e) {
-      // ❌ Si no hay stock, mostramos mensaje y no seguimos
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("❌ Error: ${e.toString()}")),
       );
@@ -500,6 +523,31 @@ class _SalesScreenState extends State<SalesScreen> {
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add_shopping_cart),
         onPressed: _abrirCarrito,
+      ),
+    );
+  }
+
+  void _mostrarAlertaStockInsuficiente(List<String> productos) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("⚠️ Stock insuficiente"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                "No se puede procesar la venta. Revisa estos productos:"),
+            const SizedBox(height: 10),
+            ...productos.map((p) => Text("• $p")),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
       ),
     );
   }

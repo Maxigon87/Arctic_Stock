@@ -668,8 +668,11 @@ class DBService {
   }
 
 // Obtener productos con filtro por categoría y búsqueda
-  Future<List<Map<String, dynamic>>> getProductos(
-      {String? search, int? categoriaId}) async {
+  Future<List<Map<String, dynamic>>> getProductos({
+    String? search,
+    int? categoriaId,
+    bool soloAgotados = false, // ✅ nuevo parámetro
+  }) async {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
@@ -678,9 +681,14 @@ class DBService {
       where += " AND p.nombre LIKE ?";
       args.add('%$search%');
     }
+
     if (categoriaId != null) {
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
+    }
+
+    if (soloAgotados) {
+      where += " AND p.stock <= 0"; // ✅ filtrar productos sin stock
     }
 
     return await db.rawQuery('''
@@ -804,5 +812,20 @@ class DBService {
     final res = await db.rawQuery(
         'SELECT COUNT(*) AS cantidad FROM productos WHERE stock <= 0');
     return (res.isNotEmpty ? res.first['cantidad'] as int : 0);
+  }
+
+  /// ✅ Obtener un producto por ID
+  Future<Map<String, dynamic>?> getProductoById(int productoId) async {
+    final db = await database;
+    final res = await db.rawQuery('''
+    SELECT p.id, p.nombre, p.precio, p.stock, p.categoria_id, 
+           c.nombre AS categoria_nombre
+    FROM productos p
+    LEFT JOIN categorias c ON p.categoria_id = c.id
+    WHERE p.id = ?
+    LIMIT 1
+  ''', [productoId]);
+
+    return res.isNotEmpty ? res.first : null;
   }
 }
