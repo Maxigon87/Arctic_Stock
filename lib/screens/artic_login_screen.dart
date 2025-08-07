@@ -4,10 +4,7 @@ import '../widgets/artic_background.dart';
 import '../main.dart';
 
 class ArticLoginScreen extends StatefulWidget {
-  final VoidCallback onToggleTheme; // ✅ agregamos este parámetro
-
-  const ArticLoginScreen({Key? key, required this.onToggleTheme})
-      : super(key: key);
+  const ArticLoginScreen({Key? key}) : super(key: key);
 
   @override
   State<ArticLoginScreen> createState() => _ArticLoginScreenState();
@@ -30,13 +27,16 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
     // 🎬 Animación del título
     _titleController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1500));
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
     _scaleAnimation =
         CurvedAnimation(parent: _titleController, curve: Curves.elasticOut);
     _opacityAnimation =
         CurvedAnimation(parent: _titleController, curve: Curves.easeIn);
+
     _titleController.forward().whenComplete(() {
-      // luego de mostrar el título, mostrar viento
       Future.delayed(const Duration(milliseconds: 800), () {
         setState(() => showButton = true);
       });
@@ -69,11 +69,10 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
       body: ArticBackground(
         child: Stack(
           children: [
-            // 🌬️ Viento animado
             CustomPaint(
-                size: Size.infinite, painter: _WindPainter(_windParticles)),
-
-            // ❄️ Contenido
+              size: Size.infinite,
+              painter: _WindPainter(_windParticles),
+            ),
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -82,22 +81,14 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                     scale: _scaleAnimation,
                     child: FadeTransition(
                       opacity: _opacityAnimation,
-                      child: ScaleTransition(
-                        scale: _scaleAnimation,
-                        child: FadeTransition(
-                          opacity: _opacityAnimation,
-                          child: Image.asset(
-                            'assets/images/artic_logo.png',
-                            height: 120, // ajusta tamaño
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                      child: Image.asset(
+                        'assets/images/artic_logo.png',
+                        height: 240, //Tamaño del logo ✨
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
                   const SizedBox(height: 40),
-
-                  // 🔥 Botón con fade in después del viento
                   AnimatedOpacity(
                     opacity: showButton ? 1 : 0,
                     duration: const Duration(milliseconds: 800),
@@ -107,8 +98,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => HomeScreen(
-                                      onToggleTheme: widget.onToggleTheme),
+                                  builder: (_) => const HomeScreen(),
                                 ),
                               );
                             },
@@ -126,9 +116,10 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                     color: Colors.white70, width: 1.5),
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.cyanAccent.withOpacity(0.3),
-                                      blurRadius: 12,
-                                      offset: Offset(0, 4)),
+                                    color: Colors.cyanAccent.withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
                                 ],
                               ),
                               child: Text(
@@ -184,7 +175,10 @@ class _WindPainter extends CustomPainter {
     final paint = Paint()..color = Colors.white.withOpacity(0.15);
     for (var p in particles) {
       canvas.drawCircle(
-          Offset(p.x * size.width, p.y * size.height), p.size, paint);
+        Offset(p.x * size.width, p.y * size.height),
+        p.size,
+        paint,
+      );
     }
   }
 

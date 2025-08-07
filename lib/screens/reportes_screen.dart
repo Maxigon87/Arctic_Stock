@@ -116,29 +116,77 @@ class _ReportesScreenState extends State<ReportesScreen> {
       hasta: hasta,
     );
 
-    final deudas = await dbService.getDeudasFiltradasParaReporte(
-      clienteId: _clienteSeleccionado?.id,
-      estado: estadoSeleccionado,
-      desde: desde,
-      hasta: hasta,
+    final pdf = pw.Document();
+
+    final logoImage = pw.MemoryImage(
+      File('assets/images/artic_logo.png').readAsBytesSync(),
     );
 
-    double totalVentas = ventas.fold(0, (s, v) => s + (v['total'] ?? 0));
-    double totalDeudas = deudas.fold(0, (s, d) => s + (d['monto'] ?? 0));
-
-    final pdf = pw.Document();
     pdf.addPage(
-      pw.Page(
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text("📊 Reporte Filtrado",
-                style:
-                    pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-            pw.Text("Total Ventas: \$${totalVentas.toStringAsFixed(2)}"),
-            pw.Text("Total Deudas: \$${totalDeudas.toStringAsFixed(2)}"),
-          ],
-        ),
+      pw.MultiPage(
+        build: (context) => [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Artic Stock',
+                      style: pw.TextStyle(
+                          fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(
+                    'Reporte de Ventas',
+                    style: pw.TextStyle(fontSize: 14),
+                  ),
+                  pw.Text(
+                    'Generado: ${DateTime.now().toString().substring(0, 16)}',
+                    style: pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+              pw.Image(logoImage, width: 80, height: 80),
+            ],
+          ),
+          pw.SizedBox(height: 20),
+          ...ventas
+              .map((venta) async {
+                final detalles = await dbService.getItemsByVenta(venta['id']);
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Divider(),
+                    pw.Text(
+                      '🧾 Venta #${venta['id']} - ${venta['fecha']}',
+                      style: pw.TextStyle(
+                          fontSize: 14, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text('Cliente: ${venta['clienteNombre']}'),
+                    pw.Text('Método de pago: ${venta['metodoPago']}'),
+                    pw.Text('Total: \$${venta['total'].toStringAsFixed(2)}'),
+                    pw.SizedBox(height: 5),
+                    pw.Table.fromTextArray(
+                      headers: [
+                        'Producto',
+                        'Cantidad',
+                        'Precio Unitario',
+                        'Subtotal'
+                      ],
+                      data: detalles.map((item) {
+                        return [
+                          item['producto'],
+                          item['cantidad'].toString(),
+                          '\$${item['precioUnitario'].toStringAsFixed(2)}',
+                          '\$${item['subtotal'].toStringAsFixed(2)}'
+                        ];
+                      }).toList(),
+                    ),
+                    pw.SizedBox(height: 10),
+                  ],
+                );
+              })
+              .toList()
+              .cast<pw.Widget>(),
+        ],
       ),
     );
 
@@ -149,6 +197,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("✅ Reporte PDF guardado: ${file.path}")),
     );
+
     await Printing.layoutPdf(onLayout: (_) async => await pdf.save());
   }
 

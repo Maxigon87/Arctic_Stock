@@ -43,6 +43,36 @@ class _ProductListScreenState extends State<ProductListScreen> {
     setState(() => productos = data);
   }
 
+  Future<String?> _mostrarDialogoNuevaCategoria() async {
+    final TextEditingController _controller = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Nueva Categoría"),
+          content: TextField(
+            controller: _controller,
+            decoration:
+                const InputDecoration(labelText: "Nombre de la categoría"),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, _controller.text.trim());
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// ✅ Diálogo para agregar un producto
   void _showAddDialog() {
     final nombreCtrl = TextEditingController();
@@ -68,17 +98,41 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: "Categoría"),
-                  value: catSeleccionada,
-                  items: categorias
-                      .map((c) => DropdownMenuItem<int>(
-                            value: c['id'] as int,
-                            child: Text(c['nombre']),
-                          ))
-                      .toList(),
-                  onChanged: (val) =>
-                      setLocalState(() => catSeleccionada = val),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        decoration:
+                            const InputDecoration(labelText: "Categoría"),
+                        value: catSeleccionada,
+                        items: categorias
+                            .map((c) => DropdownMenuItem<int>(
+                                  value: c['id'] as int,
+                                  child: Text(c['nombre']),
+                                ))
+                            .toList(),
+                        onChanged: (val) =>
+                            setLocalState(() => catSeleccionada = val),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add, color: Colors.teal),
+                      tooltip: 'Agregar nueva categoría',
+                      onPressed: () async {
+                        final nuevoNombre =
+                            await _mostrarDialogoNuevaCategoria();
+                        if (nuevoNombre != null &&
+                            nuevoNombre.trim().isNotEmpty) {
+                          final nuevaId =
+                              await db.insertCategoria(nuevoNombre.trim());
+                          await _loadCategorias(); // recarga la lista
+                          setLocalState(() {
+                            catSeleccionada = nuevaId;
+                          });
+                        }
+                      },
+                    )
+                  ],
                 ),
               ],
             ),

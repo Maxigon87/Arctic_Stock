@@ -12,6 +12,9 @@ import 'screens/dashboard_screen.dart';
 import 'widgets/artic_background.dart';
 import 'package:window_manager/window_manager.dart';
 import 'screens/artic_login_screen.dart';
+import 'dart:io';
+import 'screens/splash_screen.dart';
+import 'package:window_manager/window_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,38 +44,13 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light;
-
   @override
   void initState() {
     super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('isDark') ?? false;
-    setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
-  }
-
-  Future<void> _toggleTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = _themeMode == ThemeMode.dark;
-    await prefs.setBool('isDark', !isDark);
-    setState(() => _themeMode = !isDark ? ThemeMode.dark : ThemeMode.light);
   }
 
   @override
   Widget build(BuildContext context) {
-    final lightTheme = ThemeData(
-      brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green, brightness: Brightness.light),
-      scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-      appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.green, foregroundColor: Colors.white),
-    );
-
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
@@ -82,24 +60,18 @@ class _MyAppState extends State<MyApp> {
           backgroundColor: Colors.black87, foregroundColor: Colors.white),
     );
 
-    return AnimatedTheme(
-      data: _themeMode == ThemeMode.dark ? darkTheme : lightTheme,
-      duration: const Duration(milliseconds: 400),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: "Artic Stock",
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: _themeMode,
-        home: ArticLoginScreen(onToggleTheme: _toggleTheme),
-      ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: "Artic Stock",
+      theme: darkTheme,
+      home: SplashScreen(),
     );
+    // <-- Add this closing parenthesis for WillPopScope
   }
 }
 
 class HomeScreen extends StatefulWidget {
-  final VoidCallback onToggleTheme;
-  const HomeScreen({Key? key, required this.onToggleTheme}) : super(key: key);
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -127,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(_MyWindowListener(this));
     _controller = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 800));
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
@@ -164,59 +137,67 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Artic Stock"),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.wb_sunny
-                  : Icons.nights_stay,
-            ),
-            onPressed: widget.onToggleTheme,
+    return WillPopScope(
+        onWillPop: () async {
+          final shouldExit = await _mostrarDialogoConfirmacion(context);
+          return shouldExit ?? false;
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text("Artic Stock"),
+            actions: [
+              IconButton(
+                tooltip: "Salir de la App",
+                icon: const Icon(Icons.exit_to_app),
+                onPressed: () {
+                  exit(0); // 🔥 Cierra la app al instante (solo en Desktop)
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: ArticBackground(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 700),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: GridView.builder(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount:
-                        MediaQuery.of(context).size.width > 900 ? 3 : 2,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 1.3, // 🔥 ajusta proporción a tu gusto
+          body: ArticBackground(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 700),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount:
+                            MediaQuery.of(context).size.width > 900 ? 3 : 2,
+                        crossAxisSpacing: 20,
+                        mainAxisSpacing: 20,
+                        childAspectRatio:
+                            1.3, // 🔥 ajusta proporción a tu gusto
+                      ),
+                      itemCount: _options.length,
+                      itemBuilder: (context, index) {
+                        final opt = _options[index];
+                        return _AnimatedHomeCard(
+                          title: opt.title,
+                          icon: opt.icon,
+                          color: opt.color,
+                          badgeCount: opt.title == "Productos"
+                              ? _productosSinStock
+                              : null,
+                          animateBadge: opt.title == "Productos"
+                              ? _animarBadge
+                              : false, // ✅
+                          onTap: () => _navigateTo(context, index),
+                        );
+                      },
+                    ),
                   ),
-                  itemCount: _options.length,
-                  itemBuilder: (context, index) {
-                    final opt = _options[index];
-                    return _AnimatedHomeCard(
-                      title: opt.title,
-                      icon: opt.icon,
-                      color: opt.color,
-                      badgeCount:
-                          opt.title == "Productos" ? _productosSinStock : null,
-                      animateBadge:
-                          opt.title == "Productos" ? _animarBadge : false, // ✅
-                      onTap: () => _navigateTo(context, index),
-                    );
-                  },
                 ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
+    // <-- Add this closing parenthesis for WillPopScope
   }
 
   void _navigateTo(BuildContext context, int index) {
@@ -232,6 +213,26 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.of(context).push(_createRoute(screens[index])).then((_) {
       _loadProductosSinStock();
     });
+  }
+
+  Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("¿Salir de Artic Stock?"),
+        content: const Text("¿Estás seguro que querés cerrar la aplicación?"),
+        actions: [
+          TextButton(
+            child: const Text("Cancelar"),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          TextButton(
+            child: const Text("Salir"),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
   }
 
   Route _createRoute(Widget page) {
@@ -340,5 +341,20 @@ class _AnimatedHomeCard extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+class _MyWindowListener extends WindowListener {
+  final _HomeScreenState state;
+  _MyWindowListener(this.state);
+
+  @override
+  Future<bool> onWindowClose() async {
+    final shouldExit = await state._mostrarDialogoConfirmacion(state.context);
+    if (shouldExit == true) {
+      return true; // cerrar
+    } else {
+      return false; // cancelar
+    }
   }
 }
