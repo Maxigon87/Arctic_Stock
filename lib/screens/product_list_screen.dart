@@ -3,9 +3,11 @@ import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import '../services/db_service.dart';
 
+// 🚩 importa tu formulario
+import 'product_form.dart'; // <-- ajusta la ruta si está en otra carpeta
+
 class ProductListScreen extends StatefulWidget {
-  final bool
-      selectMode; // ✅ si true, permite seleccionar producto y devolverlo a la pantalla anterior
+  final bool selectMode; // si true, permite seleccionar producto y devolverlo
 
   const ProductListScreen({Key? key, this.selectMode = false})
       : super(key: key);
@@ -38,7 +40,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final data = await db.getProductos(
       search: searchQuery,
       categoriaId: selectedCategoriaId,
-      soloAgotados: _mostrarSoloAgotados, // ✅ se filtran si está activo
+      soloAgotados: _mostrarSoloAgotados,
     );
     setState(() => productos = data);
   }
@@ -73,167 +75,33 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  /// ✅ Diálogo para agregar un producto
-  void _showAddDialog() {
-    final nombreCtrl = TextEditingController();
-    final precioCtrl = TextEditingController();
-    int? catSeleccionada;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setLocalState) {
-          return AlertDialog(
-            title: const Text('Agregar Producto'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                ),
-                TextField(
-                  controller: precioCtrl,
-                  decoration: const InputDecoration(labelText: 'Precio'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        decoration:
-                            const InputDecoration(labelText: "Categoría"),
-                        value: catSeleccionada,
-                        items: categorias
-                            .map((c) => DropdownMenuItem<int>(
-                                  value: c['id'] as int,
-                                  child: Text(c['nombre']),
-                                ))
-                            .toList(),
-                        onChanged: (val) =>
-                            setLocalState(() => catSeleccionada = val),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add, color: Colors.teal),
-                      tooltip: 'Agregar nueva categoría',
-                      onPressed: () async {
-                        final nuevoNombre =
-                            await _mostrarDialogoNuevaCategoria();
-                        if (nuevoNombre != null &&
-                            nuevoNombre.trim().isNotEmpty) {
-                          final nuevaId =
-                              await db.insertCategoria(nuevoNombre.trim());
-                          await _loadCategorias(); // recarga la lista
-                          setLocalState(() {
-                            catSeleccionada = nuevaId;
-                          });
-                        }
-                      },
-                    )
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final nombre = nombreCtrl.text.trim();
-                  final precio = double.tryParse(precioCtrl.text) ?? -1;
-                  if (nombre.isEmpty || precio <= 0) return;
-
-                  await db.insertProducto({
-                    'nombre': nombre,
-                    'precio': precio,
-                    'categoria_id': catSeleccionada,
-                  });
-
-                  Navigator.pop(ctx);
-                  _loadProductos();
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
+  // 🔁 Navega al formulario para CREAR
+  Future<void> _goToCreate() async {
+    final ok = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductForm()),
     );
+    if (ok == true) _loadProductos();
   }
 
-  /// ✅ Diálogo para editar producto
-  void _showEditDialog(Map<String, dynamic> producto) {
-    final nombreCtrl = TextEditingController(text: producto['nombre']);
-    final precioCtrl =
-        TextEditingController(text: producto['precio'].toString());
-    int? catSeleccionada = producto['categoria_id'];
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setLocalState) {
-          return AlertDialog(
-            title: const Text('Editar Producto'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                    controller: nombreCtrl,
-                    decoration: const InputDecoration(labelText: 'Nombre')),
-                TextField(
-                    controller: precioCtrl,
-                    decoration: const InputDecoration(labelText: 'Precio'),
-                    keyboardType: TextInputType.number),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: "Categoría"),
-                  value: catSeleccionada,
-                  items: categorias
-                      .map((c) => DropdownMenuItem<int>(
-                            value: c['id'] as int,
-                            child: Text(c['nombre']),
-                          ))
-                      .toList(),
-                  onChanged: (val) =>
-                      setLocalState(() => catSeleccionada = val),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancelar')),
-              ElevatedButton(
-                onPressed: () async {
-                  final nombre = nombreCtrl.text.trim();
-                  final precio = double.tryParse(precioCtrl.text) ?? 0;
-                  if (nombre.isEmpty || precio <= 0) return;
-
-                  await db.updateProducto({
-                    'nombre': nombre,
-                    'precio': precio,
-                    'categoria_id': catSeleccionada,
-                  }, producto['id']);
-
-                  Navigator.pop(ctx);
-                  _loadProductos();
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
+  // 🔁 Navega al formulario para EDITAR
+  Future<void> _goToEdit(Map<String, dynamic> p) async {
+    final ok = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProductForm(initial: p)),
     );
+    if (ok == true) _loadProductos();
   }
 
   Future<void> _deleteProducto(int id) async {
     await db.deleteProducto(id);
     _loadProductos();
+  }
+
+  String _money(dynamic n) {
+    if (n == null) return "\$0.00";
+    final d = (n as num).toDouble();
+    return "\$${d.toStringAsFixed(2)}";
   }
 
   Widget _buildFiltros() {
@@ -244,7 +112,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
           Expanded(
             child: TextField(
               decoration: const InputDecoration(
-                  labelText: "Buscar producto", prefixIcon: Icon(Icons.search)),
+                labelText: "Buscar producto",
+                prefixIcon: Icon(Icons.search),
+              ),
               onChanged: (val) {
                 searchQuery = val;
                 _loadProductos();
@@ -264,6 +134,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
             onChanged: (value) {
               setState(() => selectedCategoriaId = value);
               _loadProductos();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Nueva categoría',
+            onPressed: () async {
+              final nuevoNombre = await _mostrarDialogoNuevaCategoria();
+              if (nuevoNombre != null && nuevoNombre.trim().isNotEmpty) {
+                final nuevaId = await db.insertCategoria(nuevoNombre.trim());
+                await _loadCategorias();
+                setState(() => selectedCategoriaId = nuevaId);
+                _loadProductos();
+              }
             },
           ),
         ],
@@ -310,6 +193,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           final p = productos[i];
                           final sinStock = (p['stock'] ?? 0) <= 0;
 
+                          final precio =
+                              (p['precio_venta'] as num?)?.toDouble() ??
+                                  0.0; // ⬅️ nuevo campo
+                          final costo =
+                              (p['costo_compra'] as num?)?.toDouble() ??
+                                  0.0; // ⬅️ nuevo campo
+                          final utilidad = (precio - costo);
+
                           return Opacity(
                             opacity: sinStock ? 0.5 : 1.0,
                             child: Card(
@@ -325,17 +216,43 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               child: Stack(
                                 children: [
                                   ListTile(
-                                    title: Text(p['nombre']),
-                                    subtitle: Text(
-                                      'Precio: \$${p['precio']} | '
-                                      'Stock: ${p['stock'] ?? 0} | '
-                                      'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}',
-                                      style: TextStyle(
-                                        color: sinStock ? Colors.red : null,
-                                        fontWeight: sinStock
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                      ),
+                                    title: Text(
+                                      p['nombre'] ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if ((p['codigo'] ?? '')
+                                            .toString()
+                                            .isNotEmpty)
+                                          Text('Código: ${p['codigo']}'),
+                                        Text(
+                                          'Precio: ${_money(precio)}  |  Costo: ${_money(costo)}  |  Stock: ${p['stock'] ?? 0}',
+                                          style: TextStyle(
+                                            color: utilidad < 0
+                                                ? Colors.red
+                                                : null,
+                                            fontWeight: utilidad < 0
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                          ),
+                                        ),
+                                        Text(
+                                            'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                                        if ((p['descripcion'] ?? '')
+                                            .toString()
+                                            .isNotEmpty)
+                                          Text(
+                                            p['descripcion'],
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontStyle: FontStyle.italic),
+                                          ),
+                                      ],
                                     ),
                                     onTap: widget.selectMode
                                         ? (sinStock
@@ -347,7 +264,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         : PopupMenuButton<String>(
                                             onSelected: (value) async {
                                               if (value == 'edit') {
-                                                _showEditDialog(p);
+                                                // ir al formulario con datos cargados
+                                                await _goToEdit(p);
                                               }
                                               if (value == 'delete') {
                                                 _deleteProducto(p['id']);
@@ -382,8 +300,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                             context)
                                                         .showSnackBar(
                                                       const SnackBar(
-                                                          content: Text(
-                                                              "No puedes restar más de lo disponible")),
+                                                        content: Text(
+                                                            "No puedes restar más de lo disponible"),
+                                                      ),
                                                     );
                                                   }
                                                 }
@@ -434,6 +353,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         ),
                                       ),
                                     ),
+                                  if (utilidad < 0)
+                                    Positioned(
+                                      bottom: 6,
+                                      right: 6,
+                                      child: Row(
+                                        children: const [
+                                          Icon(Icons.warning_amber_rounded,
+                                              size: 16, color: Colors.amber),
+                                          SizedBox(width: 4),
+                                          Text("Vendiendo con pérdida",
+                                              style: TextStyle(fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -448,7 +381,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
       floatingActionButton: widget.selectMode
           ? null
           : FloatingActionButton(
-              onPressed: _showAddDialog,
+              onPressed: _goToCreate,
               child: const Icon(Icons.add),
             ),
     );

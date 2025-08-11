@@ -14,27 +14,35 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  // Totales
   double ventasHoy = 0;
   double ventasMes = 0;
   double deudasPendientes = 0;
   String productoTop = "Sin datos";
+  // NUEVO: Ganancias
+  double gananciaHoy = 0;
+  double gananciaMes = 0;
+
+  // Series / distribuciones
   List<Map<String, dynamic>> ventasDias = [];
   Map<String, double> metodosPago = {};
+
+  // Filtros
   int? categoriaSeleccionada;
   DateTime? desde;
   DateTime? hasta;
   List<Map<String, dynamic>> categorias = [];
-  final DBService dbService = DBService();
 
-  /// ✅ NUEVO: KPI Productos sin stock
+  // Otros
+  final DBService dbService = DBService();
   int _productosSinStock = 0;
   late StreamSubscription _dbSub;
 
   @override
   void initState() {
     super.initState();
+    _loadCategorias();
     _loadDashboardData();
-    // ✅ Suscripción para refrescar KPI cuando cambia la base
     _dbSub = DBService().onDatabaseChanged.listen((_) => _loadDashboardData());
   }
 
@@ -44,15 +52,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Future<void> _loadCategorias() async {
+    categorias = await dbService.getAllCategorias();
+    if (mounted) setState(() {});
+  }
+
+  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _endOfDay(DateTime d) =>
+      DateTime(d.year, d.month, d.day, 23, 59, 59);
+  DateTime _startOfMonth(DateTime d) => DateTime(d.year, d.month, 1);
+  DateTime _endOfMonth(DateTime d) =>
+      DateTime(d.year, d.month + 1, 0, 23, 59, 59);
+
   Future<void> _loadDashboardData() async {
-    final db = DBService();
-    ventasHoy = await db.getTotalVentasDia(DateTime.now());
-    ventasMes = await db.getTotalVentasMes(DateTime.now());
-    deudasPendientes = await db.getTotalDeudasPendientes();
-    productoTop = await db.getProductoMasVendido();
-    ventasDias = await db.getVentasUltimos7Dias();
-    metodosPago = await db.getDistribucionMetodosPago();
-    _productosSinStock = await db.getProductosSinStockCount();
+    final hoy = DateTime.now();
+
+    // Ventas día / mes (con filtro por categoría si aplica)
+    ventasHoy = await dbService.getTotalVentasDia(
+      hoy,
+      categoriaId: categoriaSeleccionada,
+    );
+
+    ventasMes = await dbService.getTotalVentasMes(
+      hoy,
+      categoriaId: categoriaSeleccionada,
+    );
+
+    // NUEVO: Ganancias día / mes (usa helper que agregamos en DBService)
+    gananciaHoy = await dbService.getGananciaTotal(
+      desde: _startOfDay(hoy),
+      hasta: _endOfDay(hoy),
+      categoriaId: categoriaSeleccionada,
+    );
+
+    gananciaMes = await dbService.getGananciaTotal(
+      desde: _startOfMonth(hoy),
+      hasta: _endOfMonth(hoy),
+      categoriaId: categoriaSeleccionada,
+    );
+
+    // Deudas pendientes (puede filtrar por categoría según items vendidos)
+    deudasPendientes = await dbService.getTotalDeudasPendientes(
+      categoriaId: categoriaSeleccionada,
+    );
+
+    // Producto top (respeta filtros si se seleccionó un rango)
+    productoTop = await dbService.getProductoMasVendido(
+      categoriaId: categoriaSeleccionada,
+      desde: desde,
+      hasta: hasta,
+    );
+
+    // Serie últimos 7 días (filtra por categoría)
+    ventasDias = await dbService.getVentasUltimos7Dias(
+      categoriaId: categoriaSeleccionada,
+    );
+
+    // Distribución métodos de pago (filtra por categoría)
+    metodosPago = await dbService.getDistribucionMetodosPago(
+      categoriaId: categoriaSeleccionada,
+    );
+
+    // KPI sin stock
+    _productosSinStock = await dbService.getProductosSinStockCount();
 
     if (mounted) setState(() {});
   }
@@ -66,12 +128,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: DropdownButton<int>(
                 hint: const Text("Categoría"),
                 value: categoriaSeleccionada,
-                items: categorias.map((c) {
-                  return DropdownMenuItem<int>(
-                    value: c['id'] as int,
-                    child: Text(c['nombre']),
-                  );
-                }).toList(),
+                items: categorias
+                    .map((c) => DropdownMenuItem<int>(
+                          value: c['id'] as int,
+                          child: Text(c['nombre']),
+                        ))
+                    .toList(),
                 onChanged: (v) {
                   setState(() => categoriaSeleccionada = v);
                   _loadDashboardData();
@@ -96,12 +158,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
               child: const Text("Filtrar Fecha"),
             ),
+            if (desde != null && hasta != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Limpiar rango',
+                onPressed: () {
+                  setState(() {
+                    desde = null;
+                    hasta = null;
+                  });
+                  _loadDashboardData();
+                },
+                icon: const Icon(Icons.clear),
+              ),
+            ]
           ],
         ),
         const SizedBox(height: 10),
+        if (desde != null && hasta != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Rango: ${_fmtDate(desde!)} → ${_fmtDate(hasta!)}",
+              style: const TextStyle(fontStyle: FontStyle.italic),
+            ),
+          ),
       ],
     );
   }
+
+  String _fmtDate(DateTime d) =>
+      "${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
 
   @override
   Widget build(BuildContext context) {
@@ -115,10 +202,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _buildFiltrosDashboard(),
 
-                // ✅ KPI nuevo: Productos sin stock (con alerta)
+                // KPI: Productos sin stock (único)
                 AnimatedOpacity(
-                  opacity: _productosSinStock > 0 ? 0.6 : 1.0,
-                  duration: const Duration(milliseconds: 500),
+                  opacity: _productosSinStock > 0 ? 0.85 : 1.0,
+                  duration: const Duration(milliseconds: 400),
                   child: ArticKpiCard(
                     title: "Productos sin stock",
                     value: "$_productosSinStock",
@@ -128,45 +215,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
-                // 🔥 Otros KPI
+                // Ventas y Ganancias - Día
                 ArticKpiCard(
                   title: "Ventas de Hoy",
                   value: "💰 \$${ventasHoy.toStringAsFixed(2)}",
                   accentColor: Colors.green,
                 ),
                 ArticKpiCard(
+                  title: "Ganancia de Hoy",
+                  value: "📈 \$${gananciaHoy.toStringAsFixed(2)}",
+                  accentColor: Colors.lightGreen,
+                ),
+
+                // Ventas y Ganancias - Mes
+                ArticKpiCard(
                   title: "Ventas del Mes",
                   value: "📆 \$${ventasMes.toStringAsFixed(2)}",
                   accentColor: Colors.blue,
                 ),
                 ArticKpiCard(
+                  title: "Ganancia del Mes",
+                  value: "🏦 \$${gananciaMes.toStringAsFixed(2)}",
+                  accentColor: Colors.indigo,
+                ),
+
+                // Deudas pendientes
+                ArticKpiCard(
                   title: "Deudas Pendientes",
                   value: "💸 \$${deudasPendientes.toStringAsFixed(2)}",
                   accentColor: Colors.red,
                 ),
+
+                // Producto Top (según filtros)
                 ArticKpiCard(
                   title: "Producto Más Vendido",
                   value: "🏆 $productoTop",
                   accentColor: Colors.orange,
                 ),
-                ArticKpiCard(
-                  title: "Productos sin Stock",
-                  value: "⚠️ $_productosSinStock",
-                  accentColor: Colors.redAccent,
-                ),
 
                 const SizedBox(height: 20),
 
-                const Text("📊 Ventas últimos 7 días",
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "📊 Ventas últimos 7 días",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(height: 220, child: _buildBarChart()),
 
                 const SizedBox(height: 30),
 
-                const Text("🥧 Métodos de pago",
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "🥧 Métodos de pago",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(height: 240, child: _buildPieChart()),
               ],
             ),
@@ -191,23 +291,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                int index = value.toInt();
+                final index = value.toInt();
                 return index < ventasDias.length
-                    ? Text(ventasDias[index]['dia'],
-                        style: const TextStyle(color: Colors.white))
+                    ? Text(
+                        ventasDias[index]['dia'].toString(),
+                        style: const TextStyle(color: Colors.white),
+                      )
                     : const Text("");
               },
             ),
           ),
         ),
         barGroups: List.generate(ventasDias.length, (i) {
-          return BarChartGroupData(x: i, barRods: [
-            BarChartRodData(
-              toY: (ventasDias[i]['total'] as double),
-              color: Colors.cyanAccent,
-              borderRadius: BorderRadius.circular(4),
-            )
-          ]);
+          final total = (ventasDias[i]['total'] as num?)?.toDouble() ?? 0.0;
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: total,
+                color: Colors.cyanAccent,
+                borderRadius: BorderRadius.circular(4),
+              )
+            ],
+          );
         }),
       ),
     );
@@ -229,7 +335,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: _getColorForMetodo(e.key),
             radius: 70,
             titleStyle: const TextStyle(
-                color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           );
         }).toList(),
       ),
