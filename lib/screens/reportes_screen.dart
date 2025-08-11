@@ -1,13 +1,13 @@
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/db_service.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
@@ -118,9 +118,46 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
     final pdf = pw.Document();
 
-    final logoImage = pw.MemoryImage(
-      File('assets/images/artic_logo.png').readAsBytesSync(),
-    );
+    final logoData = await rootBundle.load('assets/images/artic_logo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
+    final ventaWidgets = <pw.Widget>[];
+    for (final venta in ventas) {
+      final detalles = await dbService.getItemsByVenta(venta['id']);
+      ventaWidgets.add(
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Divider(),
+            pw.Text(
+              '🧾 Venta #${venta['id']} - ${venta['fecha']}',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text('Cliente: ${venta['clienteNombre']}'),
+            pw.Text('Método de pago: ${venta['metodoPago']}'),
+            pw.Text('Total: \$${venta['total'].toStringAsFixed(2)}'),
+            pw.SizedBox(height: 5),
+            pw.Table.fromTextArray(
+              headers: [
+                'Producto',
+                'Cantidad',
+                'Precio Unitario',
+                'Subtotal'
+              ],
+              data: detalles.map((item) {
+                return [
+                  item['producto'],
+                  item['cantidad'].toString(),
+                  '\$${item['precioUnitario'].toStringAsFixed(2)}',
+                  '\$${item['subtotal'].toStringAsFixed(2)}'
+                ];
+              }).toList(),
+            ),
+            pw.SizedBox(height: 10),
+          ],
+        ),
+      );
+    }
 
     pdf.addPage(
       pw.MultiPage(
@@ -148,48 +185,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
             ],
           ),
           pw.SizedBox(height: 20),
-          ...ventas
-              .map((venta) async {
-                final detalles = await dbService.getItemsByVenta(venta['id']);
-                return pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Divider(),
-                    pw.Text(
-                      '🧾 Venta #${venta['id']} - ${venta['fecha']}',
-                      style: pw.TextStyle(
-                          fontSize: 14, fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.Text('Cliente: ${venta['clienteNombre']}'),
-                    pw.Text('Método de pago: ${venta['metodoPago']}'),
-                    pw.Text('Total: \$${venta['total'].toStringAsFixed(2)}'),
-                    pw.SizedBox(height: 5),
-                    pw.Table.fromTextArray(
-                      headers: [
-                        'Producto',
-                        'Cantidad',
-                        'Precio Unitario',
-                        'Subtotal'
-                      ],
-                      data: detalles.map((item) {
-                        return [
-                          item['producto'],
-                          item['cantidad'].toString(),
-                          '\$${item['precioUnitario'].toStringAsFixed(2)}',
-                          '\$${item['subtotal'].toStringAsFixed(2)}'
-                        ];
-                      }).toList(),
-                    ),
-                    pw.SizedBox(height: 10),
-                  ],
-                );
-              })
-              .toList()
-              .cast<pw.Widget>(),
+          ...ventaWidgets,
         ],
       ),
     );
-
     final dir = await FileHelper.getReportesDir();
     final file = File('${dir.path}/${FileNamer.reportePdf()}');
     await file.writeAsBytes(await pdf.save());
