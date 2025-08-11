@@ -218,18 +218,26 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
     final excel = Excel.createExcel();
     final sheet = excel['Reporte_Filtrado'];
+    excel.setDefaultSheet('Reporte_Filtrado');
+
     sheet.appendRow(["Ventas"]);
+    sheet.appendRow(['ID', 'Cliente', 'Total']);
     ventas.forEach(
         (v) => sheet.appendRow([v['id'], v['clienteNombre'], v['total']]));
     sheet.appendRow([]);
     sheet.appendRow(["Deudas"]);
+    sheet.appendRow(['ID', 'Cliente', 'Total']);
     deudas.forEach(
         (d) => sheet.appendRow([d['id'], d['clienteNombre'], d['monto']]));
 
     final dir = await FileHelper.getReportesDir();
     final file = File('${dir.path}/${FileNamer.reporteExcel()}')
-      ..createSync(recursive: true)
-      ..writeAsBytesSync(excel.encode()!);
+      ..createSync(recursive: true);
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await file.writeAsBytes(bytes);
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("✅ Excel guardado: ${file.path}")),
