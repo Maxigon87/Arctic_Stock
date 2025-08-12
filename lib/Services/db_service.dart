@@ -39,10 +39,13 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 5,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
+          if (oldV < 3) await _migrateItemsVentaV3(db);
+          if (oldV < 6) await _hardenProductConstraintsV4(db);
+          // Aquí podrías agregar más migraciones si es necesario
         },
         // ✅ Asegura la columna 'stock' al abrir la base
         onOpen: (db) async {
@@ -147,16 +150,18 @@ class DBService {
   ''');
 
     await db.execute('''
-    CREATE TABLE items_venta (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ventaId INTEGER,
-      productoId INTEGER,
-      cantidad INTEGER,
-      subtotal REAL,
-      FOREIGN KEY (ventaId) REFERENCES ventas (id),
-      FOREIGN KEY (productoId) REFERENCES productos (id)
-    )
-  ''');
+  CREATE TABLE items_venta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ventaId INTEGER,
+    productoId INTEGER,
+    cantidad INTEGER,
+    precio_unitario REAL,           -- ⬅️ nuevo
+    costo_unitario  REAL DEFAULT 0, -- ⬅️ nuevo
+    subtotal REAL,
+    FOREIGN KEY (ventaId) REFERENCES ventas (id),
+    FOREIGN KEY (productoId) REFERENCES productos (id)
+  )
+''');
   }
 
   Future<void> _ensureStockColumn(Database db) async {
@@ -985,5 +990,81 @@ class DBService {
     LIMIT 1
   ''', [codigo]);
     return res.isNotEmpty ? res.first : null;
+  }
+
+  Future<void> _migrateItemsVentaV3(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(items_venta);");
+    final hasPU = cols.any((c) => c['name'] == 'precio_unitario');
+    final hasCU = cols.any((c) => c['name'] == 'costo_unitario');
+
+    if (!hasPU) {
+      await db
+          .execute("ALTER TABLE items_venta ADD COLUMN precio_unitario REAL;");
+    }
+    if (!hasCU) {
+      await db.execute(
+          "ALTER TABLE items_venta ADD COLUMN costo_unitario REAL DEFAULT 0;");
+    }
+
+    // Backfill razonable: si hay subtotal y cantidad, infiere precio_unitario.
+    // Si no, usa el precio/costo actuales del producto.
+    await db.execute('''
+    UPDATE items_venta
+    SET 
+      precio_unitario = COALESCE(
+        precio_unitario,
+        CASE 
+          WHEN cantidad IS NOT NULL AND cantidad > 0 AND subtotal IS NOT NULL THEN subtotal / cantidad
+          ELSE (SELECT p.precio_venta FROM productos p WHERE p.id = items_venta.productoId)
+        END
+      ),
+      costo_unitario = COALESCE(
+        costo_unitario,
+        (SELECT p.costo_compra FROM productos p WHERE p.id = items_venta.productoId),
+        0
+      )
+  ''');
+  }
+
+  // Dentro de la clase DBService
+  Future<void> _hardenProductConstraintsV4(Database db) async {
+    await db.execute('PRAGMA foreign_keys = OFF;');
+    await db.transaction((txn) async {
+      await txn.execute('ALTER TABLE productos RENAME TO productos_old;');
+
+      await txn.execute('''
+      CREATE TABLE productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT UNIQUE,
+        nombre TEXT NOT NULL,
+        descripcion TEXT,
+        precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
+        costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
+        stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+        categoria_id INTEGER,
+        FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+      )
+    ''');
+
+      await txn.execute(
+          "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+
+      await txn.execute('''
+      INSERT INTO productos (id, codigo, nombre, descripcion, precio_venta, costo_compra, stock, categoria_id)
+      SELECT 
+        id,
+        codigo,
+        nombre,
+        descripcion,
+        CASE WHEN precio_venta IS NULL OR precio_venta < 0 THEN 0 ELSE precio_venta END,
+        CASE WHEN costo_compra IS NULL OR costo_compra < 0 THEN 0 ELSE costo_compra END,
+        CASE WHEN stock IS NULL OR stock < 0 THEN 0 ELSE stock END,
+        categoria_id
+      FROM productos_old;
+    ''');
+
+      await txn.execute('DROP TABLE productos_old;');
+    });
+    await db.execute('PRAGMA foreign_keys = ON;');
   }
 }
