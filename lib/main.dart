@@ -144,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen>
         },
         child: Scaffold(
           appBar: AppBar(
+            leading: Image.asset('assets/logo/logo_sin_titulo.png'),
             title: const Text("Artic Stock"),
             actions: [
               IconButton(
