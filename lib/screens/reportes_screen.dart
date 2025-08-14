@@ -1,8 +1,6 @@
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle; // <-- para cargar logo
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/db_service.dart';
@@ -12,7 +10,9 @@ import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
 import '../models/cliente.dart';
+import 'package:intl/intl.dart';
 
+// Generación de reportes mensuales en PDF con ventas ordenadas
 class ReportesScreen extends StatefulWidget {
   const ReportesScreen({Key? key}) : super(key: key);
 
@@ -40,7 +40,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
     setState(() => _clientes = clientes);
   }
 
-  String _money(num? n) => "\$${(n ?? 0).toStringAsFixed(2)}";
+  String formateaFechaHora(DateTime fecha) {
+    return DateFormat('dd/MM/yyyy HH:mm').format(fecha);
+  }
+
 
   /// ✅ Filtros en UI
   Widget _buildFiltrosReportes() {
@@ -112,7 +115,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   /// ✅ Generar PDF con datos filtrados (incluye ganancia e ítems con snapshot)
   Future<void> _generarReporteFiltrado(BuildContext context) async {
-    // 1) Traer ventas según filtros
     final ventas = await dbService.getVentasFiltradasParaReporte(
       clienteId: _clienteSeleccionado?.id,
       metodoPago: metodoSeleccionado,
@@ -120,181 +122,68 @@ class _ReportesScreenState extends State<ReportesScreen> {
       hasta: hasta,
     );
 
-    // 2) Pre-cargar detalles de cada venta (no usar async dentro del build del PDF)
     final List<_VentaConItems> data = [];
     for (final v in ventas) {
       final items = await dbService.getItemsByVenta(v['id'] as int);
       data.add(_VentaConItems(venta: v, items: items));
     }
 
-    // 3) Cargar logo desde assets de forma correcta
-    final logoBytes = await rootBundle.load('assets/images/artic_logo.png');
-    final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+    data.sort((a, b) {
+      final fa = DateTime.parse(a.venta['fecha'] as String);
+      final fb = DateTime.parse(b.venta['fecha'] as String);
+      return fa.compareTo(fb);
+    });
 
-    // 4) Construir PDF
+    final primerDia =
+        data.isNotEmpty ? DateTime.parse(data.first.venta['fecha']) : DateTime.now();
+    final monthName = DateFormat.MMMM('es_ES').format(primerDia);
+
     final pdf = pw.Document();
-
     pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) {
-          final widgets = <pw.Widget>[];
-
-          // Encabezado
-          widgets.add(
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('Artic Stock',
-                        style: pw.TextStyle(
-                            fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('Reporte de Ventas',
-                        style: const pw.TextStyle(fontSize: 14)),
-                    pw.Text(
-                      'Generado: ${DateTime.now().toString().substring(0, 16)}',
-                      style: const pw.TextStyle(fontSize: 10),
-                    ),
-                  ],
-                ),
-                pw.Image(logoImage, width: 80, height: 80),
-              ],
+      pw.Page(
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Reporte mensual de ventas - $monthName ${primerDia.year}',
+              style:
+                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
             ),
-          );
-
-          widgets.add(pw.SizedBox(height: 16));
-
-          // Totales generales
-          double totalIngresoGlobal = 0,
-              totalCostoGlobal = 0,
-              totalGananciaGlobal = 0;
-
-          for (final bloque in data) {
-            final venta = bloque.venta;
-            final items = bloque.items;
-
-            // Calcular totales por venta desde los items (snapshot)
-            double ingresoVenta = 0, costoVenta = 0, gananciaVenta = 0;
-
-            final rows = <List<String>>[];
-            rows.add([
-              'Código',
-              'Producto',
-              'Cant.',
-              'Precio',
-              'Costo',
-              'Subtotal',
-              'Ganancia'
-            ]);
-
-            for (final it in items) {
-              final cant = (it['cantidad'] as num).toInt();
-              final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
-              final cu = (it['costoUnitario'] as num?)?.toDouble() ?? 0.0;
-              final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
-              final gan = (pu - cu) * cant;
-
-              ingresoVenta += sub;
-              costoVenta += cu * cant;
-              gananciaVenta += gan;
-
-              rows.add([
-                (it['codigo']?.toString() ?? ''),
-                (it['producto']?.toString() ?? ''),
-                cant.toString(),
-                _money(pu),
-                _money(cu),
-                _money(sub),
-                _money(gan),
-              ]);
-            }
-
-            totalIngresoGlobal += ingresoVenta;
-            totalCostoGlobal += costoVenta;
-            totalGananciaGlobal += gananciaVenta;
-
-            widgets.add(pw.Divider());
-            widgets.add(
-              pw.Text(
-                '🧾 Venta #${venta['id']}   ${venta['fecha']}',
-                style:
-                    pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-              ),
-            );
-            widgets.add(pw.Text(
-                'Cliente: ${venta['clienteNombre'] ?? 'Consumidor Final'}'));
-            widgets.add(pw.Text('Método de pago: ${venta['metodoPago']}'));
-            widgets.add(pw.SizedBox(height: 6));
-
-            // Tabla por venta
-            widgets.add(
-              pw.TableHelper.fromTextArray(
-                data: rows,
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                cellAlignment: pw.Alignment.centerLeft,
-              ),
-            );
-
-            // Totales por venta
-            widgets.add(pw.SizedBox(height: 6));
-            widgets.add(
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
+            pw.SizedBox(height: 20),
+            ...List.generate(data.length, (i) {
+              final venta = data[i].venta;
+              final items = data[i].items;
+              final fecha = DateTime.parse(venta['fecha'] as String);
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('Ingreso: ${_money(ingresoVenta)}'),
-                      pw.Text('Costo:   ${_money(costoVenta)}'),
-                      pw.Text('Ganancia: ${_money(gananciaVenta)}',
-                          style: pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.green800)),
-                    ],
+                  pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 10, bottom: 4),
+                    child: pw.Text(
+                      'Compra ${i + 1} - ${formateaFechaHora(fecha)} - ${venta['metodoPago']}',
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  pw.Table.fromTextArray(
+                    headers: ['Producto', 'Descripción', 'Cantidad'],
+                    data: items
+                        .map((it) => [
+                              it['producto'] ?? it['nombre'] ?? '',
+                              it['descripcion'] ?? '',
+                              (it['cantidad'] ?? '').toString(),
+                            ])
+                        .toList(),
                   ),
                 ],
-              ),
-            );
-            widgets.add(pw.SizedBox(height: 12));
-          }
-
-          // Resumen global al final
-          widgets.add(pw.Divider());
-          widgets.add(
-            pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  pw.Text('TOTAL INGRESO: ${_money(totalIngresoGlobal)}'),
-                  pw.Text('TOTAL COSTO:   ${_money(totalCostoGlobal)}'),
-                  pw.Text('TOTAL GANANCIA: ${_money(totalGananciaGlobal)}',
-                      style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.green900)),
-                ],
-              ),
-            ),
-          );
-
-          return widgets;
-        },
+              );
+            }),
+          ],
+        ),
       ),
     );
 
-    final dir = await FileHelper.getReportesDir();
-    final file = File('${dir.path}/${FileNamer.reportePdf()}');
-    await file.writeAsBytes(await pdf.save());
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Reporte PDF guardado: ${file.path}")),
-    );
-
-    await Printing.layoutPdf(onLayout: (_) async => await pdf.save());
+    await Printing.layoutPdf(onLayout: (_) async => pdf.save());
   }
 
   /// ✅ Exportar Excel (Ventas con ganancia, Items detalle, Deudas)
