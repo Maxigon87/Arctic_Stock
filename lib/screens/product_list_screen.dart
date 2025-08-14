@@ -2,12 +2,10 @@ import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import '../services/db_service.dart';
-
-// 🚩 importa tu formulario
-import 'product_form.dart'; // <-- ajusta la ruta si está en otra carpeta
+import 'product_form.dart';
 
 class ProductListScreen extends StatefulWidget {
-  final bool selectMode; // si true, permite seleccionar producto y devolverlo
+  final bool selectMode;
 
   const ProductListScreen({Key? key, this.selectMode = false})
       : super(key: key);
@@ -23,6 +21,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   int? selectedCategoriaId;
   String searchQuery = "";
   bool _mostrarSoloAgotados = false;
+  bool _mostrarInactivos = false; // ⬅️ NUEVO
 
   @override
   void initState() {
@@ -41,13 +40,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
       search: searchQuery,
       categoriaId: selectedCategoriaId,
       soloAgotados: _mostrarSoloAgotados,
+      incluirInactivos: _mostrarInactivos, // ⬅️ NUEVO
     );
     setState(() => productos = data);
   }
 
   Future<String?> _mostrarDialogoNuevaCategoria() async {
     final TextEditingController _controller = TextEditingController();
-
     return showDialog<String>(
       context: context,
       builder: (context) {
@@ -60,13 +59,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, _controller.text.trim());
-              },
+              onPressed: () => Navigator.pop(context, _controller.text.trim()),
               child: const Text("Guardar"),
             ),
           ],
@@ -75,26 +71,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  // 🔁 Navega al formulario para CREAR
   Future<void> _goToCreate() async {
     final ok = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ProductForm()),
-    );
+        context, MaterialPageRoute(builder: (_) => const ProductForm()));
     if (ok == true) _loadProductos();
   }
 
-  // 🔁 Navega al formulario para EDITAR
   Future<void> _goToEdit(Map<String, dynamic> p) async {
     final ok = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ProductForm(initial: p)),
-    );
+        context, MaterialPageRoute(builder: (_) => ProductForm(initial: p)));
     if (ok == true) _loadProductos();
   }
 
   Future<void> _deleteProducto(int id) async {
-    await db.deleteProducto(id);
+    await db.deleteProducto(id); // soft-delete (activo=0)
+    _loadProductos();
+  }
+
+  Future<void> _restoreProducto(int id) async {
+    await db.activarProducto(id); // ⬅️ requiere el método de abajo en DBService
     _loadProductos();
   }
 
@@ -107,9 +102,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Widget _buildFiltros() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: Row(
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Expanded(
+          SizedBox(
+            width: 320,
             child: TextField(
               decoration: const InputDecoration(
                 labelText: "Buscar producto",
@@ -121,7 +120,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
               },
             ),
           ),
-          const SizedBox(width: 10),
           DropdownButton<int>(
             value: selectedCategoriaId,
             hint: const Text("Categoría"),
@@ -149,6 +147,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
               }
             },
           ),
+          FilterChip(
+            label: const Text('Ver inactivos'),
+            selected: _mostrarInactivos,
+            onSelected: (v) {
+              setState(() => _mostrarInactivos = v);
+              _loadProductos();
+            },
+            avatar: const Icon(Icons.inventory_2_outlined),
+          ),
         ],
       ),
     );
@@ -162,7 +169,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         actions: [
           IconButton(
             tooltip: _mostrarSoloAgotados
-                ? 'Mostrar todos los productos'
+                ? 'Mostrar todos'
                 : 'Mostrar solo sin stock',
             icon: Icon(
               _mostrarSoloAgotados
@@ -171,9 +178,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               color: _mostrarSoloAgotados ? Colors.teal : Colors.redAccent,
             ),
             onPressed: () {
-              setState(() {
-                _mostrarSoloAgotados = !_mostrarSoloAgotados;
-              });
+              setState(() => _mostrarSoloAgotados = !_mostrarSoloAgotados);
               _loadProductos();
             },
           ),
@@ -192,24 +197,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         itemBuilder: (ctx, i) {
                           final p = productos[i];
                           final sinStock = (p['stock'] ?? 0) <= 0;
+                          final inactivo = (p['activo'] ?? 1) == 0;
 
                           final precio =
-                              (p['precio_venta'] as num?)?.toDouble() ??
-                                  0.0; // ⬅️ nuevo campo
+                              (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
                           final costo =
-                              (p['costo_compra'] as num?)?.toDouble() ??
-                                  0.0; // ⬅️ nuevo campo
+                              (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
                           final utilidad = (precio - costo);
 
                           return Opacity(
-                            opacity: sinStock ? 0.5 : 1.0,
+                            opacity: (sinStock || inactivo) ? 0.55 : 1.0,
                             child: Card(
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 side: BorderSide(
-                                  color: sinStock
-                                      ? Colors.red
-                                      : Colors.transparent,
+                                  color: inactivo
+                                      ? Colors.grey
+                                      : (sinStock
+                                          ? Colors.red
+                                          : Colors.transparent),
                                   width: 2,
                                 ),
                               ),
@@ -255,7 +261,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       ],
                                     ),
                                     onTap: widget.selectMode
-                                        ? (sinStock
+                                        ? ((sinStock || inactivo)
                                             ? null
                                             : () => Navigator.pop(context, p))
                                         : null,
@@ -264,13 +270,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         : PopupMenuButton<String>(
                                             onSelected: (value) async {
                                               if (value == 'edit') {
-                                                // ir al formulario con datos cargados
                                                 await _goToEdit(p);
                                               }
                                               if (value == 'delete') {
-                                                _deleteProducto(p['id']);
+                                                await _deleteProducto(
+                                                    p['id'] as int);
+                                              }
+                                              if (value == 'restore') {
+                                                await _restoreProducto(
+                                                    p['id'] as int);
                                               }
                                               if (value == 'addStock') {
+                                                if (inactivo) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                        content: Text(
+                                                            "No podés modificar stock de un producto inactivo.")),
+                                                  );
+                                                  return;
+                                                }
                                                 final cantidad =
                                                     await _showAddStockDialog(
                                                         context);
@@ -278,11 +297,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                     cantidad > 0) {
                                                   await DBService()
                                                       .incrementarStock(
-                                                          p['id'], cantidad);
+                                                          p['id'] as int,
+                                                          cantidad);
                                                   _loadProductos();
                                                 }
                                               }
                                               if (value == 'removeStock') {
+                                                if (inactivo) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                        content: Text(
+                                                            "No podés modificar stock de un producto inactivo.")),
+                                                  );
+                                                  return;
+                                                }
                                                 final cantidad =
                                                     await _showRemoveStockDialog(
                                                         context,
@@ -293,32 +322,37 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                       cantidad) {
                                                     await DBService()
                                                         .decrementarStock(
-                                                            p['id'], cantidad);
+                                                            p['id'] as int,
+                                                            cantidad);
                                                     _loadProductos();
                                                   } else {
                                                     ScaffoldMessenger.of(
                                                             context)
                                                         .showSnackBar(
                                                       const SnackBar(
-                                                        content: Text(
-                                                            "No puedes restar más de lo disponible"),
-                                                      ),
+                                                          content: Text(
+                                                              "No podés restar más de lo disponible")),
                                                     );
                                                   }
                                                 }
                                               }
                                             },
-                                            itemBuilder: (context) => const [
-                                              PopupMenuItem(
+                                            itemBuilder: (context) => [
+                                              const PopupMenuItem(
                                                   value: 'edit',
                                                   child: Text('Editar')),
-                                              PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Text('Eliminar')),
-                                              PopupMenuItem(
+                                              if (inactivo)
+                                                const PopupMenuItem(
+                                                    value: 'restore',
+                                                    child: Text('Restaurar'))
+                                              else
+                                                const PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Text('Eliminar')),
+                                              const PopupMenuItem(
                                                   value: 'addStock',
                                                   child: Text('Agregar Stock')),
-                                              PopupMenuItem(
+                                              const PopupMenuItem(
                                                   value: 'removeStock',
                                                   child: Text('Restar Stock')),
                                             ],
@@ -328,32 +362,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     Positioned(
                                       top: 6,
                                       right: 6,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red.shade700,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Colors.black26,
-                                              blurRadius: 4,
-                                              offset: Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Text(
-                                          "SIN STOCK",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
+                                      child: _chip(
+                                          'SIN STOCK', Colors.red.shade700),
                                     ),
-                                  if (utilidad < 0)
+                                  if (inactivo)
+                                    Positioned(
+                                      top: 6,
+                                      left: 6,
+                                      child: _chip(
+                                          'INACTIVO', Colors.grey.shade700),
+                                    ),
+                                  if (utilidad < 0 && !inactivo)
                                     Positioned(
                                       bottom: 6,
                                       right: 6,
@@ -387,9 +406,24 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
+        ],
+      ),
+      child: Text(text,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+    );
+  }
+
   Future<int?> _showAddStockDialog(BuildContext context) async {
     final TextEditingController _cantidadController = TextEditingController();
-
     return showDialog<int>(
       context: context,
       builder: (context) {
@@ -402,14 +436,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () {
-                final cantidad = int.tryParse(_cantidadController.text);
-                Navigator.pop(context, cantidad);
-              },
+              onPressed: () => Navigator.pop(
+                  context, int.tryParse(_cantidadController.text)),
               child: const Text("Agregar"),
             ),
           ],
@@ -421,7 +452,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<int?> _showRemoveStockDialog(
       BuildContext context, int stockActual) async {
     final TextEditingController _cantidadController = TextEditingController();
-
     return showDialog<int>(
       context: context,
       builder: (context) {
@@ -442,14 +472,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () {
-                final cantidad = int.tryParse(_cantidadController.text);
-                Navigator.pop(context, cantidad);
-              },
+              onPressed: () => Navigator.pop(
+                  context, int.tryParse(_cantidadController.text)),
               child: const Text("Restar"),
             ),
           ],

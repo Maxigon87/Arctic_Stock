@@ -13,18 +13,20 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
+  final dbService = DBService();
+
+  // Filtros de búsqueda de ventas
   Cliente? _clienteSeleccionado;
   String? metodoSeleccionado;
   DateTime? desde;
   DateTime? hasta;
   List<Cliente> _clientes = [];
 
-  // 🛒 carrito con snapshot de precios/costos
+  // 🛒 Carrito (usa snapshots)
   // Keys: productoId, nombre, codigo, cantidad, precioUnit, costoUnit, subtotal
   final List<Map<String, dynamic>> _carrito = [];
 
   late Future<List<Map<String, dynamic>>> _ventasFuture;
-  final dbService = DBService();
 
   @override
   void initState() {
@@ -51,6 +53,13 @@ class _SalesScreenState extends State<SalesScreen> {
 
   String _money(num? n) => "\$${(n ?? 0).toStringAsFixed(2)}";
 
+  // --- Helpers carrito / stock ------------------------------------------------
+
+  Future<int> _stockDisponible(int productoId) async {
+    final p = await dbService.getProductoById(productoId);
+    return (p?['stock'] as num?)?.toInt() ?? 0;
+  }
+
   Future<bool> _confirmarPerdidaDialog(double precio, double costo) async {
     if (precio >= costo) return true;
     final ok = await showDialog<bool>(
@@ -74,7 +83,81 @@ class _SalesScreenState extends State<SalesScreen> {
     return ok == true;
   }
 
-  /// 🛒 Carrito (bottom sheet)
+  Future<void> _agregarAlCarrito(Map<String, dynamic> producto) async {
+    final int id = producto['id'] as int;
+    final int stock = await _stockDisponible(id);
+    if (stock <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("⚠️ Este producto no tiene stock disponible")),
+      );
+      return;
+    }
+
+    final double precio = (producto['precio_venta'] as num?)?.toDouble() ?? 0.0;
+    final double costo = (producto['costo_compra'] as num?)?.toDouble() ?? 0.0;
+
+    // Warning si vende con pérdida (solo al primer agregado)
+    if (!await _confirmarPerdidaDialog(precio, costo)) return;
+
+    setState(() {
+      final idx = _carrito.indexWhere((e) => e['productoId'] == id);
+      if (idx == -1) {
+        _carrito.add({
+          'productoId': id,
+          'nombre': producto['nombre'],
+          'codigo': producto['codigo'],
+          'precioUnit': precio,
+          'costoUnit': costo,
+          'cantidad': 1,
+          'subtotal': precio * 1,
+        });
+      } else {
+        final actual = _carrito[idx]['cantidad'] as int;
+        if (actual + 1 > stock) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Solo hay $stock unidades disponibles")),
+          );
+        } else {
+          _carrito[idx]['cantidad'] = actual + 1;
+          _carrito[idx]['subtotal'] = precio * (actual + 1);
+        }
+      }
+    });
+  }
+
+  Future<void> _incrementarItem(
+      int i, void Function(void Function()) setLocal) async {
+    final item = _carrito[i];
+    final stock = await _stockDisponible(item['productoId'] as int);
+    final cant = (item['cantidad'] as int);
+    if (cant + 1 > stock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Solo hay $stock unidades disponibles")),
+      );
+      return;
+    }
+    final precio = (item['precioUnit'] as num).toDouble();
+    setLocal(() {
+      item['cantidad'] = cant + 1;
+      item['subtotal'] = precio * (cant + 1);
+    });
+  }
+
+  void _decrementarItem(int i, void Function(void Function()) setLocal) {
+    final item = _carrito[i];
+    final cant = (item['cantidad'] as int);
+    if (cant > 1) {
+      final precio = (item['precioUnit'] as num).toDouble();
+      setLocal(() {
+        item['cantidad'] = cant - 1;
+        item['subtotal'] = precio * (cant - 1);
+      });
+    }
+  }
+
+  // --- BottomSheet carrito ----------------------------------------------------
+
   void _abrirCarrito() {
     showModalBottomSheet(
       context: context,
@@ -191,31 +274,18 @@ class _SalesScreenState extends State<SalesScreen> {
                                               icon: const Icon(
                                                   Icons.remove_circle,
                                                   color: Colors.redAccent),
-                                              onPressed: () {
-                                                if (cantidad > 1) {
-                                                  setLocalState(() {
-                                                    p['cantidad'] =
-                                                        cantidad - 1;
-                                                    p['subtotal'] = precioUnit *
-                                                        (cantidad - 1);
-                                                  });
-                                                }
-                                              },
+                                              onPressed: () => _decrementarItem(
+                                                  i, setLocalState),
                                             ),
-                                            Text("Cant: ${p['cantidad']}",
+                                            Text("Cant: $cantidad",
                                                 style: const TextStyle(
                                                     fontWeight:
                                                         FontWeight.bold)),
                                             IconButton(
                                               icon: const Icon(Icons.add_circle,
                                                   color: Colors.green),
-                                              onPressed: () {
-                                                setLocalState(() {
-                                                  p['cantidad'] = cantidad + 1;
-                                                  p['subtotal'] = precioUnit *
-                                                      (cantidad + 1);
-                                                });
-                                              },
+                                              onPressed: () => _incrementarItem(
+                                                  i, setLocalState),
                                             ),
                                           ],
                                         ),
@@ -259,9 +329,18 @@ class _SalesScreenState extends State<SalesScreen> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("Agregar Producto"),
-                    onPressed: () => _seleccionarProducto(() {
-                      setLocalState(() {}); // fuerza rebuild
-                    }),
+                    onPressed: () async {
+                      final producto = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const ProductListScreen(selectMode: true)),
+                      );
+                      if (producto != null) {
+                        await _agregarAlCarrito(producto);
+                        setLocalState(() {}); // refresca el sheet
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 10),
@@ -283,49 +362,8 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  /// Seleccionar producto (selectMode) y agregar al carrito con snapshot
-  void _seleccionarProducto([VoidCallback? onProductoAgregado]) async {
-    final producto = await Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => const ProductListScreen(selectMode: true)),
-    );
+  // --- Confirmar venta --------------------------------------------------------
 
-    if (producto != null) {
-      final stock = (producto['stock'] as num?)?.toInt() ?? 0;
-      if (stock <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("⚠️ Este producto no tiene stock disponible")),
-        );
-        return;
-      }
-
-      final double precio =
-          (producto['precio_venta'] as num?)?.toDouble() ?? 0.0;
-      final double costo =
-          (producto['costo_compra'] as num?)?.toDouble() ?? 0.0;
-
-      // Soft warning si hay pérdida
-      final seguir = await _confirmarPerdidaDialog(precio, costo);
-      if (!seguir) return;
-
-      setState(() {
-        _carrito.add({
-          'productoId': producto['id'],
-          'nombre': producto['nombre'],
-          'codigo': producto['codigo'],
-          'precioUnit': precio, // snapshot
-          'costoUnit': costo, // snapshot
-          'cantidad': 1,
-          'subtotal': precio * 1,
-        });
-      });
-      onProductoAgregado?.call();
-    }
-  }
-
-  /// Confirmar venta (con snapshot y deudas)
   Future<void> _confirmarVenta() async {
     if (_carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -341,7 +379,7 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    // Verificar stock actual antes de procesar
+    // Verificación de stock actual (por si cambió mientras armabas el carrito)
     final productosAgotados = <String>[];
     for (var item in _carrito) {
       final producto = await dbService.getProductoById(item['productoId']);
@@ -351,9 +389,10 @@ class _SalesScreenState extends State<SalesScreen> {
         continue;
       }
       final stock = (producto['stock'] as num?)?.toInt() ?? 0;
-      if (stock < (item['cantidad'] as num)) {
-        productosAgotados.add(
-            "${producto['nombre']} (Stock: $stock / Necesita: ${item['cantidad']})");
+      final req = (item['cantidad'] as num).toInt();
+      if (stock < req) {
+        productosAgotados
+            .add("${producto['nombre']} (Stock: $stock / Necesita: $req)");
       }
     }
     if (productosAgotados.isNotEmpty) {
@@ -369,7 +408,7 @@ class _SalesScreenState extends State<SalesScreen> {
         'clienteId': _clienteSeleccionado?.id,
         'fecha': DateTime.now().toIso8601String(),
         'metodoPago': metodoSeleccionado ?? 'Efectivo',
-        'total': total, // también podrías setear 0 y luego updateVentaTotal
+        'total': total,
       });
 
       for (var i in _carrito) {
@@ -380,6 +419,9 @@ class _SalesScreenState extends State<SalesScreen> {
           'precio_unitario': (i['precioUnit'] as num).toDouble(), // snapshot
           'costo_unitario': (i['costoUnit'] as num).toDouble(), // snapshot
           'subtotal': (i['subtotal'] as num).toDouble(),
+          // snapshots de texto son opcionales: el trigger y el método ya los cubren
+          // 'producto_nombre': i['nombre'],
+          // 'producto_codigo': i['codigo'],
         });
       }
 
@@ -395,10 +437,12 @@ class _SalesScreenState extends State<SalesScreen> {
 
       setState(() {
         _carrito.clear();
-        _ventasFuture = dbService.getVentas();
       });
-
       Navigator.pop(context); // cierra el bottom sheet
+
+      // Refrescar listado con los filtros actuales
+      await _cargarVentasFiltradas();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Venta registrada correctamente!")),
       );
@@ -409,54 +453,8 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
-  /// Dialogo Nuevo Cliente
-  Future<Cliente?> _showNuevoClienteDialog() async {
-    final nombreCtrl = TextEditingController();
-    final telefonoCtrl = TextEditingController();
+  // --- UI de filtros y lista de ventas ---------------------------------------
 
-    return showDialog<Cliente>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text("Nuevo Cliente"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(labelText: "Nombre")),
-              TextField(
-                  controller: telefonoCtrl,
-                  decoration: const InputDecoration(labelText: "Teléfono")),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancelar")),
-            ElevatedButton(
-              onPressed: () async {
-                final nombre = nombreCtrl.text.trim();
-                if (nombre.isEmpty) return;
-                final nuevoCliente =
-                    Cliente(nombre: nombre, telefono: telefonoCtrl.text.trim());
-                final id = await dbService.insertCliente(nuevoCliente);
-                Navigator.pop(
-                    ctx,
-                    Cliente(
-                        id: id,
-                        nombre: nombre,
-                        telefono: telefonoCtrl.text.trim()));
-              },
-              child: const Text("Guardar"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Filtros
   Widget _buildFiltros() {
     return Column(
       children: [
@@ -542,19 +540,18 @@ class _SalesScreenState extends State<SalesScreen> {
                     return ListView.builder(
                       itemCount: ventas.length,
                       itemBuilder: (context, index) {
-                        final venta = ventas[index];
+                        final v = ventas[index];
                         final cliente =
-                            (venta['clienteNombre']?.toString().isNotEmpty ??
-                                    false)
-                                ? venta['clienteNombre']
+                            (v['clienteNombre']?.toString().isNotEmpty ?? false)
+                                ? v['clienteNombre']
                                 : 'Consumidor Final';
                         return Card(
                           child: ListTile(
-                            title: Text("Venta #${venta['id']} - $cliente"),
+                            title: Text("Venta #${v['id']} - $cliente"),
                             subtitle: Text(
-                                "Total: ${_money(venta['total'])} - Método: ${venta['metodoPago']}"),
-                            trailing: Text(
-                                venta['fecha'].toString().split('T').first),
+                                "Total: ${_money(v['total'])} - Método: ${v['metodoPago']}"),
+                            trailing:
+                                Text(v['fecha'].toString().split('T').first),
                           ),
                         );
                       },
@@ -570,6 +567,54 @@ class _SalesScreenState extends State<SalesScreen> {
         child: const Icon(Icons.add_shopping_cart),
         onPressed: _abrirCarrito,
       ),
+    );
+  }
+
+  // --- Utilidades varias ------------------------------------------------------
+
+  Future<Cliente?> _showNuevoClienteDialog() async {
+    final nombreCtrl = TextEditingController();
+    final telefonoCtrl = TextEditingController();
+
+    return showDialog<Cliente>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Nuevo Cliente"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                  controller: nombreCtrl,
+                  decoration: const InputDecoration(labelText: "Nombre")),
+              TextField(
+                  controller: telefonoCtrl,
+                  decoration: const InputDecoration(labelText: "Teléfono")),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancelar")),
+            ElevatedButton(
+              onPressed: () async {
+                final nombre = nombreCtrl.text.trim();
+                if (nombre.isEmpty) return;
+                final nuevoCliente =
+                    Cliente(nombre: nombre, telefono: telefonoCtrl.text.trim());
+                final id = await dbService.insertCliente(nuevoCliente);
+                Navigator.pop(
+                    ctx,
+                    Cliente(
+                        id: id,
+                        nombre: nombre,
+                        telefono: telefonoCtrl.text.trim()));
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:ArticStock/Services/db_service.dart';
+import 'package:ArticStock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 
 class ProductForm extends StatefulWidget {
-  final Map<String, dynamic>?
-      initial; // si viene null = crear, si trae datos = editar
+  final Map<String, dynamic>? initial; // null = crear, con datos = editar
   const ProductForm({super.key, this.initial});
 
   @override
@@ -19,6 +18,8 @@ class _ProductFormState extends State<ProductForm> {
   final _descCtrl = TextEditingController();
   final _costoCtrl = TextEditingController();
   final _precioCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController(); // 👈 NUEVO
+
   int? _categoriaId;
   List<Map<String, dynamic>> _categorias = [];
   bool _saving = false;
@@ -36,6 +37,7 @@ class _ProductFormState extends State<ProductForm> {
       _descCtrl.text = (i['descripcion'] ?? '').toString();
       _costoCtrl.text = _numToStr(i['costo_compra']);
       _precioCtrl.text = _numToStr(i['precio_venta']);
+      _stockCtrl.text = (i['stock'] ?? 0).toString(); // 👈 inicializa stock
       _categoriaId = i['categoria_id'] as int?;
     }
   }
@@ -47,27 +49,27 @@ class _ProductFormState extends State<ProductForm> {
     _descCtrl.dispose();
     _costoCtrl.dispose();
     _precioCtrl.dispose();
+    _stockCtrl.dispose(); // 👈 libera
     super.dispose();
   }
 
   String _numToStr(dynamic n) {
     if (n == null) return '';
-    final d = (n as num).toStringAsFixed(2);
-    return d;
+    if (n is num) return n.toStringAsFixed(2);
+    final parsed = double.tryParse(n.toString());
+    return parsed?.toStringAsFixed(2) ?? '';
   }
 
   double _toDouble(String s) {
-    // acepta coma o punto
-    s = s
-        .trim()
-        .replaceAll('.', '')
-        .replaceAll(',', '.'); // “1.234,56” -> “1234.56”
+    // acepta coma o punto y quita separadores de miles
+    s = s.trim().replaceAll('.', '').replaceAll(',', '.');
     if (s.isEmpty) return 0;
     return double.tryParse(s) ?? 0;
   }
 
   Future<void> _loadCategorias() async {
     final cats = await DBService().getCategorias();
+    if (!mounted) return;
     setState(() => _categorias = cats);
   }
 
@@ -77,7 +79,7 @@ class _ProductFormState extends State<ProductForm> {
     final costo = _toDouble(_costoCtrl.text);
     final precio = _toDouble(_precioCtrl.text);
 
-    // Validación soft: aviso si vende con pérdida
+    // Aviso si vende con pérdida
     if (precio < costo) {
       final continuar = await showDialog<bool>(
         context: context,
@@ -106,8 +108,8 @@ class _ProductFormState extends State<ProductForm> {
           _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       'costo_compra': costo,
       'precio_venta': precio,
-      'stock': widget.initial?['stock'] ??
-          0, // si querés exponer stock, agregá el campo
+      'stock': int.tryParse(_stockCtrl.text) ??
+          (widget.initial?['stock'] ?? 0), // 👈 guarda stock
       'categoria_id': _categoriaId,
     };
 
@@ -118,10 +120,8 @@ class _ProductFormState extends State<ProductForm> {
       } else {
         await DBService().updateProducto(data, widget.initial!['id'] as int);
       }
-      if (mounted)
-        Navigator.pop(context, true); // devolvé true para refrescar listas
+      if (mounted) Navigator.pop(context, true); // devuelve true para refrescar
     } catch (e) {
-      // Manejo de UNIQUE (SQLite lanza DatabaseException con “UNIQUE constraint failed”)
       final msg = e.toString();
       if (msg.contains('UNIQUE constraint failed') &&
           (msg.contains('productos.codigo') ||
@@ -196,7 +196,7 @@ class _ProductFormState extends State<ProductForm> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]'))
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
                     ],
                     validator: (v) {
                       final n = _toDouble(v ?? '');
@@ -215,7 +215,7 @@ class _ProductFormState extends State<ProductForm> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]'))
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
                     ],
                     validator: (v) {
                       final n = _toDouble(v ?? '');
@@ -226,6 +226,19 @@ class _ProductFormState extends State<ProductForm> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              // 👈 Campo de stock
+              controller: _stockCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Stock inicial'),
+              validator: (v) {
+                final n = int.tryParse((v ?? '').trim()) ?? 0;
+                if (n < 0) return 'Stock no puede ser negativo';
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(

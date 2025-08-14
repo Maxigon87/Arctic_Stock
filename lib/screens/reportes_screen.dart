@@ -9,10 +9,9 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
-import '../models/cliente.dart';
+import '../models/cliente.dart'; // si no lo usás más, podés borrar este import
 import 'package:intl/intl.dart';
 
-// Generación de reportes mensuales en PDF con ventas ordenadas
 class ReportesScreen extends StatefulWidget {
   const ReportesScreen({Key? key}) : super(key: key);
 
@@ -21,182 +20,262 @@ class ReportesScreen extends StatefulWidget {
 }
 
 class _ReportesScreenState extends State<ReportesScreen> {
-  Cliente? _clienteSeleccionado;
-  String? metodoSeleccionado;
-  String? estadoSeleccionado;
+  final dbService = DBService();
+
+  DateTime? _mesSeleccionado; // cualquier día del mes elegido
   DateTime? desde;
   DateTime? hasta;
-  List<Cliente> _clientes = [];
-  final dbService = DBService();
 
   @override
   void initState() {
     super.initState();
-    _cargarClientes();
+    // Por defecto: mes actual
+    final hoy = DateTime.now();
+    _setMes(hoy);
   }
 
-  Future<void> _cargarClientes() async {
-    final clientes = await dbService.getClientes();
-    setState(() => _clientes = clientes);
-  }
-
+  // ---- Helpers ----
   String formateaFechaHora(DateTime fecha) {
     return DateFormat('dd/MM/yyyy HH:mm').format(fecha);
   }
 
+  DateTimeRange _rangeMensual(DateTime referencia) {
+    final inicio = DateTime(referencia.year, referencia.month, 1);
+    final fin = DateTime(referencia.year, referencia.month + 1, 0, 23, 59, 59);
+    return DateTimeRange(start: inicio, end: fin);
+  }
 
-  /// ✅ Filtros en UI
-  Widget _buildFiltrosReportes() {
-    return Column(
+  void _setMes(DateTime fechaReferencia) {
+    final r = _rangeMensual(fechaReferencia);
+    setState(() {
+      _mesSeleccionado = fechaReferencia;
+      desde = r.start;
+      hasta = r.end;
+    });
+  }
+
+  Future<void> _elegirMes() async {
+    // Usamos showDatePicker para elegir cualquier día, y normalizamos al mes
+    final pick = await showDatePicker(
+      context: context,
+      initialDate: _mesSeleccionado ?? DateTime.now(),
+      firstDate: DateTime(2022),
+      lastDate: DateTime.now(),
+      helpText: 'Elegí un día del mes',
+      cancelText: 'Cancelar',
+      confirmText: 'Aceptar',
+    );
+    if (pick != null) _setMes(pick);
+  }
+
+  // ---- UI filtros (solo mes) ----
+  Widget _buildFiltroMes() {
+    final base = _mesSeleccionado ?? DateTime.now();
+    final mes = DateFormat.MMMM('es_ES').format(base);
+    final anio = base.year;
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButton<Cliente>(
-                hint: const Text("Cliente"),
-                value: _clienteSeleccionado,
-                items: _clientes
-                    .map((c) =>
-                        DropdownMenuItem(value: c, child: Text(c.nombre)))
-                    .toList(),
-                onChanged: (v) => setState(() => _clienteSeleccionado = v),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButton<String>(
-                hint: const Text("Método Pago"),
-                value: metodoSeleccionado,
-                items: const ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                    .toList(),
-                onChanged: (v) => setState(() => metodoSeleccionado = v),
-              ),
-            ),
-          ],
+        Expanded(
+          child: Text(
+            'Mes seleccionado: ${toBeginningOfSentenceCase(mes)} $anio',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButton<String>(
-                hint: const Text("Estado Deuda"),
-                value: estadoSeleccionado,
-                items: const ["Pendiente", "Pagada"]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => estadoSeleccionado = v),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () async {
-                  final rango = await showDateRangePicker(
-                    context: context,
-                    firstDate: DateTime(2022),
-                    lastDate: DateTime.now(),
-                  );
-                  if (rango != null) {
-                    setState(() {
-                      desde = rango.start;
-                      hasta = rango.end;
-                    });
-                  }
-                },
-                child: const Text("Elegir Fechas"),
-              ),
-            ),
-          ],
+        const SizedBox(width: 10),
+        ElevatedButton(
+          onPressed: _elegirMes,
+          child: const Text('Elegir mes'),
         ),
       ],
     );
   }
 
-  /// ✅ Generar PDF con datos filtrados (incluye ganancia e ítems con snapshot)
+  // ---- PDF (formato "dividido por compra") ----
   Future<void> _generarReporteFiltrado(BuildContext context) async {
+    // Solo fechas (mensual). Pasamos null al resto por compatibilidad.
     final ventas = await dbService.getVentasFiltradasParaReporte(
-      clienteId: _clienteSeleccionado?.id,
-      metodoPago: metodoSeleccionado,
+      clienteId: null,
+      metodoPago: null,
       desde: desde,
       hasta: hasta,
     );
 
+    // Juntar items por venta
     final List<_VentaConItems> data = [];
     for (final v in ventas) {
       final items = await dbService.getItemsByVenta(v['id'] as int);
       data.add(_VentaConItems(venta: v, items: items));
     }
 
+    // Orden por fecha ascendente (cambia a fb.compareTo(fa) si querés descendente)
     data.sort((a, b) {
       final fa = DateTime.parse(a.venta['fecha'] as String);
       final fb = DateTime.parse(b.venta['fecha'] as String);
       return fa.compareTo(fb);
     });
 
-    final primerDia =
-        data.isNotEmpty ? DateTime.parse(data.first.venta['fecha']) : DateTime.now();
-    final monthName = DateFormat.MMMM('es_ES').format(primerDia);
+    // Título mensual real usando 'desde' (ya normalizado)
+    final DateTime baseDate = (desde ??
+        (data.isNotEmpty
+            ? DateTime.parse(data.first.venta['fecha'] as String)
+            : DateTime.now()));
+    final String monthName = DateFormat.MMMM('es_ES').format(baseDate);
+    final int year = baseDate.year;
+
+    // Período visible
+    String? rangoVisible;
+    if (desde != null && hasta != null) {
+      final f = DateFormat('dd/MM/yyyy');
+      rangoVisible = 'Período: ${f.format(desde!)} – ${f.format(hasta!)}';
+    }
 
     final pdf = pw.Document();
     pdf.addPage(
-      pw.Page(
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
+      pw.MultiPage(
+        pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(24)),
+        build: (context) {
+          final widgets = <pw.Widget>[];
+
+          // Título
+          widgets.add(
             pw.Text(
-              'Reporte mensual de ventas - $monthName ${primerDia.year}',
-              style:
-                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+              'Reporte mensual de ventas - $monthName $year',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
             ),
-            pw.SizedBox(height: 20),
-            ...List.generate(data.length, (i) {
-              final venta = data[i].venta;
-              final items = data[i].items;
-              final fecha = DateTime.parse(venta['fecha'] as String);
-              return pw.Column(
+          );
+
+          if (rangoVisible != null) {
+            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(
+              pw.Text(
+                rangoVisible,
+                style: const pw.TextStyle(fontSize: 11),
+              ),
+            );
+          }
+
+          widgets.add(pw.SizedBox(height: 16));
+
+          if (data.isEmpty) {
+            widgets.add(
+              pw.Container(
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 0.6),
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Text(
+                  'No hay ventas para el período seleccionado.',
+                  style: const pw.TextStyle(fontSize: 12),
+                ),
+              ),
+            );
+            return widgets;
+          }
+
+          // Compras
+          for (int i = 0; i < data.length; i++) {
+            final venta = data[i].venta;
+            final items = data[i].items;
+            final fecha = DateTime.parse(venta['fecha'] as String);
+
+            final totalUnidades = items.fold<int>(
+              0,
+              (acc, it) => acc + ((it['cantidad'] as num?)?.toInt() ?? 0),
+            );
+
+            // Cabecera compra
+            widgets.add(
+              pw.Container(
+                margin: pw.EdgeInsets.only(top: i == 0 ? 0 : 16, bottom: 6),
+                child: pw.Text(
+                  'Compra ${i + 1}',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+
+            // Lista de productos: "Producto — Descripción" ... derecha "xCant"
+            widgets.add(
+              pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Container(
-                    margin: const pw.EdgeInsets.only(top: 10, bottom: 4),
-                    child: pw.Text(
-                      'Compra ${i + 1} - ${formateaFechaHora(fecha)} - ${venta['metodoPago']}',
-                      style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold, fontSize: 14),
+                children: items.map((it) {
+                  final prod =
+                      (it['producto'] ?? it['nombre'] ?? '').toString();
+                  final desc = (it['descripcion'] ?? '').toString();
+                  final cant = (it['cantidad'] ?? '').toString();
+
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 2),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text(
+                            desc.isEmpty ? prod : '$prod — $desc',
+                            style: const pw.TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        pw.Text('x$cant',
+                            style: const pw.TextStyle(fontSize: 12)),
+                      ],
                     ),
-                  ),
-                  pw.Table.fromTextArray(
-                    headers: ['Producto', 'Descripción', 'Cantidad'],
-                    data: items
-                        .map((it) => [
-                              it['producto'] ?? it['nombre'] ?? '',
-                              it['descripcion'] ?? '',
-                              (it['cantidad'] ?? '').toString(),
-                            ])
-                        .toList(),
-                  ),
-                ],
-              );
-            }),
-          ],
-        ),
+                  );
+                }).toList(),
+              ),
+            );
+
+            // Metadatos abajo
+            widgets.add(
+              pw.Container(
+                margin: const pw.EdgeInsets.only(top: 6),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(top: pw.BorderSide(width: 0.6)),
+                ),
+                padding: const pw.EdgeInsets.only(top: 6),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Método de pago: ${venta['metodoPago'] ?? '-'}',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                    pw.Text(
+                      'Fecha y hora: ${formateaFechaHora(fecha)}',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                    pw.Text(
+                      'Cantidad de productos: $totalUnidades',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            );
+
+            // Separador entre compras
+            if (i < data.length - 1) {
+              widgets.add(pw.SizedBox(height: 10));
+              widgets.add(pw.Divider(thickness: 0.5));
+            }
+          }
+
+          return widgets;
+        },
       ),
     );
 
     await Printing.layoutPdf(onLayout: (_) async => pdf.save());
   }
 
-  /// ✅ Exportar Excel (Ventas con ganancia, Items detalle, Deudas)
-  Future<void> _exportarExcelFiltrado(BuildContext context) async {
+  // ---- Excel mensual (mismas fechas, sin otros filtros) ----
+  Future<void> _exportarExcelMensual(BuildContext context) async {
     final ventas = await dbService.getVentasFiltradasParaReporte(
-      clienteId: _clienteSeleccionado?.id,
-      metodoPago: metodoSeleccionado,
-      desde: desde,
-      hasta: hasta,
-    );
-    final deudas = await dbService.getDeudasFiltradasParaReporte(
-      clienteId: _clienteSeleccionado?.id,
-      estado: estadoSeleccionado,
+      clienteId: null,
+      metodoPago: null,
       desde: desde,
       hasta: hasta,
     );
@@ -204,23 +283,30 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final excel = Excel.createExcel();
     final shVentas = excel['Ventas'];
     final shItems = excel['Items'];
-    final shDeudas = excel['Deudas'];
     excel.setDefaultSheet('Ventas');
 
     // Encabezados
-    shVentas.appendRow(
-        ['ID', 'Cliente', 'Método', 'Fecha', 'Ingreso', 'Costo', 'Ganancia']);
+    shVentas.appendRow([
+      'ID',
+      'Cliente',
+      'Método',
+      'Fecha',
+      'Ingreso',
+      'Costo',
+      'Ganancia',
+      'Total Unidades'
+    ]);
     shItems.appendRow([
       'VentaID',
       'Código',
       'Producto',
+      'Descripción',
       'Cant.',
       'Precio Unit.',
       'Costo Unit.',
       'Subtotal',
       'Ganancia'
     ]);
-    shDeudas.appendRow(['ID', 'Cliente', 'Fecha', 'Estado', 'Monto']);
 
     double totalIngresoGlobal = 0,
         totalCostoGlobal = 0,
@@ -230,8 +316,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
       final items = await dbService.getItemsByVenta(v['id'] as int);
 
       double ingresoVenta = 0, costoVenta = 0, gananciaVenta = 0;
+      int totalUnidades = 0;
+
       for (final it in items) {
-        final cant = (it['cantidad'] as num).toInt();
+        final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
         final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
         final cu = (it['costoUnitario'] as num?)?.toDouble() ?? 0.0;
         final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
@@ -240,11 +328,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ingresoVenta += sub;
         costoVenta += cu * cant;
         gananciaVenta += gan;
+        totalUnidades += cant;
 
         shItems.appendRow([
           v['id'],
           it['codigo']?.toString() ?? '',
-          it['producto']?.toString() ?? '',
+          it['producto']?.toString() ?? it['nombre']?.toString() ?? '',
+          it['descripcion']?.toString() ?? '',
           cant,
           pu,
           cu,
@@ -265,17 +355,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ingresoVenta,
         costoVenta,
         gananciaVenta,
-      ]);
-    }
-
-    // Deudas
-    for (final d in deudas) {
-      shDeudas.appendRow([
-        d['id'],
-        d['clienteNombre'] ?? 'Consumidor Final',
-        d['fecha'],
-        d['estado'],
-        d['monto'],
+        totalUnidades,
       ]);
     }
 
@@ -288,7 +368,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
       'TOTALES',
       totalIngresoGlobal,
       totalCostoGlobal,
-      totalGananciaGlobal
+      totalGananciaGlobal,
+      '', // total unidades globales opcional: podés sumar si querés
     ]);
 
     final dir = await FileHelper.getReportesDir();
@@ -304,18 +385,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("✅ Excel guardado: ${file.path}")),
     );
-    await Share.shareXFiles([XFile(file.path)], text: "📊 Reporte Filtrado");
+    await Share.shareXFiles([XFile(file.path)], text: "📊 Reporte Mensual");
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Reportes Filtrados")),
+      appBar: AppBar(title: const Text("Reportes Mensuales")),
       body: ArticBackground(
         child: ArticContainer(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFiltrosReportes(),
+              _buildFiltroMes(),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 icon: const Icon(Icons.picture_as_pdf),
@@ -326,7 +408,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               ElevatedButton.icon(
                 icon: const Icon(Icons.table_chart),
                 label: const Text("Exportar Excel"),
-                onPressed: () => _exportarExcelFiltrado(context),
+                onPressed: () => _exportarExcelMensual(context),
               ),
             ],
           ),
@@ -336,7 +418,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }
 }
 
-/// Modelo interno para cargar ventas con items antes de armar el PDF/Excel
+// Modelo interno
 class _VentaConItems {
   final Map<String, dynamic> venta;
   final List<Map<String, dynamic>> items;

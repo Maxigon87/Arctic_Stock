@@ -8,14 +8,11 @@ class DBService {
   static final DBService _instance = DBService._internal();
   factory DBService() => _instance;
   DBService._internal();
-  // 🔹 StreamController para notificar cambios
+
+  // Notificaciones de cambios
   final StreamController<void> _dbChangeController =
       StreamController.broadcast();
-
-// 🔹 Getter para que otros escuchen
   Stream<void> get onDatabaseChanged => _dbChangeController.stream;
-
-// 🔹 Método para emitir eventos
   void notifyDbChange() => _dbChangeController.add(null);
 
   static Database? _db;
@@ -27,7 +24,7 @@ class DBService {
   }
 
   Future<Database> _initDB() async {
-    // ✅ Inicializa soporte FFI en Windows/Linux
+    // FFI en Windows/Linux
     if (Platform.isWindows || Platform.isLinux) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
@@ -39,26 +36,145 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 9,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
           if (oldV < 3) await _migrateItemsVentaV3(db);
           if (oldV < 6) await _hardenProductConstraintsV4(db);
-          // Aquí podrías agregar más migraciones si es necesario
+          if (oldV < 6) await _migrateToV6(db);
+          if (oldV < 7) await _migrateToV7(db);
+          if (oldV < 8) await _migrateToV8(db);
+          if (oldV < 9) await _migrateToV9(db);
         },
-        // ✅ Asegura la columna 'stock' al abrir la base
         onOpen: (db) async {
-          await db
-              .execute("PRAGMA foreign_keys = ON;"); // ✅ Asegura las FK activas
-          await _ensureStockColumn(db); // ✅ Aquí se asegura la columna 'stock'
+          await db.execute("PRAGMA foreign_keys = ON;");
+          await db.execute("PRAGMA journal_mode = WAL;");
+          await db.execute("PRAGMA synchronous = NORMAL;");
+          await db.execute("PRAGMA temp_store = MEMORY;");
+
+          await _ensureStockColumn(db);
+
+          // Por si falta algún índice/trigger en DB ya creada:
+          await db.execute(
+              "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+          await _createItemVentaTriggersV8(db);
         },
       ),
     );
   }
 
+  // ---------- Schema base ----------
+  Future _createTables(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE categorias (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT UNIQUE,
+        nombre TEXT NOT NULL,
+        descripcion TEXT,
+        precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
+        costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
+        stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+        categoria_id INTEGER,
+        activo INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+      )
+    ''');
+
+    await db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_descripcion ON productos(descripcion);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);");
+
+    await db.execute('''
+      CREATE TABLE clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        telefono TEXT,
+        email TEXT,
+        direccion TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE ventas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clienteId INTEGER,
+        fecha TEXT NOT NULL,
+        metodoPago TEXT NOT NULL,
+        total REAL NOT NULL,
+        FOREIGN KEY (clienteId) REFERENCES clientes(id)
+      )
+    ''');
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_clienteId ON ventas(clienteId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_metodoPago ON ventas(metodoPago);");
+
+    await db.execute('''
+      CREATE TABLE deudas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clienteId INTEGER,
+        monto REAL NOT NULL,
+        fecha TEXT NOT NULL,
+        estado TEXT NOT NULL,
+        descripcion TEXT,
+        FOREIGN KEY (clienteId) REFERENCES clientes(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE items_venta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ventaId INTEGER NOT NULL,
+        productoId INTEGER, -- puede ser NULL si el producto se borra
+        cantidad INTEGER NOT NULL CHECK(cantidad > 0),
+        precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
+        costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
+        subtotal        REAL NOT NULL DEFAULT 0 CHECK(subtotal       >= 0),
+        -- snapshots
+        producto_nombre TEXT,
+        producto_descripcion TEXT,
+        producto_codigo TEXT,
+        FOREIGN KEY (ventaId)   REFERENCES ventas(id)     ON DELETE CASCADE,
+        FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+
+    // Triggers para snapshots/subtotal
+    await _createItemVentaTriggersV8(db);
+  }
+
+  Future<void> _ensureStockColumn(Database db) async {
+    final res = await db.rawQuery("PRAGMA table_info(productos);");
+    final hasStock = res.any((col) => col['name'] == 'stock');
+    if (!hasStock) {
+      await db
+          .execute("ALTER TABLE productos ADD COLUMN stock INTEGER DEFAULT 0;");
+    }
+  }
+
+  // ---------- Migraciones ----------
   Future _migrateToV2(Database db) async {
-    // columnas nuevas si no existen
     final cols = await db.rawQuery("PRAGMA table_info(productos);");
     bool hasCodigo = cols.any((c) => c['name'] == 'codigo');
     bool hasDescripcion = cols.any((c) => c['name'] == 'descripcion');
@@ -67,7 +183,6 @@ class DBService {
 
     if (!hasCodigo) {
       await db.execute("ALTER TABLE productos ADD COLUMN codigo TEXT;");
-      // índice único (permite NULL repetidos; si querés que sea obligatorio, validalo en UI/CRUD)
       await db.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
     }
@@ -80,108 +195,348 @@ class DBService {
     }
     if (!hasPrecioVenta) {
       await db.execute("ALTER TABLE productos ADD COLUMN precio_venta REAL;");
-      // backfill desde 'precio' si existe
       final hasPrecioLegacy = cols.any((c) => c['name'] == 'precio');
       if (hasPrecioLegacy) {
         await db.execute(
             "UPDATE productos SET precio_venta = precio WHERE precio_venta IS NULL;");
       }
-      // por si quedó null en algún caso
       await db.execute(
           "UPDATE productos SET precio_venta = COALESCE(precio_venta, 0);");
     }
   }
 
-  Future _createTables(Database db, int version) async {
-    await db.execute('''
-    CREATE TABLE categorias (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL UNIQUE
-    )
-  ''');
+  Future<void> _migrateItemsVentaV3(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(items_venta);");
+    final hasPU = cols.any((c) => c['name'] == 'precio_unitario');
+    final hasCU = cols.any((c) => c['name'] == 'costo_unitario');
 
-    await db.execute('''
-    CREATE TABLE productos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE,
-      nombre TEXT NOT NULL,
-      descripcion TEXT,
-      precio_venta REAL NOT NULL CHECK(precio_venta > 0),
-      costo_compra REAL DEFAULT 0 CHECK(costo_compra >= 0),
-      stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
-      categoria_id INTEGER,
-      FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-    )
-  ''');
-    await db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
-
-    await db.execute('''
-    CREATE TABLE clientes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      telefono TEXT,
-      email TEXT,
-      direccion TEXT
-    )
-  ''');
-
-    await db.execute('''
-    CREATE TABLE ventas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clienteId INTEGER,
-      fecha TEXT NOT NULL,
-      metodoPago TEXT NOT NULL,
-      total REAL NOT NULL,
-      FOREIGN KEY (clienteId) REFERENCES clientes(id)
-    )
-  ''');
-
-    await db.execute('''
-    CREATE TABLE deudas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clienteId INTEGER,
-      monto REAL NOT NULL,
-      fecha TEXT NOT NULL,
-      estado TEXT NOT NULL,
-      descripcion TEXT,
-      FOREIGN KEY (clienteId) REFERENCES clientes(id)
-    )
-  ''');
-
-    await db.execute('''
-  CREATE TABLE items_venta (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ventaId INTEGER,
-    productoId INTEGER,
-    cantidad INTEGER,
-    precio_unitario REAL,           -- ⬅️ nuevo
-    costo_unitario  REAL DEFAULT 0, -- ⬅️ nuevo
-    subtotal REAL,
-    FOREIGN KEY (ventaId) REFERENCES ventas (id),
-    FOREIGN KEY (productoId) REFERENCES productos (id)
-  )
-''');
-  }
-
-  Future<void> _ensureStockColumn(Database db) async {
-    final res = await db.rawQuery("PRAGMA table_info(productos);");
-    final hasStock = res.any((col) => col['name'] == 'stock');
-    if (!hasStock) {
+    if (!hasPU) {
       await db
-          .execute("ALTER TABLE productos ADD COLUMN stock INTEGER DEFAULT 0;");
+          .execute("ALTER TABLE items_venta ADD COLUMN precio_unitario REAL;");
     }
+    if (!hasCU) {
+      await db.execute(
+          "ALTER TABLE items_venta ADD COLUMN costo_unitario REAL DEFAULT 0;");
+    }
+
+    await db.execute('''
+      UPDATE items_venta
+      SET 
+        precio_unitario = COALESCE(
+          precio_unitario,
+          CASE 
+            WHEN cantidad IS NOT NULL AND cantidad > 0 AND subtotal IS NOT NULL THEN subtotal / cantidad
+            ELSE (SELECT p.precio_venta FROM productos p WHERE p.id = items_venta.productoId)
+          END
+        ),
+        costo_unitario = COALESCE(
+          costo_unitario,
+          (SELECT p.costo_compra FROM productos p WHERE p.id = items_venta.productoId),
+          0
+        )
+    ''');
   }
 
-  // ✅ CRUD (igual que antes, no cambia nada)
+  Future<void> _hardenProductConstraintsV4(Database db) async {
+    await db.execute('PRAGMA foreign_keys = OFF;');
+    await db.transaction((txn) async {
+      await txn.execute('ALTER TABLE productos RENAME TO productos_old;');
+
+      await txn.execute('''
+        CREATE TABLE productos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codigo TEXT UNIQUE,
+          nombre TEXT NOT NULL,
+          descripcion TEXT,
+          precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
+          costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
+          stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+          categoria_id INTEGER,
+          FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+        )
+      ''');
+
+      await txn.execute(
+          "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+
+      await txn.execute('''
+        INSERT INTO productos (id, codigo, nombre, descripcion, precio_venta, costo_compra, stock, categoria_id)
+        SELECT 
+          id,
+          codigo,
+          nombre,
+          descripcion,
+          CASE WHEN precio_venta IS NULL OR precio_venta < 0 THEN 0 ELSE precio_venta END,
+          CASE WHEN costo_compra IS NULL OR costo_compra < 0 THEN 0 ELSE costo_compra END,
+          CASE WHEN stock IS NULL OR stock < 0 THEN 0 ELSE stock END,
+          categoria_id
+        FROM productos_old;
+      ''');
+
+      await txn.execute('DROP TABLE productos_old;');
+    });
+    await db.execute('PRAGMA foreign_keys = ON;');
+  }
+
+  Future _migrateToV6(Database db) async {
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_clienteId ON ventas(clienteId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_metodoPago ON ventas(metodoPago);");
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_descripcion ON productos(descripcion);");
+
+    await db.execute('''
+      UPDATE items_venta AS iv
+      SET 
+        precio_unitario = COALESCE(
+          iv.precio_unitario,
+          (SELECT p.precio_venta FROM productos p WHERE p.id = iv.productoId)
+        ),
+        costo_unitario  = COALESCE(
+          iv.costo_unitario,
+          (SELECT p.costo_compra FROM productos p WHERE p.id = iv.productoId),
+          0
+        ),
+        subtotal = COALESCE(
+          iv.subtotal,
+          COALESCE(iv.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = iv.productoId))
+          * COALESCE(iv.cantidad, 0)
+        )
+      WHERE iv.productoId IS NOT NULL;
+    ''');
+
+    await _createItemVentaTriggers(db);
+  }
+
+  Future<void> _migrateToV7(Database db) async {
+    await db.execute('PRAGMA foreign_keys = OFF;');
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE items_venta_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ventaId INTEGER NOT NULL,
+          productoId INTEGER NOT NULL,
+          cantidad INTEGER NOT NULL CHECK(cantidad > 0),
+          precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
+          costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
+          subtotal        REAL NOT NULL DEFAULT 0 CHECK(subtotal       >= 0),
+          FOREIGN KEY (ventaId)   REFERENCES ventas(id)    ON DELETE CASCADE,
+          FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE RESTRICT
+        );
+      ''');
+
+      await txn.execute('''
+        INSERT INTO items_venta_new
+          (id, ventaId, productoId, cantidad, precio_unitario, costo_unitario, subtotal)
+        SELECT
+          iv.id,
+          iv.ventaId,
+          iv.productoId,
+          CASE WHEN iv.cantidad IS NULL OR iv.cantidad <= 0 THEN 1 ELSE iv.cantidad END,
+          COALESCE(iv.precio_unitario, p.precio_venta, 0),
+          COALESCE(iv.costo_unitario,  p.costo_compra, 0),
+          COALESCE(
+            iv.subtotal,
+            COALESCE(iv.precio_unitario, p.precio_venta, 0) * COALESCE(NULLIF(iv.cantidad, 0), 1)
+          )
+        FROM items_venta iv
+        JOIN productos p ON p.id = iv.productoId;
+      ''');
+
+      await txn.execute('DROP TABLE items_venta;');
+      await txn.execute('ALTER TABLE items_venta_new RENAME TO items_venta;');
+
+      await txn.execute(
+          'CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);');
+      await txn.execute(
+          'CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);');
+    });
+    await db.execute('PRAGMA foreign_keys = ON;');
+
+    await _createItemVentaTriggers(db);
+  }
+
+  Future<void> _migrateToV8(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(items_venta);");
+    bool hasNombre = cols.any((c) => c['name'] == 'producto_nombre');
+    bool hasDesc = cols.any((c) => c['name'] == 'producto_descripcion');
+    bool hasCod = cols.any((c) => c['name'] == 'producto_codigo');
+
+    if (!hasNombre)
+      await db
+          .execute("ALTER TABLE items_venta ADD COLUMN producto_nombre TEXT;");
+    if (!hasDesc)
+      await db.execute(
+          "ALTER TABLE items_venta ADD COLUMN producto_descripcion TEXT;");
+    if (!hasCod)
+      await db
+          .execute("ALTER TABLE items_venta ADD COLUMN producto_codigo TEXT;");
+
+    await db.execute('''
+      UPDATE items_venta AS iv
+      SET 
+        producto_nombre      = COALESCE(iv.producto_nombre,      (SELECT p.nombre      FROM productos p WHERE p.id = iv.productoId)),
+        producto_descripcion = COALESCE(iv.producto_descripcion, (SELECT p.descripcion FROM productos p WHERE p.id = iv.productoId)),
+        producto_codigo      = COALESCE(iv.producto_codigo,      (SELECT p.codigo      FROM productos p WHERE p.id = iv.productoId))
+      WHERE iv.productoId IS NOT NULL;
+    ''');
+
+    // Permitir SET NULL en productoId
+    await db.execute('PRAGMA foreign_keys = OFF;');
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE items_venta_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ventaId INTEGER NOT NULL,
+          productoId INTEGER, -- ahora permite NULL
+          cantidad INTEGER NOT NULL CHECK(cantidad > 0),
+          precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
+          costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
+          subtotal        REAL NOT NULL DEFAULT 0 CHECK(subtotal       >= 0),
+          producto_nombre TEXT,
+          producto_descripcion TEXT,
+          producto_codigo TEXT,
+          FOREIGN KEY (ventaId)   REFERENCES ventas(id)    ON DELETE CASCADE,
+          FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE SET NULL
+        );
+      ''');
+
+      await txn.execute('''
+        INSERT INTO items_venta_new
+          (id, ventaId, productoId, cantidad, precio_unitario, costo_unitario, subtotal,
+           producto_nombre, producto_descripcion, producto_codigo)
+        SELECT
+          iv.id, iv.ventaId, iv.productoId,
+          CASE WHEN iv.cantidad IS NULL OR iv.cantidad <= 0 THEN 1 ELSE iv.cantidad END,
+          COALESCE(iv.precio_unitario, 0),
+          COALESCE(iv.costo_unitario, 0),
+          COALESCE(iv.subtotal, 0),
+          iv.producto_nombre, iv.producto_descripcion, iv.producto_codigo
+        FROM items_venta iv;
+      ''');
+
+      await txn.execute('DROP TABLE items_venta;');
+      await txn.execute('ALTER TABLE items_venta_new RENAME TO items_venta;');
+
+      await txn.execute(
+          'CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);');
+      await txn.execute(
+          'CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);');
+    });
+    await db.execute('PRAGMA foreign_keys = ON;');
+
+    await _createItemVentaTriggersV8(db);
+  }
+
+  Future<void> _migrateToV9(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(productos);");
+    bool hasActivo = cols.any((c) => c['name'] == 'activo');
+    if (!hasActivo) {
+      await db.execute(
+          'ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;');
+    }
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);');
+  }
+
+  // ---------- Triggers ----------
+  Future<void> _createItemVentaTriggers(Database db) async {
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS trg_items_venta_after_insert
+      AFTER INSERT ON items_venta
+      FOR EACH ROW
+      BEGIN
+        UPDATE items_venta
+        SET 
+          precio_unitario = COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId)),
+          costo_unitario  = COALESCE(NEW.costo_unitario,  (SELECT p.costo_compra FROM productos p WHERE p.id = NEW.productoId), 0),
+          subtotal = COALESCE(NEW.subtotal,
+                      COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId))
+                      * COALESCE(NEW.cantidad, 0))
+        WHERE id = NEW.id;
+      END;
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS trg_items_venta_after_update
+      AFTER UPDATE OF cantidad, precio_unitario, costo_unitario, productoId, subtotal
+      ON items_venta
+      FOR EACH ROW
+      BEGIN
+        UPDATE items_venta
+        SET 
+          precio_unitario = COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId)),
+          costo_unitario  = COALESCE(NEW.costo_unitario,  (SELECT p.costo_compra FROM productos p WHERE p.id = NEW.productoId), 0),
+          subtotal = COALESCE(NEW.subtotal,
+                      COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId))
+                      * COALESCE(NEW.cantidad, 0))
+        WHERE id = NEW.id;
+      END;
+    ''');
+  }
+
+  Future<void> _createItemVentaTriggersV8(Database db) async {
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS trg_items_venta_v8_after_insert
+      AFTER INSERT ON items_venta
+      FOR EACH ROW
+      BEGIN
+        UPDATE items_venta
+        SET 
+          precio_unitario = COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId), 0),
+          costo_unitario  = COALESCE(NEW.costo_unitario,  (SELECT p.costo_compra FROM productos p WHERE p.id = NEW.productoId), 0),
+          subtotal        = COALESCE(NEW.subtotal,
+                                COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId), 0)
+                                * COALESCE(NEW.cantidad, 0)),
+          producto_nombre      = COALESCE(NEW.producto_nombre,      (SELECT p.nombre      FROM productos p WHERE p.id = NEW.productoId)),
+          producto_descripcion = COALESCE(NEW.producto_descripcion, (SELECT p.descripcion FROM productos p WHERE p.id = NEW.productoId)),
+          producto_codigo      = COALESCE(NEW.producto_codigo,      (SELECT p.codigo      FROM productos p WHERE p.id = NEW.productoId))
+        WHERE id = NEW.id;
+      END;
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS trg_items_venta_v8_after_update
+      AFTER UPDATE OF cantidad, precio_unitario, costo_unitario, productoId, subtotal,
+                      producto_nombre, producto_descripcion, producto_codigo
+      ON items_venta
+      FOR EACH ROW
+      BEGIN
+        UPDATE items_venta
+        SET 
+          precio_unitario = COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId), 0),
+          costo_unitario  = COALESCE(NEW.costo_unitario,  (SELECT p.costo_compra FROM productos p WHERE p.id = NEW.productoId), 0),
+          subtotal        = COALESCE(NEW.subtotal,
+                                COALESCE(NEW.precio_unitario, (SELECT p.precio_venta FROM productos p WHERE p.id = NEW.productoId), 0)
+                                * COALESCE(NEW.cantidad, 0)),
+          producto_nombre      = COALESCE(NEW.producto_nombre,      (SELECT p.nombre      FROM productos p WHERE p.id = NEW.productoId)),
+          producto_descripcion = COALESCE(NEW.producto_descripcion, (SELECT p.descripcion FROM productos p WHERE p.id = NEW.productoId)),
+          producto_codigo      = COALESCE(NEW.producto_codigo,      (SELECT p.codigo      FROM productos p WHERE p.id = NEW.productoId))
+        WHERE id = NEW.id;
+      END;
+    ''');
+  }
+
+  // ---------- CRUD / Queries ----------
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('productos', {
-      'codigo': data['codigo'], // ✅ nuevo campo
+      'codigo': data['codigo'],
       'nombre': data['nombre'],
-      'descripcion': data['descripcion'] ?? '', // ✅ nuevo campo
+      'descripcion': data['descripcion'] ?? '',
       'precio_venta': data['precio_venta'],
-      'costo_compra': data['costo_compra'] ?? 0.0, // ✅ nuevo campo
+      'costo_compra': data['costo_compra'] ?? 0.0,
       'stock': data['stock'] ?? 0,
       'categoria_id': data['categoria_id']
     });
@@ -194,11 +549,11 @@ class DBService {
     final count = await db.update(
       'productos',
       {
-        'codigo': data['codigo'], // ✅ nuevo campo
+        'codigo': data['codigo'],
         'nombre': data['nombre'],
-        'descripcion': data['descripcion'] ?? '', // ✅ nuevo campo
+        'descripcion': data['descripcion'] ?? '',
         'precio_venta': data['precio_venta'],
-        'costo_compra': data['costo_compra'] ?? 0.0, // ✅ nuevo campo
+        'costo_compra': data['costo_compra'] ?? 0.0,
         'stock': data['stock'] ?? 0,
         'categoria_id': data['categoria_id']
       },
@@ -210,17 +565,26 @@ class DBService {
   }
 
   Future<int> deleteProducto(int id) async {
+    // Soft delete
     final db = await database;
-    final count =
-        await db.delete('productos', where: 'id = ?', whereArgs: [id]);
-    notifyDbChange(); // ✅ notifica
+    final count = await db.update('productos', {'activo': 0},
+        where: 'id = ?', whereArgs: [id]);
+    notifyDbChange();
+    return count;
+  }
+
+  Future<int> activarProducto(int id) async {
+    final db = await database;
+    final count = await db.update('productos', {'activo': 1},
+        where: 'id = ?', whereArgs: [id]);
+    notifyDbChange();
     return count;
   }
 
   Future<int> insertVenta(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('ventas', {
-      'clienteId': data['clienteId'], // ✅ puede ser null
+      'clienteId': data['clienteId'],
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
@@ -232,36 +596,36 @@ class DBService {
   Future<List<Map<String, dynamic>>> getVentas() async {
     final db = await database;
     return await db.rawQuery('''
-    SELECT v.id, v.fecha, v.metodoPago, v.total,
-           COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-    FROM ventas v
-    LEFT JOIN clientes c ON v.clienteId = c.id
-    ORDER BY v.fecha DESC
-  ''');
+      SELECT v.id, v.fecha, v.metodoPago, v.total,
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      FROM ventas v
+      LEFT JOIN clientes c ON v.clienteId = c.id
+      ORDER BY v.fecha DESC
+    ''');
   }
 
   Future<int> insertDeuda(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('deudas', data);
-    notifyDbChange(); // ✅ avisa a los gráficos y listas
+    notifyDbChange();
     return id;
   }
 
   Future<List<Map<String, dynamic>>> getDeudas() async {
     final db = await database;
     return await db.rawQuery('''
-    SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-          Coalesce(c.nombre, 'Consumidor Final') AS clienteNombre 
-    FROM deudas d
-    LEFT JOIN clientes c ON d.clienteId = c.id
-    ORDER BY d.fecha DESC
-  ''');
+      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre 
+      FROM deudas d
+      LEFT JOIN clientes c ON d.clienteId = c.id
+      ORDER BY d.fecha DESC
+    ''');
   }
 
   Future<int> insertVentaBase(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('ventas', {
-      'clienteId': data['clienteId'], // ✅ puede ser null
+      'clienteId': data['clienteId'],
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
@@ -273,58 +637,89 @@ class DBService {
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;
 
-    // ✅ Verificar stock antes de vender
-    final producto = await db.query('productos',
-        columns: ['stock'], where: 'id = ?', whereArgs: [data['productoId']]);
+    // Traer stock + snapshots + activo
+    final producto = await db.query(
+      'productos',
+      columns: [
+        'stock',
+        'precio_venta',
+        'costo_compra',
+        'nombre',
+        'descripcion',
+        'codigo',
+        'activo'
+      ],
+      where: 'id = ?',
+      whereArgs: [data['productoId']],
+    );
 
-    final stockActual =
-        (producto.isNotEmpty ? producto.first['stock'] as int : 0);
-
-    if (stockActual < (data['cantidad'] ?? 1)) {
-      throw Exception("Stock insuficiente para completar la venta");
+    if (producto.isEmpty) {
+      throw Exception("Producto inexistente");
+    }
+    if ((producto.first['activo'] as int? ?? 1) == 0) {
+      throw Exception("Producto inactivo");
     }
 
-    // ✅ Si hay stock suficiente, inserta el item
-    final id = await db.insert('items_venta', data);
+    final stockActual = (producto.first['stock'] as int? ?? 0);
+    final cant = (data['cantidad'] as num?)?.toInt() ?? 0;
+    if (cant <= 0) throw Exception("Cantidad inválida");
+    if (stockActual < cant)
+      throw Exception("Stock insuficiente para completar la venta");
 
-    // ✅ Descuenta stock
+    final double puSnap = (data['precio_unitario'] as num?)?.toDouble() ??
+        (producto.first['precio_venta'] as num?)?.toDouble() ??
+        0.0;
+    final double cuSnap = (data['costo_unitario'] as num?)?.toDouble() ??
+        (producto.first['costo_compra'] as num?)?.toDouble() ??
+        0.0;
+    final double subSnap =
+        (data['subtotal'] as num?)?.toDouble() ?? (puSnap * cant);
+
+    final row = {
+      'ventaId': data['ventaId'],
+      'productoId': data['productoId'],
+      'cantidad': cant,
+      'precio_unitario': puSnap,
+      'costo_unitario': cuSnap,
+      'subtotal': subSnap,
+      'producto_nombre': data['producto_nombre'] ?? producto.first['nombre'],
+      'producto_descripcion':
+          data['producto_descripcion'] ?? (producto.first['descripcion'] ?? ''),
+      'producto_codigo':
+          data['producto_codigo'] ?? (producto.first['codigo'] ?? ''),
+    };
+
+    final id = await db.insert('items_venta', row);
+
     await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
-        [data['cantidad'], data['productoId']]);
+        [cant, data['productoId']]);
 
     notifyDbChange();
     return id;
   }
 
-  /// ✅ Detalle de ítems de una venta con snapshot de precios y código
   Future<List<Map<String, dynamic>>> getItemsByVenta(int ventaId) async {
     final db = await database;
-    return await db.rawQuery(
-      '''
-    SELECT 
-      iv.cantidad,
-      iv.subtotal,
-      -- usa snapshot si existe; si no, cae al precio/costo actuales del producto
-      COALESCE(iv.precio_unitario, p.precio_venta) AS precioUnitario,
-      COALESCE(iv.costo_unitario,  p.costo_compra)  AS costoUnitario,
-      p.nombre AS producto,
-      p.codigo AS codigo
-    FROM items_venta iv
-    JOIN productos p ON iv.productoId = p.id
-    WHERE iv.ventaId = ?
-    ''',
-      [ventaId],
-    );
+    return await db.rawQuery('''
+      SELECT 
+        iv.cantidad,
+        iv.subtotal,
+        iv.precio_unitario  AS precioUnitario,
+        iv.costo_unitario   AS costoUnitario,
+        COALESCE(iv.producto_nombre,      p.nombre)      AS producto,
+        COALESCE(iv.producto_descripcion, p.descripcion) AS descripcion,
+        COALESCE(iv.producto_codigo,      p.codigo)      AS codigo
+      FROM items_venta iv
+      LEFT JOIN productos p ON iv.productoId = p.id
+      WHERE iv.ventaId = ?
+    ''', [ventaId]);
   }
 
   Future<void> updateVentaTotal(int ventaId, double total) async {
     final db = await database;
-    await db.update(
-      'ventas',
-      {'total': total},
-      where: 'id = ?',
-      whereArgs: [ventaId],
-    );
-    notifyDbChange(); // ✅ afecta reportes, debe avisar
+    await db.update('ventas', {'total': total},
+        where: 'id = ?', whereArgs: [ventaId]);
+    notifyDbChange();
   }
 
   Future<List<Map<String, dynamic>>> getStockProductos() async {
@@ -332,69 +727,60 @@ class DBService {
     return await db.query('productos');
   }
 
-  Future<List<Map<String, dynamic>>> getVentasDelMes(String mes) async {
+  Future<List<Map<String, dynamic>>> getVentasDelMes(
+      String mes, String anio) async {
     final db = await database;
-    return await db.rawQuery(
-      '''
-    SELECT * FROM ventas
-    WHERE strftime('%m', fecha) = ? 
-  ''',
-      [mes],
-    );
+    return await db.rawQuery('''
+      SELECT * FROM ventas
+      WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    ''', [mes, anio]);
   }
 
-  Future<List<Map<String, dynamic>>> getDeudasDelMes(String mes) async {
+  Future<List<Map<String, dynamic>>> getDeudasDelMes(
+      String mes, String anio) async {
     final db = await database;
-    return await db.rawQuery(
-      '''
-    SELECT * FROM deudas
-    WHERE strftime('%m', fecha) = ? 
-  ''',
-      [mes],
-    );
+    return await db.rawQuery('''
+      SELECT * FROM deudas
+      WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    ''', [mes, anio]);
   }
 
-  // Insertar cliente
   Future<int> insertCliente(Cliente cliente) async {
     final db = await database;
     return await db.insert('clientes', cliente.toMap());
   }
 
-// Obtener todos los clientes
   Future<List<Cliente>> getClientes() async {
     final db = await database;
     final res = await db.query('clientes');
     return res.map((e) => Cliente.fromMap(e)).toList();
   }
 
-// Actualizar cliente
   Future<int> updateCliente(Cliente cliente) async {
     final db = await database;
     final count = await db.update('clientes', cliente.toMap(),
         where: 'id = ?', whereArgs: [cliente.id]);
-    notifyDbChange(); // ✅ avisa cambio
+    notifyDbChange();
     return count;
   }
 
-// Eliminar cliente
   Future<int> deleteCliente(int id) async {
     final db = await database;
     final count = await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
-    notifyDbChange(); // ✅ avisa que cambió la lista de clientes
+    notifyDbChange();
     return count;
   }
 
   Future<Map<String, dynamic>?> getVentaById(int ventaId) async {
     final db = await database;
     final res = await db.rawQuery('''
-    SELECT v.id, v.fecha, v.metodoPago, v.total,
-          Coalesce(c.nombre, 'Consumidor Final') AS clienteNombre 
-    FROM ventas v
-    LEFT JOIN clientes c ON v.clienteId = c.id
-    WHERE v.id = ?
-    LIMIT 1
-  ''', [ventaId]);
-
+      SELECT v.id, v.fecha, v.metodoPago, v.total,
+            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre 
+      FROM ventas v
+      LEFT JOIN clientes c ON v.clienteId = c.id
+      WHERE v.id = ?
+      LIMIT 1
+    ''', [ventaId]);
     return res.isNotEmpty ? res.first : null;
   }
 
@@ -424,13 +810,13 @@ class DBService {
     }
 
     return await db.rawQuery('''
-    SELECT v.id, v.fecha, v.metodoPago, v.total,
-           COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-    FROM ventas v
-    LEFT JOIN clientes c ON v.clienteId = c.id
-    WHERE $where
-    ORDER BY v.fecha DESC
-  ''', args);
+      SELECT v.id, v.fecha, v.metodoPago, v.total,
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      FROM ventas v
+      LEFT JOIN clientes c ON v.clienteId = c.id
+      WHERE $where
+      ORDER BY v.fecha DESC
+    ''', args);
   }
 
   Future<List<Map<String, dynamic>>> buscarVentasAvanzado({
@@ -461,12 +847,12 @@ class DBService {
     }
 
     return await db.rawQuery('''
-    SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-    FROM ventas v
-    LEFT JOIN clientes c ON v.clienteId = c.id
-    WHERE $where
-    ORDER BY v.fecha DESC
-  ''', args);
+      SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      FROM ventas v
+      LEFT JOIN clientes c ON v.clienteId = c.id
+      WHERE $where
+      ORDER BY v.fecha DESC
+    ''', args);
   }
 
   Future<List<Map<String, dynamic>>> buscarDeudas({
@@ -476,7 +862,6 @@ class DBService {
   }) async {
     final db = await database;
 
-    // 🔹 Construcción dinámica del WHERE
     String where = "1=1";
     List<dynamic> args = [];
 
@@ -495,25 +880,24 @@ class DBService {
       args.add('$fecha%');
     }
 
-    // 🔹 Consulta con JOIN a clientes
     return await db.rawQuery('''
-    SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-    FROM deudas d
-    LEFT JOIN clientes c ON d.clienteId = c.id
-    WHERE $where
-    ORDER BY d.fecha DESC
-  ''', args);
+      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      FROM deudas d
+      LEFT JOIN clientes c ON d.clienteId = c.id
+      WHERE $where
+      ORDER BY d.fecha DESC
+    ''', args);
   }
 
-  // 🔹 Total ventas de un día
+  // Totales
   Future<double> getTotalVentasDia(DateTime fecha,
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
 
-    // Filtrar por fecha específica o rango
+    String join = "";
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -524,32 +908,30 @@ class DBService {
       args.add("$dateStr%");
     }
 
-    // Filtro por categoría
-    String join = "";
     if (categoriaId != null) {
-      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
-          "INNER JOIN productos p ON iv.productoId = p.id ";
+      join =
+          "INNER JOIN items_venta iv ON v.id = iv.ventaId INNER JOIN productos p ON iv.productoId = p.id ";
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
 
     final res = await db.rawQuery('''
-    SELECT SUM(v.total) as total
-    FROM ventas v
-    $join
-    WHERE $where
-  ''', args);
+      SELECT SUM(v.total) as total
+      FROM ventas v
+      $join
+      WHERE $where
+    ''', args);
 
     return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-// 🔹 Total ventas del mes
   Future<double> getTotalVentasMes(DateTime fecha,
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
 
+    String join = "";
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -563,25 +945,23 @@ class DBService {
       args.add(anio);
     }
 
-    String join = "";
     if (categoriaId != null) {
-      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
-          "INNER JOIN productos p ON iv.productoId = p.id ";
+      join =
+          "INNER JOIN items_venta iv ON v.id = iv.ventaId INNER JOIN productos p ON iv.productoId = p.id ";
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
 
     final res = await db.rawQuery('''
-    SELECT SUM(v.total) as total
-    FROM ventas v
-    $join
-    WHERE $where
-  ''', args);
+      SELECT SUM(v.total) as total
+      FROM ventas v
+      $join
+      WHERE $where
+    ''', args);
 
     return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-// 🔹 Total de deudas pendientes
   Future<double> getTotalDeudasPendientes({int? categoriaId}) async {
     final db = await database;
     String join = "";
@@ -597,16 +977,16 @@ class DBService {
     }
 
     final res = await db.rawQuery('''
-    SELECT SUM(d.monto) as total
-    FROM deudas d
-    $join
-    WHERE $where
-  ''', args);
+      SELECT SUM(d.monto) as total
+      FROM deudas d
+      $join
+      WHERE $where
+    ''', args);
 
     return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-// 🔹 Producto más vendido
+  // Usa snapshot del nombre si el producto fue eliminado/inactivo
   Future<String> getProductoMasVendido(
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
@@ -625,20 +1005,19 @@ class DBService {
     }
 
     final res = await db.rawQuery('''
-    SELECT p.nombre, SUM(iv.cantidad) as totalVendida
-    FROM items_venta iv
-    INNER JOIN productos p ON iv.productoId = p.id
-    INNER JOIN ventas v ON iv.ventaId = v.id
-    WHERE $where
-    GROUP BY p.nombre
-    ORDER BY totalVendida DESC
-    LIMIT 1
-  ''', args);
+      SELECT COALESCE(iv.producto_nombre, p.nombre) AS nombre, SUM(iv.cantidad) AS totalVendida
+      FROM items_venta iv
+      LEFT JOIN productos p ON iv.productoId = p.id
+      INNER JOIN ventas v ON iv.ventaId = v.id
+      WHERE $where
+      GROUP BY nombre
+      ORDER BY totalVendida DESC
+      LIMIT 1
+    ''', args);
 
     return res.isNotEmpty ? res.first['nombre'] as String : "Sin datos";
   }
 
-  // 🔹 Ventas últimos 7 días
   Future<List<Map<String, dynamic>>> getVentasUltimos7Dias(
       {int? categoriaId}) async {
     final db = await database;
@@ -647,20 +1026,20 @@ class DBService {
     List<dynamic> args = [];
 
     if (categoriaId != null) {
-      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
-          "INNER JOIN productos p ON iv.productoId = p.id ";
+      join =
+          "INNER JOIN items_venta iv ON v.id = iv.ventaId INNER JOIN productos p ON iv.productoId = p.id ";
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
 
     final res = await db.rawQuery('''
-    SELECT strftime('%d', v.fecha) AS dia, SUM(v.total) AS total
-    FROM ventas v
-    $join
-    WHERE $where
-    GROUP BY dia
-    ORDER BY dia ASC
-  ''', args);
+      SELECT strftime('%d', v.fecha) AS dia, SUM(v.total) AS total
+      FROM ventas v
+      $join
+      WHERE $where
+      GROUP BY dia
+      ORDER BY dia ASC
+    ''', args);
 
     return res
         .map((e) =>
@@ -668,7 +1047,6 @@ class DBService {
         .toList();
   }
 
-// 🔹 Distribución de métodos de pago (en %)
   Future<Map<String, double>> getDistribucionMetodosPago(
       {int? categoriaId}) async {
     final db = await database;
@@ -677,19 +1055,19 @@ class DBService {
     List<dynamic> args = [];
 
     if (categoriaId != null) {
-      join = "INNER JOIN items_venta iv ON v.id = iv.ventaId "
-          "INNER JOIN productos p ON iv.productoId = p.id ";
+      join =
+          "INNER JOIN items_venta iv ON v.id = iv.ventaId INNER JOIN productos p ON iv.productoId = p.id ";
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
 
     final res = await db.rawQuery('''
-    SELECT v.metodoPago, COUNT(*) as cantidad
-    FROM ventas v
-    $join
-    WHERE $where
-    GROUP BY v.metodoPago
-  ''', args);
+      SELECT v.metodoPago, COUNT(*) as cantidad
+      FROM ventas v
+      $join
+      WHERE $where
+      GROUP BY v.metodoPago
+    ''', args);
 
     double total = res.fold(0, (sum, e) => sum + (e['cantidad'] as int));
     Map<String, double> distribucion = {};
@@ -700,53 +1078,35 @@ class DBService {
     return distribucion;
   }
 
-  // Crear tabla categorias y agregar categoria_id a productos
-  Future<void> createTables(Database db) async {
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS categorias (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL UNIQUE
-    )
-  ''');
-
-    await db.execute('''
-    CREATE TABLE IF NOT EXISTS productos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      precio REAL NOT NULL,
-      stock INTEGER NOT NULL,
-      categoria_id INTEGER,
-      FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-    )
-  ''');
-  }
-
-  // Obtener todas las categorías
   Future<List<Map<String, dynamic>>> getCategorias() async {
     final db = await database;
     return await db.query('categorias', orderBy: 'nombre ASC');
   }
 
-// Insertar nueva categoría
   Future<int> insertCategoria(String nombre) async {
     final db = await database;
     return await db.insert('categorias', {'nombre': nombre});
   }
 
-// Obtener productos con filtro por categoría y búsqueda
   Future<List<Map<String, dynamic>>> getProductos({
     String? search,
     int? categoriaId,
-    bool soloAgotados = false, // ✅ nuevo parámetro
+    bool soloAgotados = false,
+    bool incluirInactivos = false,
   }) async {
     final db = await database;
+
     String where = "1=1";
-    List<dynamic> args = [];
+    final args = <dynamic>[];
+
+    if (!incluirInactivos) {
+      where += " AND p.activo = 1";
+    }
 
     if (search != null && search.isNotEmpty) {
-      where += " AND p.nombre LIKE ?";
+      where += " AND (p.nombre LIKE ? OR p.descripcion LIKE ?)";
       args.add('%$search%');
-      args.add('%$search%'); // ✅ para buscar en nombre y descripción
+      args.add('%$search%');
     }
 
     if (categoriaId != null) {
@@ -755,16 +1115,18 @@ class DBService {
     }
 
     if (soloAgotados) {
-      where += " AND p.stock <= 0"; // ✅ filtrar productos sin stock
+      where += " AND p.stock <= 0";
     }
 
     return await db.rawQuery('''
-    SELECT p.id, p.codigo, p.nombre, p.descripcion, p.precio_venta, p.costo_compra, p.stock, p.categoria_id, c.nombre AS categoria_nombre
-    FROM productos p
-    LEFT JOIN categorias c ON p.categoria_id = c.id
-    WHERE $where
-    ORDER BY p.nombre ASC
-  ''', args);
+      SELECT p.id, p.codigo, p.nombre, p.descripcion, p.precio_venta,
+             p.costo_compra, p.stock, p.categoria_id, p.activo,
+             c.nombre AS categoria_nombre
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      WHERE $where
+      ORDER BY p.nombre ASC
+    ''', args);
   }
 
   Future<List<Map<String, dynamic>>> getAllCategorias() async {
@@ -816,13 +1178,13 @@ class DBService {
     }
 
     return await db.rawQuery('''
-    SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-    FROM deudas d
-    LEFT JOIN clientes c ON d.clienteId = c.id
-    WHERE $where
-    ORDER BY d.fecha DESC
-  ''', args);
+      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      FROM deudas d
+      LEFT JOIN clientes c ON d.clienteId = c.id
+      WHERE $where
+      ORDER BY d.fecha DESC
+    ''', args);
   }
 
   Future<List<Map<String, dynamic>>> getVentasFiltradasParaReporte({
@@ -881,54 +1243,48 @@ class DBService {
     return (res.isNotEmpty ? res.first['cantidad'] as int : 0);
   }
 
-  /// ✅ Obtener un producto por ID
   Future<Map<String, dynamic>?> getProductoById(int productoId) async {
     final db = await database;
     final res = await db.rawQuery('''
-    SELECT p.id, p.codigo, p.nombre, p.descripcion, p.precio_venta, p.costo_compra, p.stock, p.categoria_id, 
-           c.nombre AS categoria_nombre
-    FROM productos p
-    LEFT JOIN categorias c ON p.categoria_id = c.id
-    WHERE p.id = ?
-    LIMIT 1
-  ''', [productoId]);
-
+      SELECT p.id, p.codigo, p.nombre, p.descripcion, p.precio_venta, p.costo_compra, p.stock, p.categoria_id, 
+             c.nombre AS categoria_nombre
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      WHERE p.id = ?
+      LIMIT 1
+    ''', [productoId]);
     return res.isNotEmpty ? res.first : null;
   }
 
-  /// Ganancia total por rango (opcional por categoría)
-  Future<double> getGananciaTotal({
-    DateTime? desde,
-    DateTime? hasta,
-    int? categoriaId,
-  }) async {
+  // Ganancias usando snapshots (histórico correcto)
+  Future<double> getGananciaTotal(
+      {DateTime? desde, DateTime? hasta, int? categoriaId}) async {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
 
+    String join =
+        "INNER JOIN ventas v ON iv.ventaId = v.id LEFT JOIN productos p ON iv.productoId = p.id ";
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
       args.add(hasta.toIso8601String());
     }
-
     if (categoriaId != null) {
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
 
     final res = await db.rawQuery('''
-    SELECT SUM( (p.precio_venta - p.costo_compra) * iv.cantidad ) AS ganancia
-    FROM items_venta iv
-    INNER JOIN productos p ON iv.productoId = p.id
-    INNER JOIN ventas v ON iv.ventaId = v.id
-    WHERE $where
-  ''', args);
+      SELECT SUM( (iv.precio_unitario - iv.costo_unitario) * iv.cantidad ) AS ganancia
+      FROM items_venta iv
+      $join
+      WHERE $where
+    ''', args);
 
     return (res.first['ganancia'] as num?)?.toDouble() ?? 0.0;
   }
 
-  /// Ganancia desglosada por producto en un rango
   Future<List<Map<String, dynamic>>> getGananciaPorProducto({
     DateTime? desde,
     DateTime? hasta,
@@ -938,6 +1294,8 @@ class DBService {
     String where = "1=1";
     List<dynamic> args = [];
 
+    String join =
+        "LEFT JOIN productos p ON iv.productoId = p.id INNER JOIN ventas v ON iv.ventaId = v.id ";
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -949,25 +1307,24 @@ class DBService {
     }
 
     final res = await db.rawQuery('''
-    SELECT p.id,
-           p.codigo,
-           p.nombre,
-           p.categoria_id,
-           SUM(iv.cantidad) AS cantidadVendida,
-           SUM(iv.cantidad * p.precio_venta) AS ingreso,
-           SUM(iv.cantidad * p.costo_compra) AS costo,
-           SUM( (p.precio_venta - p.costo_compra) * iv.cantidad ) AS ganancia
-    FROM items_venta iv
-    INNER JOIN productos p ON iv.productoId = p.id
-    INNER JOIN ventas v ON iv.ventaId = v.id
-    WHERE $where
-    GROUP BY p.id, p.codigo, p.nombre, p.categoria_id
-    ORDER BY ganancia DESC
-  ''', args);
+      SELECT COALESCE(iv.producto_nombre, p.nombre) AS nombre,
+             COALESCE(iv.producto_codigo, p.codigo) AS codigo,
+             p.id AS productoId,
+             p.categoria_id,
+             SUM(iv.cantidad) AS cantidadVendida,
+             SUM(iv.cantidad * iv.precio_unitario) AS ingreso,
+             SUM(iv.cantidad * iv.costo_unitario)  AS costo,
+             SUM( (iv.precio_unitario - iv.costo_unitario) * iv.cantidad ) AS ganancia
+      FROM items_venta iv
+      $join
+      WHERE $where
+      GROUP BY nombre, codigo, productoId, p.categoria_id
+      ORDER BY ganancia DESC
+    ''', args);
 
     return res
         .map((e) => {
-              'productoId': e['id'],
+              'productoId': e['productoId'],
               'codigo': e['codigo'],
               'nombre': e['nombre'],
               'categoria_id': e['categoria_id'],
@@ -979,92 +1336,15 @@ class DBService {
         .toList();
   }
 
-//Lector de barras FUTURA!!! 🧨🧨🎇🎇
   Future<Map<String, dynamic>?> getProductoByCodigo(String codigo) async {
     final db = await database;
     final res = await db.rawQuery('''
-    SELECT p.*, c.nombre AS categoria_nombre
-    FROM productos p
-    LEFT JOIN categorias c ON p.categoria_id = c.id
-    WHERE p.codigo = ?
-    LIMIT 1
-  ''', [codigo]);
+      SELECT p.*, c.nombre AS categoria_nombre
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      WHERE p.codigo = ?
+      LIMIT 1
+    ''', [codigo]);
     return res.isNotEmpty ? res.first : null;
-  }
-
-  Future<void> _migrateItemsVentaV3(Database db) async {
-    final cols = await db.rawQuery("PRAGMA table_info(items_venta);");
-    final hasPU = cols.any((c) => c['name'] == 'precio_unitario');
-    final hasCU = cols.any((c) => c['name'] == 'costo_unitario');
-
-    if (!hasPU) {
-      await db
-          .execute("ALTER TABLE items_venta ADD COLUMN precio_unitario REAL;");
-    }
-    if (!hasCU) {
-      await db.execute(
-          "ALTER TABLE items_venta ADD COLUMN costo_unitario REAL DEFAULT 0;");
-    }
-
-    // Backfill razonable: si hay subtotal y cantidad, infiere precio_unitario.
-    // Si no, usa el precio/costo actuales del producto.
-    await db.execute('''
-    UPDATE items_venta
-    SET 
-      precio_unitario = COALESCE(
-        precio_unitario,
-        CASE 
-          WHEN cantidad IS NOT NULL AND cantidad > 0 AND subtotal IS NOT NULL THEN subtotal / cantidad
-          ELSE (SELECT p.precio_venta FROM productos p WHERE p.id = items_venta.productoId)
-        END
-      ),
-      costo_unitario = COALESCE(
-        costo_unitario,
-        (SELECT p.costo_compra FROM productos p WHERE p.id = items_venta.productoId),
-        0
-      )
-  ''');
-  }
-
-  // Dentro de la clase DBService
-  Future<void> _hardenProductConstraintsV4(Database db) async {
-    await db.execute('PRAGMA foreign_keys = OFF;');
-    await db.transaction((txn) async {
-      await txn.execute('ALTER TABLE productos RENAME TO productos_old;');
-
-      await txn.execute('''
-      CREATE TABLE productos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        codigo TEXT UNIQUE,
-        nombre TEXT NOT NULL,
-        descripcion TEXT,
-        precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
-        costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
-        stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
-        categoria_id INTEGER,
-        FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-      )
-    ''');
-
-      await txn.execute(
-          "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
-
-      await txn.execute('''
-      INSERT INTO productos (id, codigo, nombre, descripcion, precio_venta, costo_compra, stock, categoria_id)
-      SELECT 
-        id,
-        codigo,
-        nombre,
-        descripcion,
-        CASE WHEN precio_venta IS NULL OR precio_venta < 0 THEN 0 ELSE precio_venta END,
-        CASE WHEN costo_compra IS NULL OR costo_compra < 0 THEN 0 ELSE costo_compra END,
-        CASE WHEN stock IS NULL OR stock < 0 THEN 0 ELSE stock END,
-        categoria_id
-      FROM productos_old;
-    ''');
-
-      await txn.execute('DROP TABLE productos_old;');
-    });
-    await db.execute('PRAGMA foreign_keys = ON;');
   }
 }

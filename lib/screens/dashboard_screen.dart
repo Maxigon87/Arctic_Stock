@@ -16,12 +16,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   // Totales
   double ventasHoy = 0;
-  double ventasMes = 0;
+  double ventasPeriodo = 0; // ← mes actual o rango seleccionado
   double deudasPendientes = 0;
   String productoTop = "Sin datos";
-  // NUEVO: Ganancias
+  // Ganancias
   double gananciaHoy = 0;
-  double gananciaMes = 0;
+  double gananciaPeriodo = 0;
 
   // Series / distribuciones
   List<Map<String, dynamic>> ventasDias = [];
@@ -66,49 +66,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadDashboardData() async {
     final hoy = DateTime.now();
+    final tieneRango = (desde != null && hasta != null);
 
-    // Ventas día / mes (con filtro por categoría si aplica)
+    // Ventas de hoy (siempre día actual)
     ventasHoy = await dbService.getTotalVentasDia(
       hoy,
       categoriaId: categoriaSeleccionada,
     );
 
-    ventasMes = await dbService.getTotalVentasMes(
+    // Ventas del período (mes actual o rango)
+    ventasPeriodo = await dbService.getTotalVentasMes(
       hoy,
       categoriaId: categoriaSeleccionada,
+      desde: tieneRango ? desde : null,
+      hasta: tieneRango ? hasta : null,
     );
 
-    // NUEVO: Ganancias día / mes (usa helper que agregamos en DBService)
+    // Ganancia de hoy
     gananciaHoy = await dbService.getGananciaTotal(
       desde: _startOfDay(hoy),
       hasta: _endOfDay(hoy),
       categoriaId: categoriaSeleccionada,
     );
 
-    gananciaMes = await dbService.getGananciaTotal(
-      desde: _startOfMonth(hoy),
-      hasta: _endOfMonth(hoy),
+    // Ganancia del período (mes actual o rango)
+    gananciaPeriodo = await dbService.getGananciaTotal(
+      desde: tieneRango ? desde : _startOfMonth(hoy),
+      hasta: tieneRango ? hasta : _endOfMonth(hoy),
       categoriaId: categoriaSeleccionada,
     );
 
-    // Deudas pendientes (puede filtrar por categoría según items vendidos)
+    // Deudas pendientes
     deudasPendientes = await dbService.getTotalDeudasPendientes(
       categoriaId: categoriaSeleccionada,
     );
 
-    // Producto top (respeta filtros si se seleccionó un rango)
+    // Producto top (respeta rango si hay)
     productoTop = await dbService.getProductoMasVendido(
       categoriaId: categoriaSeleccionada,
       desde: desde,
       hasta: hasta,
     );
 
-    // Serie últimos 7 días (filtra por categoría)
+    // Serie últimos 7 días (por ahora fijo a últimos 7 días)
     ventasDias = await dbService.getVentasUltimos7Dias(
       categoriaId: categoriaSeleccionada,
     );
 
-    // Distribución métodos de pago (filtra por categoría)
+    // Distribución métodos de pago
     metodosPago = await dbService.getDistribucionMetodosPago(
       categoriaId: categoriaSeleccionada,
     );
@@ -120,6 +125,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFiltrosDashboard() {
+    final tieneRango = (desde != null && hasta != null);
+
     return Column(
       children: [
         Row(
@@ -156,9 +163,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _loadDashboardData();
                 }
               },
-              child: const Text("Filtrar Fecha"),
+              child: Text(tieneRango ? "Cambiar rango" : "Filtrar Fecha"),
             ),
-            if (desde != null && hasta != null) ...[
+            if (tieneRango) ...[
               const SizedBox(width: 8),
               IconButton(
                 tooltip: 'Limpiar rango',
@@ -175,7 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        if (desde != null && hasta != null)
+        if (tieneRango)
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -192,6 +199,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tieneRango = (desde != null && hasta != null);
+    final tituloVentasPeriodo =
+        tieneRango ? "Ventas del Rango" : "Ventas del Mes";
+    final tituloGananciaPeriodo =
+        tieneRango ? "Ganancia del Rango" : "Ganancia del Mes";
+
     return Scaffold(
       appBar: AppBar(title: const Text("📊 Dashboard")),
       body: ArticBackground(
@@ -202,7 +215,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _buildFiltrosDashboard(),
 
-                // KPI: Productos sin stock (único)
+                // KPI: Productos sin stock
                 AnimatedOpacity(
                   opacity: _productosSinStock > 0 ? 0.85 : 1.0,
                   duration: const Duration(milliseconds: 400),
@@ -215,7 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
-                // Ventas y Ganancias - Día
+                // Ventas y Ganancias - Hoy
                 ArticKpiCard(
                   title: "Ventas de Hoy",
                   value: "💰 \$${ventasHoy.toStringAsFixed(2)}",
@@ -227,15 +240,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   accentColor: Colors.lightGreen,
                 ),
 
-                // Ventas y Ganancias - Mes
+                // Ventas y Ganancias - Período (mes o rango)
                 ArticKpiCard(
-                  title: "Ventas del Mes",
-                  value: "📆 \$${ventasMes.toStringAsFixed(2)}",
+                  title: tituloVentasPeriodo,
+                  value: "📆 \$${ventasPeriodo.toStringAsFixed(2)}",
                   accentColor: Colors.blue,
                 ),
                 ArticKpiCard(
-                  title: "Ganancia del Mes",
-                  value: "🏦 \$${gananciaMes.toStringAsFixed(2)}",
+                  title: tituloGananciaPeriodo,
+                  value: "🏦 \$${gananciaPeriodo.toStringAsFixed(2)}",
                   accentColor: Colors.indigo,
                 ),
 
@@ -246,7 +259,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   accentColor: Colors.red,
                 ),
 
-                // Producto Top (según filtros)
+                // Producto Top
                 ArticKpiCard(
                   title: "Producto Más Vendido",
                   value: "🏆 $productoTop",
@@ -279,7 +292,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildBarChart() {
     if (ventasDias.isEmpty) {
       return const Center(
-          child: Text("Sin datos", style: TextStyle(color: Colors.white)));
+        child: Text("Sin datos", style: TextStyle(color: Colors.white)),
+      );
     }
     return BarChart(
       BarChartData(
@@ -311,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 toY: total,
                 color: Colors.cyanAccent,
                 borderRadius: BorderRadius.circular(4),
-              )
+              ),
             ],
           );
         }),
@@ -322,7 +336,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildPieChart() {
     if (metodosPago.isEmpty) {
       return const Center(
-          child: Text("Sin datos", style: TextStyle(color: Colors.white)));
+        child: Text("Sin datos", style: TextStyle(color: Colors.white)),
+      );
     }
     return PieChart(
       PieChartData(
