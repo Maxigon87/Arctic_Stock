@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:ArticStock/Services/db_service.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/debt_screen.dart';
@@ -15,9 +17,13 @@ import 'screens/artic_login_screen.dart';
 import 'dart:io';
 import 'screens/splash_screen.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await initializeDateFormatting('es_AR', null);
+  Intl.defaultLocale = 'es_AR';
   await windowManager.ensureInitialized();
 
   WindowOptions windowOptions = const WindowOptions(
@@ -64,6 +70,17 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       title: "Artic Stock",
       theme: darkTheme,
+      locale: const Locale('es', 'AR'),
+      supportedLocales: const [
+        Locale('es', 'AR'),
+        Locale('es'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: SplashScreen(),
     );
     // <-- Add this closing parenthesis for WillPopScope

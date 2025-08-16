@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
-import '../models/cliente.dart'; // si no lo usás más, podés borrar este import
 import 'package:intl/intl.dart';
 
 class ReportesScreen extends StatefulWidget {
