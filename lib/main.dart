@@ -1,24 +1,35 @@
 import 'dart:async';
-import 'package:ArticStock/Services/db_service.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+
+import 'Services/db_service.dart';
+import 'widgets/artic_background.dart';
+
+import 'utils/theme_controller.dart';
+import 'screens/splash_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/debt_screen.dart';
 import 'screens/reportes_screen.dart';
 import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/dashboard_screen.dart';
-import 'widgets/artic_background.dart';
-import 'package:window_manager/window_manager.dart';
+import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
-import 'dart:io';
-import 'screens/splash_screen.dart';
-import 'package:window_manager/window_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
+  await initializeDateFormatting('es_AR', null);
+  await initializeDateFormatting('es', null); // opcional, por las dudas
+  Intl.defaultLocale = 'es_AR';
+
+  await ThemeController.instance.init();
 
   WindowOptions windowOptions = const WindowOptions(
     center: true,
@@ -31,6 +42,7 @@ void main() async {
     await windowManager.maximize();
     await windowManager.show();
     await windowManager.focus();
+    await ThemeController.instance.init();
   });
 
   runApp(const MyApp());
@@ -51,22 +63,55 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final lightTheme = ThemeData(
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal, brightness: Brightness.light),
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFFF6F6F6),
+      appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white, foregroundColor: Colors.black87),
+    );
+
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.teal, brightness: Brightness.dark),
+      useMaterial3: true,
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
           backgroundColor: Colors.black87, foregroundColor: Colors.white),
     );
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: "Artic Stock",
-      theme: darkTheme,
-      home: SplashScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.instance.mode,
+      builder: (_, mode, __) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: "Artic Stock",
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: mode,
+          locale: const Locale('es', 'AR'),
+          supportedLocales: const [
+            Locale('es', 'AR'),
+            Locale('es'),
+            Locale('en')
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          routes: {
+            '/login': (_) => const ArticLoginScreen(),
+            '/home': (_) => const HomeScreen(),
+          },
+          initialRoute:
+              '/login', // o usá '/splash' si querés arrancar por Splash
+        );
+      },
     );
-    // <-- Add this closing parenthesis for WillPopScope
   }
 }
 
@@ -77,33 +122,57 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum NavItem {
+  none, // estado "logo"
+  dashboard,
+  ventas,
+  productos,
+  reportes,
+  deudas,
+  clientes,
+  historial,
+  configuracion
+}
+
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   late StreamSubscription _dbSub;
+  late final _MyWindowListener _listener;
+
   int _productosSinStock = 0;
   bool _animarBadge = false;
 
-  final List<_HomeOption> _options = const [
-    _HomeOption("Productos", Icons.shopping_bag, Colors.blue),
-    _HomeOption("Ventas", Icons.point_of_sale, Colors.green),
-    _HomeOption("Deudas", Icons.money_off, Colors.redAccent),
-    _HomeOption("Reportes", Icons.analytics, Colors.orange),
-    _HomeOption("Historial", Icons.folder_open, Colors.purple),
-    _HomeOption("Clientes", Icons.people, Colors.teal),
-    _HomeOption("Dashboard", Icons.dashboard, Colors.indigo),
+  NavItem _selected = NavItem.none;
+
+  int _selectedIndex() => _items.indexWhere((e) => e.id == _selected);
+
+  final List<_NavMeta> _items = const [
+    _NavMeta(NavItem.none, 'Inicio', Icons.home_outlined), // <- NUEVO PRIMERO
+    _NavMeta(NavItem.dashboard, 'Dashboard', Icons.dashboard_outlined),
+    _NavMeta(NavItem.ventas, 'Ventas', Icons.point_of_sale),
+    _NavMeta(NavItem.productos, 'Productos', Icons.inventory_2_outlined),
+    _NavMeta(NavItem.reportes, 'Reportes', Icons.analytics_outlined),
+    _NavMeta(NavItem.deudas, 'Deudas', Icons.money_off),
+    _NavMeta(NavItem.clientes, 'Clientes', Icons.people_alt_outlined),
+    _NavMeta(NavItem.historial, 'Archivos', Icons.folder_open),
+    _NavMeta(NavItem.configuracion, 'Configuración', Icons.settings_outlined),
   ];
 
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(_MyWindowListener(this));
+    _listener = _MyWindowListener(this); // 👈
+    windowManager.addListener(_listener);
+
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.98, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
     _controller.forward();
@@ -115,13 +184,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadProductosSinStock() async {
     final count = await DBService().getProductosSinStockCount();
-
-    if (mounted && count != _productosSinStock) {
+    if (!mounted) return;
+    if (count != _productosSinStock) {
       setState(() {
         _productosSinStock = count;
-        _animarBadge = true; // 🔥 dispara animación
+        _animarBadge = true;
       });
-
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) setState(() => _animarBadge = false);
       });
@@ -130,90 +198,202 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    windowManager.removeListener(_listener);
     _controller.dispose();
     _dbSub.cancel();
     super.dispose();
   }
 
+  // dentro de _HomeScreenState
+  void _goToLogin() {
+    DBService().setActiveUser(id: null, nombre: null);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ArticLoginScreen()),
+      (route) => false,
+    );
+  }
+
+  // ======== SHELL CON LAYOUT LADO-IZQ / CONTENIDO DERECHA =========
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 1150;
+
     return WillPopScope(
-        onWillPop: () async {
-          final shouldExit = await _mostrarDialogoConfirmacion(context);
-          return shouldExit ?? false;
-        },
-        child: Scaffold(
-          appBar: AppBar(
+      onWillPop: () async =>
+          await _mostrarDialogoConfirmacion(context) ?? false,
+      child: Scaffold(
+        appBar: AppBar(
             leading: Image.asset('assets/logo/logo_sin_titulo.png'),
             title: const Text("Artic Stock"),
             actions: [
+              if (DBService().activeUserName != null)
+                _UserBadge(
+                  name: DBService().activeUserName!,
+                  onChangeUser: _goToLogin, // 👈 acá
+                  onSettings: () =>
+                      setState(() => _selected = NavItem.configuracion),
+                ),
               IconButton(
                 tooltip: "Salir de la App",
                 icon: const Icon(Icons.exit_to_app),
-                onPressed: () {
-                  exit(0); // 🔥 Cierra la app al instante (solo en Desktop)
-                },
+                onPressed: () async {/* ... tu confirmación y exit(0) ... */},
               ),
-            ],
-          ),
-          body: ArticBackground(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 700),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    child: GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount:
-                            MediaQuery.of(context).size.width > 900 ? 3 : 2,
-                        crossAxisSpacing: 20,
-                        mainAxisSpacing: 20,
-                        childAspectRatio:
-                            1.3, // 🔥 ajusta proporción a tu gusto
+            ]),
+        body: ArticBackground(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: Row(
+                children: [
+                  // ==== LADO IZQUIERDO: BARRA ====
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: isCompact ? 72 : 260,
+                    // barra izquierda
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant, // <- antes: surfaceContainerHighest
+                      border: Border(
+                        right: BorderSide(
+                            color: Theme.of(context).dividerColor, width: 0.6),
                       ),
-                      itemCount: _options.length,
-                      itemBuilder: (context, index) {
-                        final opt = _options[index];
-                        return _AnimatedHomeCard(
-                          title: opt.title,
-                          icon: opt.icon,
-                          color: opt.color,
-                          badgeCount: opt.title == "Productos"
-                              ? _productosSinStock
-                              : null,
-                          animateBadge: opt.title == "Productos"
-                              ? _animarBadge
-                              : false, // ✅
-                          onTap: () => _navigateTo(context, index),
-                        );
-                      },
+                    ),
+
+                    child: Column(
+                      children: [
+                        // Encabezado barra
+                        // Encabezado barra (solo logo, sin texto)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                          child: Center(
+                            child: Image.asset(
+                              'assets/logo/logo_sin_titulo.png',
+                              width: isCompact ? 28 : 36,
+                              height: isCompact ? 28 : 36,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+
+                        Expanded(
+                          child: NavigationRail(
+                            extended: !isCompact,
+                            minExtendedWidth: 240,
+                            selectedIndex:
+                                (_selectedIndex() >= 0) ? _selectedIndex() : 0,
+                            onDestinationSelected: (idx) {
+                              setState(() => _selected = _items[idx].id);
+                            },
+                            groupAlignment: -1.0,
+                            destinations: _items.map((e) {
+                              final isProductos = e.id == NavItem.productos;
+                              final showBadge =
+                                  isProductos && _productosSinStock > 0;
+
+                              return NavigationRailDestination(
+                                icon: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(e.icon),
+                                    if (showBadge)
+                                      Positioned(
+                                        top: -2,
+                                        right: -6,
+                                        child: AnimatedScale(
+                                          scale: _animarBadge ? 1.2 : 1.0,
+                                          duration:
+                                              const Duration(milliseconds: 300),
+                                          child: _DotBadge(
+                                              count: _productosSinStock),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                selectedIcon: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(e.icon),
+                                    if (showBadge)
+                                      Positioned(
+                                        top: -2,
+                                        right: -6,
+                                        child: AnimatedScale(
+                                          scale: _animarBadge ? 1.2 : 1.0,
+                                          duration:
+                                              const Duration(milliseconds: 300),
+                                          child: _DotBadge(
+                                              count: _productosSinStock),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                label: Text(e.label),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   ),
-                ),
+
+                  // ==== LADO DERECHO: CONTENIDO ====
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: _buildContent(_selected),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ));
-    // <-- Add this closing parenthesis for WillPopScope
+        ),
+      ),
+    );
   }
 
-  void _navigateTo(BuildContext context, int index) {
-    final screens = [
-      ProductListScreen(),
-      SalesScreen(),
-      DebtScreen(),
-      ReportesScreen(),
-      HistorialArchivosScreen(),
-      ClientesScreen(),
-      DashboardScreen(),
-    ];
-    Navigator.of(context).push(_createRoute(screens[index])).then((_) {
-      _loadProductosSinStock();
-    });
+  Widget _buildContent(NavItem item) {
+    switch (item) {
+      case NavItem.none:
+        return const _LogoView();
+
+      case NavItem.dashboard:
+        return const _PageWrap(keyName: 'dashboard', child: DashboardScreen());
+
+      case NavItem.ventas:
+        return const _PageWrap(keyName: 'ventas', child: SalesScreen());
+
+      case NavItem.productos:
+        return const _PageWrap(
+            keyName: 'productos', child: ProductListScreen());
+
+      case NavItem.reportes:
+        return const _PageWrap(keyName: 'reportes', child: ReportesScreen());
+
+      case NavItem.deudas:
+        return const _PageWrap(keyName: 'deudas', child: DebtScreen());
+
+      case NavItem.clientes:
+        return const _PageWrap(keyName: 'clientes', child: ClientesScreen());
+
+      case NavItem.historial:
+        return const _PageWrap(
+          keyName: 'historial',
+          child: HistorialArchivosScreen(),
+        );
+
+      case NavItem.configuracion:
+        return const _PageWrap(
+          keyName: 'config',
+          child: SettingsScreen(), // 👈 sin onUsersChanged
+        );
+    }
   }
 
   Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) {
@@ -236,111 +416,99 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Route _createRoute(Widget page) {
-    return PageRouteBuilder(
-      transitionDuration: const Duration(milliseconds: 350),
-      pageBuilder: (context, animation, secondaryAnimation) => page,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final offsetAnimation = Tween<Offset>(
-                begin: const Offset(0.1, 0), end: Offset.zero)
-            .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
-        final fadeAnimation = Tween<double>(begin: 0, end: 1)
-            .animate(CurvedAnimation(parent: animation, curve: Curves.easeIn));
-        return SlideTransition(
-            position: offsetAnimation,
-            child: FadeTransition(opacity: fadeAnimation, child: child));
-      },
+  // window_manager: interceptar cierre de ventana (X)
+  @override
+  Future<bool> onWindowClose() async {
+    final shouldExit = await _mostrarDialogoConfirmacion(context);
+    return shouldExit == true;
+  }
+}
+
+class _NavMeta {
+  final NavItem id;
+  final String label;
+  final IconData icon;
+  const _NavMeta(this.id, this.label, this.icon);
+}
+
+class _PageWrap extends StatelessWidget {
+  final Widget child;
+  final String keyName;
+  const _PageWrap({required this.child, required this.keyName, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: PageStorageKey(keyName),
+      padding: const EdgeInsets.all(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
 
-class _HomeOption {
-  final String title;
-  final IconData icon;
-  final Color color;
-  const _HomeOption(this.title, this.icon, this.color);
-}
-
-class _AnimatedHomeCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final int? badgeCount;
-  final bool animateBadge;
-
-  const _AnimatedHomeCard({
-    super.key,
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.badgeCount,
-    this.animateBadge = false,
-  });
+class _LogoView extends StatelessWidget {
+  const _LogoView();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(
-              minWidth: 160,
-              maxWidth: 180,
-              minHeight: 140,
-            ),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [Colors.white, Color(0xFFE6F7FF)]),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4))
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 42, color: color),
-                const SizedBox(height: 8),
-                Text(title,
-                    style:
-                        TextStyle(color: color, fontWeight: FontWeight.bold)),
-              ],
-            ),
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset('assets/logo/logo_sin_titulo.png',
+              width: 220, height: 220),
+          const SizedBox(height: 16),
+          Text(
+            'Bienvenido a Artic Stock',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Elegí una opción en la barra izquierda para empezar',
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DotBadge extends StatelessWidget {
+  final int count;
+  const _DotBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = count > 99 ? '99+' : '$count';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      constraints: const BoxConstraints(minWidth: 22, minHeight: 18),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
         ),
-        if (badgeCount != null && badgeCount! > 0)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: AnimatedScale(
-              scale: animateBadge ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                child: Text(
-                  '$badgeCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ),
-      ],
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }
@@ -348,14 +516,56 @@ class _AnimatedHomeCard extends StatelessWidget {
 class _MyWindowListener extends WindowListener {
   final _HomeScreenState state;
   _MyWindowListener(this.state);
+}
+
+class _UserBadge extends StatelessWidget {
+  final String name;
+  final VoidCallback onChangeUser;
+  final VoidCallback onSettings;
+
+  const _UserBadge({
+    required this.name,
+    required this.onChangeUser,
+    required this.onSettings,
+  });
 
   @override
-  Future<bool> onWindowClose() async {
-    final shouldExit = await state._mostrarDialogoConfirmacion(state.context);
-    if (shouldExit == true) {
-      return true; // cerrar
-    } else {
-      return false; // cancelar
-    }
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 1000;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: PopupMenuButton<int>(
+        tooltip: name,
+        onSelected: (v) {
+          if (v == 1) onChangeUser();
+          if (v == 2) onSettings();
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 1, child: Text('Cambiar usuario')),
+          PopupMenuItem(value: 2, child: Text('Configuración')),
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 14,
+              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+            ),
+            if (!isCompact) ...[
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

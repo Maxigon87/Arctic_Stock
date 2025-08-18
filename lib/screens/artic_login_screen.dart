@@ -1,7 +1,9 @@
 import 'dart:math';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+
 import '../widgets/artic_background.dart';
-import '../main.dart';
+import '../Services/db_service.dart'; // usuarios + setActiveUser
 
 class ArticLoginScreen extends StatefulWidget {
   const ArticLoginScreen({Key? key}) : super(key: key);
@@ -21,16 +23,20 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   final List<_WindParticle> _windParticles =
       List.generate(40, (_) => _WindParticle());
 
+  // --- Usuarios ---
+  List<Map<String, dynamic>> _usuarios = [];
+  int? _selectedUserId;
+  bool _loadingUsers = true;
+
   @override
   void initState() {
     super.initState();
 
-    // 🎬 Animación del título
+    // Animación del título
     _titleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-
     _scaleAnimation =
         CurvedAnimation(parent: _titleController, curve: Curves.elasticOut);
     _opacityAnimation =
@@ -38,11 +44,11 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
     _titleController.forward().whenComplete(() {
       Future.delayed(const Duration(milliseconds: 800), () {
-        setState(() => showButton = true);
+        if (mounted) setState(() => showButton = true);
       });
     });
 
-    // 🌬️ Animación viento
+    // Animación viento
     _windController =
         AnimationController(vsync: this, duration: const Duration(seconds: 5))
           ..addListener(() {
@@ -54,6 +60,72 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
             });
           })
           ..repeat();
+
+    _loadUsuarios();
+  }
+
+  Future<void> _loadUsuarios() async {
+    final list = await DBService().getUsuarios();
+    if (!mounted) return;
+    setState(() {
+      _usuarios = list;
+      if (_selectedUserId == null && list.isNotEmpty) {
+        _selectedUserId = list.first['id'] as int;
+      } else if (_selectedUserId != null &&
+          !list.any((u) => u['id'] == _selectedUserId)) {
+        _selectedUserId = list.isNotEmpty ? list.first['id'] as int : null;
+      }
+      _loadingUsers = false;
+    });
+  }
+
+  Future<void> _addUsuarioDialog() async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nuevo usuario'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nombre'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Guardar')),
+        ],
+      ),
+    );
+
+    final name = controller.text.trim();
+    if (ok == true && name.isNotEmpty) {
+      try {
+        final newId = await DBService().insertUsuario(name);
+        if (!mounted) return;
+        setState(() => _selectedUserId = newId); // seleccionar el nuevo
+        await _loadUsuarios(); // refrescar lista
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo crear el usuario: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _acceder() async {
+    if (_selectedUserId == null) return;
+    final u = _usuarios.firstWhere((e) => e['id'] == _selectedUserId);
+    DBService()
+        .setActiveUser(id: _selectedUserId, nombre: u['nombre'] as String?);
+
+    if (!mounted) return;
+    // Navega por ruta nombrada (definida en MaterialApp.routes)
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   @override
@@ -70,9 +142,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
         child: Stack(
           children: [
             CustomPaint(
-              size: Size.infinite,
-              painter: _WindPainter(_windParticles),
-            ),
+                size: Size.infinite, painter: _WindPainter(_windParticles)),
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -83,56 +153,101 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                       opacity: _opacityAnimation,
                       child: Image.asset(
                         'assets/images/artic_logo.png',
-                        height: 240, //Tamaño del logo ✨
+                        height: 240,
                         fit: BoxFit.contain,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
+
+                  // Panel frosted glass
                   AnimatedOpacity(
                     opacity: showButton ? 1 : 0,
                     duration: const Duration(milliseconds: 800),
                     child: showButton
-                        ? GestureDetector(
-                            onTap: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const HomeScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 40, vertical: 14),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Colors.white, Color(0xFFE0F7FA)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                    color: Colors.white70, width: 1.5),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.cyanAccent.withOpacity(0.3),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
+                        ? ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: BackdropFilter(
+                                filter:
+                                    ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    border: Border.all(
+                                        color: Colors.white.withOpacity(0.15)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.25),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              child: Text(
-                                "Acceder",
-                                style: TextStyle(
-                                  color: Colors.blue.shade700,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                  shadows: [
-                                    Shadow(
-                                        color: Colors.white.withOpacity(0.6),
-                                        blurRadius: 2)
-                                  ],
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Text('Usuario',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _loadingUsers
+                                                ? const LinearProgressIndicator(
+                                                    minHeight: 48)
+                                                : DropdownButtonFormField<int>(
+                                                    value:
+                                                        (_usuarios.isNotEmpty)
+                                                            ? _selectedUserId
+                                                            : null,
+                                                    items: _usuarios.map((u) {
+                                                      return DropdownMenuItem<
+                                                          int>(
+                                                        value: u['id'] as int,
+                                                        child: Text(u['nombre']
+                                                            as String),
+                                                      );
+                                                    }).toList(),
+                                                    onChanged: _usuarios
+                                                            .isNotEmpty
+                                                        ? (v) => setState(() =>
+                                                            _selectedUserId = v)
+                                                        : null,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      hintText:
+                                                          'No hay usuarios. Agregá uno',
+                                                      border:
+                                                          OutlineInputBorder(),
+                                                    ),
+                                                  ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton.outlined(
+                                            tooltip: 'Agregar usuario',
+                                            icon: const Icon(
+                                                Icons.person_add_alt_1),
+                                            onPressed: _addUsuarioDialog,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      FilledButton(
+                                        onPressed: (_usuarios.isNotEmpty &&
+                                                _selectedUserId != null)
+                                            ? _acceder
+                                            : null,
+                                        child: const Text('Acceder'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

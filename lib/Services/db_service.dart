@@ -1,15 +1,17 @@
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:path/path.dart';
-import 'dart:io';
-import '../models/cliente.dart';
 import 'dart:async';
+import 'dart:io';
+
+import 'package:path/path.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common/sqlite_api.dart' show ConflictAlgorithm;
+
+import '../models/cliente.dart';
 
 class DBService {
   static final DBService _instance = DBService._internal();
   factory DBService() => _instance;
   DBService._internal();
 
-  // Notificaciones de cambios
   final StreamController<void> _dbChangeController =
       StreamController.broadcast();
   Stream<void> get onDatabaseChanged => _dbChangeController.stream;
@@ -24,7 +26,6 @@ class DBService {
   }
 
   Future<Database> _initDB() async {
-    // FFI en Windows/Linux
     if (Platform.isWindows || Platform.isLinux) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
@@ -36,7 +37,7 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 10,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
@@ -46,6 +47,7 @@ class DBService {
           if (oldV < 7) await _migrateToV7(db);
           if (oldV < 8) await _migrateToV8(db);
           if (oldV < 9) await _migrateToV9(db);
+          if (oldV < 10) await _migrateUsersV10(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -53,18 +55,23 @@ class DBService {
           await db.execute("PRAGMA synchronous = NORMAL;");
           await db.execute("PRAGMA temp_store = MEMORY;");
 
-          await _ensureStockColumn(db);
+          // Blindar base en caso de DB parcial/rota
+          await _ensureBaseIntegrity(db);
 
-          // Por si falta algún índice/trigger en DB ya creada:
+          // Índices críticos (idempotentes)
           await db.execute(
               "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+          await db.execute(
+              "CREATE INDEX IF NOT EXISTS idx_ventas_userId ON ventas(userId);");
+
+          await _ensureStockColumn(db);
           await _createItemVentaTriggersV8(db);
         },
       ),
     );
   }
 
-  // ---------- Schema base ----------
+  // ======= CREATE ALL TABLES =======
   Future _createTables(Database db, int version) async {
     await db.execute('''
       CREATE TABLE categorias (
@@ -98,6 +105,14 @@ class DBService {
         "CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);");
 
     await db.execute('''
+      CREATE TABLE usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        color TEXT
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
@@ -114,7 +129,9 @@ class DBService {
         fecha TEXT NOT NULL,
         metodoPago TEXT NOT NULL,
         total REAL NOT NULL,
-        FOREIGN KEY (clienteId) REFERENCES clientes(id)
+        userId INTEGER,
+        FOREIGN KEY (clienteId) REFERENCES clientes(id),
+        FOREIGN KEY (userId) REFERENCES usuarios(id)
       )
     ''');
 
@@ -124,6 +141,8 @@ class DBService {
         "CREATE INDEX IF NOT EXISTS idx_ventas_clienteId ON ventas(clienteId);");
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_ventas_metodoPago ON ventas(metodoPago);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_userId ON ventas(userId);");
 
     await db.execute('''
       CREATE TABLE deudas (
@@ -141,12 +160,11 @@ class DBService {
       CREATE TABLE items_venta (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ventaId INTEGER NOT NULL,
-        productoId INTEGER, -- puede ser NULL si el producto se borra
+        productoId INTEGER,
         cantidad INTEGER NOT NULL CHECK(cantidad > 0),
         precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
         costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
         subtotal        REAL NOT NULL DEFAULT 0 CHECK(subtotal       >= 0),
-        -- snapshots
         producto_nombre TEXT,
         producto_descripcion TEXT,
         producto_codigo TEXT,
@@ -160,20 +178,151 @@ class DBService {
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
 
-    // Triggers para snapshots/subtotal
     await _createItemVentaTriggersV8(db);
   }
 
+  // ======= ENSURE BASE (para DBs viejas/rotas) =======
+  Future<void> _ensureBaseIntegrity(Database db) async {
+    await _ensureTableExists(db, 'categorias', '''
+      CREATE TABLE categorias (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE
+      )
+    ''');
+
+    await _ensureTableExists(db, 'productos', '''
+      CREATE TABLE productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT UNIQUE,
+        nombre TEXT NOT NULL,
+        descripcion TEXT,
+        precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
+        costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
+        stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+        categoria_id INTEGER,
+        activo INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await _ensureTableExists(db, 'usuarios', '''
+      CREATE TABLE usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        color TEXT
+      )
+    ''');
+
+    await _ensureTableExists(db, 'clientes', '''
+      CREATE TABLE clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        telefono TEXT,
+        email TEXT,
+        direccion TEXT
+      )
+    ''');
+
+    await _ensureTableExists(db, 'ventas', '''
+      CREATE TABLE ventas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clienteId INTEGER,
+        fecha TEXT NOT NULL,
+        metodoPago TEXT NOT NULL,
+        total REAL NOT NULL,
+        userId INTEGER
+      )
+    ''');
+
+    await _ensureTableExists(db, 'deudas', '''
+      CREATE TABLE deudas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clienteId INTEGER,
+        monto REAL NOT NULL,
+        fecha TEXT NOT NULL,
+        estado TEXT NOT NULL,
+        descripcion TEXT
+      )
+    ''');
+
+    await _ensureTableExists(db, 'items_venta', '''
+      CREATE TABLE items_venta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ventaId INTEGER NOT NULL,
+        productoId INTEGER,
+        cantidad INTEGER NOT NULL CHECK(cantidad > 0),
+        precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
+        costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
+        subtotal        REAL NOT NULL DEFAULT 0 CHECK(subtotal       >= 0),
+        producto_nombre TEXT,
+        producto_descripcion TEXT,
+        producto_codigo TEXT
+      )
+    ''');
+
+    await _ensureColumnExists(db, 'productos', 'activo',
+        "ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;");
+    await _ensureColumnExists(db, 'ventas', 'userId',
+        "ALTER TABLE ventas ADD COLUMN userId INTEGER;");
+
+    // índices idempotentes
+    await db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_descripcion ON productos(descripcion);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_clienteId ON ventas(clienteId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_metodoPago ON ventas(metodoPago);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ventas_userId ON ventas(userId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+  }
+
+  Future<bool> _tableExists(Database db, String name) async {
+    final res = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [name],
+    );
+    return res.isNotEmpty;
+  }
+
+  Future<bool> _columnExists(Database db, String table, String column) async {
+    final res = await db.rawQuery("PRAGMA table_info($table);");
+    return res.any((c) => c['name'] == column);
+  }
+
+  Future<void> _ensureTableExists(
+      Database db, String name, String createSql) async {
+    if (!await _tableExists(db, name)) {
+      await db.execute(createSql);
+    }
+  }
+
+  Future<void> _ensureColumnExists(
+      Database db, String table, String column, String alterSql) async {
+    if (await _tableExists(db, table) &&
+        !await _columnExists(db, table, column)) {
+      await db.execute(alterSql);
+    }
+  }
+
   Future<void> _ensureStockColumn(Database db) async {
-    final res = await db.rawQuery("PRAGMA table_info(productos);");
-    final hasStock = res.any((col) => col['name'] == 'stock');
-    if (!hasStock) {
+    if (!await _columnExists(db, 'productos', 'stock')) {
       await db
           .execute("ALTER TABLE productos ADD COLUMN stock INTEGER DEFAULT 0;");
     }
   }
 
-  // ---------- Migraciones ----------
+  // ======= MIGRACIONES EXISTENTES =======
   Future _migrateToV2(Database db) async {
     final cols = await db.rawQuery("PRAGMA table_info(productos);");
     bool hasCodigo = cols.any((c) => c['name'] == 'codigo');
@@ -210,14 +359,12 @@ class DBService {
     final hasPU = cols.any((c) => c['name'] == 'precio_unitario');
     final hasCU = cols.any((c) => c['name'] == 'costo_unitario');
 
-    if (!hasPU) {
+    if (!hasPU)
       await db
           .execute("ALTER TABLE items_venta ADD COLUMN precio_unitario REAL;");
-    }
-    if (!hasCU) {
+    if (!hasCU)
       await db.execute(
           "ALTER TABLE items_venta ADD COLUMN costo_unitario REAL DEFAULT 0;");
-    }
 
     await db.execute('''
       UPDATE items_venta
@@ -241,7 +388,6 @@ class DBService {
     await db.execute('PRAGMA foreign_keys = OFF;');
     await db.transaction((txn) async {
       await txn.execute('ALTER TABLE productos RENAME TO productos_old;');
-
       await txn.execute('''
         CREATE TABLE productos (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,24 +401,18 @@ class DBService {
           FOREIGN KEY (categoria_id) REFERENCES categorias(id)
         )
       ''');
-
       await txn.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
-
       await txn.execute('''
         INSERT INTO productos (id, codigo, nombre, descripcion, precio_venta, costo_compra, stock, categoria_id)
         SELECT 
-          id,
-          codigo,
-          nombre,
-          descripcion,
+          id, codigo, nombre, descripcion,
           CASE WHEN precio_venta IS NULL OR precio_venta < 0 THEN 0 ELSE precio_venta END,
           CASE WHEN costo_compra IS NULL OR costo_compra < 0 THEN 0 ELSE costo_compra END,
           CASE WHEN stock IS NULL OR stock < 0 THEN 0 ELSE stock END,
           categoria_id
         FROM productos_old;
       ''');
-
       await txn.execute('DROP TABLE productos_old;');
     });
     await db.execute('PRAGMA foreign_keys = ON;');
@@ -340,16 +480,11 @@ class DBService {
         INSERT INTO items_venta_new
           (id, ventaId, productoId, cantidad, precio_unitario, costo_unitario, subtotal)
         SELECT
-          iv.id,
-          iv.ventaId,
-          iv.productoId,
+          iv.id, iv.ventaId, iv.productoId,
           CASE WHEN iv.cantidad IS NULL OR iv.cantidad <= 0 THEN 1 ELSE iv.cantidad END,
           COALESCE(iv.precio_unitario, p.precio_venta, 0),
           COALESCE(iv.costo_unitario,  p.costo_compra, 0),
-          COALESCE(
-            iv.subtotal,
-            COALESCE(iv.precio_unitario, p.precio_venta, 0) * COALESCE(NULLIF(iv.cantidad, 0), 1)
-          )
+          COALESCE(iv.subtotal, COALESCE(iv.precio_unitario, p.precio_venta, 0) * COALESCE(NULLIF(iv.cantidad, 0), 1))
         FROM items_venta iv
         JOIN productos p ON p.id = iv.productoId;
       ''');
@@ -392,14 +527,13 @@ class DBService {
       WHERE iv.productoId IS NOT NULL;
     ''');
 
-    // Permitir SET NULL en productoId
     await db.execute('PRAGMA foreign_keys = OFF;');
     await db.transaction((txn) async {
       await txn.execute('''
         CREATE TABLE items_venta_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           ventaId INTEGER NOT NULL,
-          productoId INTEGER, -- ahora permite NULL
+          productoId INTEGER,
           cantidad INTEGER NOT NULL CHECK(cantidad > 0),
           precio_unitario REAL NOT NULL DEFAULT 0 CHECK(precio_unitario >= 0),
           costo_unitario  REAL NOT NULL DEFAULT 0 CHECK(costo_unitario  >= 0),
@@ -440,9 +574,7 @@ class DBService {
   }
 
   Future<void> _migrateToV9(Database db) async {
-    final cols = await db.rawQuery("PRAGMA table_info(productos);");
-    bool hasActivo = cols.any((c) => c['name'] == 'activo');
-    if (!hasActivo) {
+    if (!await _columnExists(db, 'productos', 'activo')) {
       await db.execute(
           'ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;');
     }
@@ -450,7 +582,44 @@ class DBService {
         'CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);');
   }
 
-  // ---------- Triggers ----------
+  Future<void> _migrateUsersV10(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        color TEXT
+      );
+    ''');
+
+    if (await _tableExists(db, 'ventas')) {
+      if (!await _columnExists(db, 'ventas', 'userId')) {
+        await db.execute('ALTER TABLE ventas ADD COLUMN userId INTEGER;');
+      }
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_ventas_userId ON ventas(userId);');
+    } else {
+      await db.execute('''
+        CREATE TABLE ventas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          clienteId INTEGER,
+          fecha TEXT NOT NULL,
+          metodoPago TEXT NOT NULL,
+          total REAL NOT NULL,
+          userId INTEGER
+        );
+      ''');
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);");
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_ventas_clienteId ON ventas(clienteId);");
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_ventas_metodoPago ON ventas(metodoPago);");
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_ventas_userId ON ventas(userId);");
+    }
+  }
+
+  // ======= TRIGGERS =======
   Future<void> _createItemVentaTriggers(Database db) async {
     await db.execute('''
       CREATE TRIGGER IF NOT EXISTS trg_items_venta_after_insert
@@ -528,7 +697,7 @@ class DBService {
     ''');
   }
 
-  // ---------- CRUD / Queries ----------
+  // ======= CRUD / QUERIES =======
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('productos', {
@@ -565,7 +734,6 @@ class DBService {
   }
 
   Future<int> deleteProducto(int id) async {
-    // Soft delete
     final db = await database;
     final count = await db.update('productos', {'activo': 0},
         where: 'id = ?', whereArgs: [id]);
@@ -588,6 +756,7 @@ class DBService {
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
+      'userId': data['userId'] ?? _activeUserId,
     });
     notifyDbChange();
     return id;
@@ -597,9 +766,11 @@ class DBService {
     final db = await database;
     return await db.rawQuery('''
       SELECT v.id, v.fecha, v.metodoPago, v.total,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             u.nombre AS usuarioNombre
       FROM ventas v
       LEFT JOIN clientes c ON v.clienteId = c.id
+      LEFT JOIN usuarios u ON v.userId = u.id
       ORDER BY v.fecha DESC
     ''');
   }
@@ -622,22 +793,9 @@ class DBService {
     ''');
   }
 
-  Future<int> insertVentaBase(Map<String, dynamic> data) async {
-    final db = await database;
-    final id = await db.insert('ventas', {
-      'clienteId': data['clienteId'],
-      'fecha': data['fecha'],
-      'metodoPago': data['metodoPago'],
-      'total': data['total'],
-    });
-    notifyDbChange();
-    return id;
-  }
-
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;
 
-    // Traer stock + snapshots + activo
     final producto = await db.query(
       'productos',
       columns: [
@@ -653,27 +811,22 @@ class DBService {
       whereArgs: [data['productoId']],
     );
 
-    if (producto.isEmpty) {
-      throw Exception("Producto inexistente");
-    }
-    if ((producto.first['activo'] as int? ?? 1) == 0) {
+    if (producto.isEmpty) throw Exception("Producto inexistente");
+    if ((producto.first['activo'] as int? ?? 1) == 0)
       throw Exception("Producto inactivo");
-    }
 
     final stockActual = (producto.first['stock'] as int? ?? 0);
     final cant = (data['cantidad'] as num?)?.toInt() ?? 0;
     if (cant <= 0) throw Exception("Cantidad inválida");
-    if (stockActual < cant)
-      throw Exception("Stock insuficiente para completar la venta");
+    if (stockActual < cant) throw Exception("Stock insuficiente");
 
-    final double puSnap = (data['precio_unitario'] as num?)?.toDouble() ??
+    final puSnap = (data['precio_unitario'] as num?)?.toDouble() ??
         (producto.first['precio_venta'] as num?)?.toDouble() ??
         0.0;
-    final double cuSnap = (data['costo_unitario'] as num?)?.toDouble() ??
+    final cuSnap = (data['costo_unitario'] as num?)?.toDouble() ??
         (producto.first['costo_compra'] as num?)?.toDouble() ??
         0.0;
-    final double subSnap =
-        (data['subtotal'] as num?)?.toDouble() ?? (puSnap * cant);
+    final subSnap = (data['subtotal'] as num?)?.toDouble() ?? (puSnap * cant);
 
     final row = {
       'ventaId': data['ventaId'],
@@ -690,7 +843,6 @@ class DBService {
     };
 
     final id = await db.insert('items_venta', row);
-
     await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
         [cant, data['productoId']]);
 
@@ -775,9 +927,11 @@ class DBService {
     final db = await database;
     final res = await db.rawQuery('''
       SELECT v.id, v.fecha, v.metodoPago, v.total,
-            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre 
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             u.nombre AS usuarioNombre
       FROM ventas v
       LEFT JOIN clientes c ON v.clienteId = c.id
+      LEFT JOIN usuarios u ON v.userId = u.id
       WHERE v.id = ?
       LIMIT 1
     ''', [ventaId]);
@@ -798,12 +952,10 @@ class DBService {
       where += " AND c.nombre LIKE ?";
       args.add('%$cliente%');
     }
-
     if (metodoPago != null && metodoPago.isNotEmpty) {
       where += " AND v.metodoPago = ?";
       args.add(metodoPago);
     }
-
     if (fecha != null && fecha.isNotEmpty) {
       where += " AND v.fecha LIKE ?";
       args.add('$fecha%');
@@ -811,9 +963,11 @@ class DBService {
 
     return await db.rawQuery('''
       SELECT v.id, v.fecha, v.metodoPago, v.total,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             u.nombre AS usuarioNombre
       FROM ventas v
       LEFT JOIN clientes c ON v.clienteId = c.id
+      LEFT JOIN usuarios u ON v.userId = u.id
       WHERE $where
       ORDER BY v.fecha DESC
     ''', args);
@@ -834,12 +988,10 @@ class DBService {
       where += " AND v.clienteId = ?";
       args.add(clienteId);
     }
-
     if (metodoPago != null && metodoPago.isNotEmpty) {
       where += " AND v.metodoPago = ?";
       args.add(metodoPago);
     }
-
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -847,9 +999,11 @@ class DBService {
     }
 
     return await db.rawQuery('''
-      SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             u.nombre AS usuarioNombre
       FROM ventas v
       LEFT JOIN clientes c ON v.clienteId = c.id
+      LEFT JOIN usuarios u ON v.userId = u.id
       WHERE $where
       ORDER BY v.fecha DESC
     ''', args);
@@ -869,12 +1023,10 @@ class DBService {
       where += " AND c.nombre LIKE ?";
       args.add('%$cliente%');
     }
-
     if (estado != null && estado.isNotEmpty) {
       where += " AND d.estado = ?";
       args.add(estado);
     }
-
     if (fecha != null && fecha.isNotEmpty) {
       where += " AND d.fecha LIKE ?";
       args.add('$fecha%');
@@ -882,7 +1034,7 @@ class DBService {
 
     return await db.rawQuery('''
       SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
       WHERE $where
@@ -890,14 +1042,13 @@ class DBService {
     ''', args);
   }
 
-  // Totales
   Future<double> getTotalVentasDia(DateTime fecha,
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
-
     String join = "";
+
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -930,8 +1081,8 @@ class DBService {
     final db = await database;
     String where = "1=1";
     List<dynamic> args = [];
-
     String join = "";
+
     if (desde != null && hasta != null) {
       where += " AND v.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -986,7 +1137,6 @@ class DBService {
     return (res.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-  // Usa snapshot del nombre si el producto fue eliminado/inactivo
   Future<String> getProductoMasVendido(
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
@@ -998,7 +1148,6 @@ class DBService {
       args.add(desde.toIso8601String());
       args.add(hasta.toIso8601String());
     }
-
     if (categoriaId != null) {
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
@@ -1102,18 +1251,15 @@ class DBService {
     if (!incluirInactivos) {
       where += " AND p.activo = 1";
     }
-
     if (search != null && search.isNotEmpty) {
       where += " AND (p.nombre LIKE ? OR p.descripcion LIKE ?)";
       args.add('%$search%');
       args.add('%$search%');
     }
-
     if (categoriaId != null) {
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
     }
-
     if (soloAgotados) {
       where += " AND p.stock <= 0";
     }
@@ -1165,12 +1311,10 @@ class DBService {
       where += " AND d.clienteId = ?";
       args.add(clienteId);
     }
-
     if (estado != null && estado.isNotEmpty) {
       where += " AND d.estado = ?";
       args.add(estado);
     }
-
     if (desde != null && hasta != null) {
       where += " AND d.fecha BETWEEN ? AND ?";
       args.add(desde.toIso8601String());
@@ -1179,7 +1323,7 @@ class DBService {
 
     return await db.rawQuery('''
       SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-            COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
       WHERE $where
@@ -1256,86 +1400,6 @@ class DBService {
     return res.isNotEmpty ? res.first : null;
   }
 
-  // Ganancias usando snapshots (histórico correcto)
-  Future<double> getGananciaTotal(
-      {DateTime? desde, DateTime? hasta, int? categoriaId}) async {
-    final db = await database;
-    String where = "1=1";
-    List<dynamic> args = [];
-
-    String join =
-        "INNER JOIN ventas v ON iv.ventaId = v.id LEFT JOIN productos p ON iv.productoId = p.id ";
-    if (desde != null && hasta != null) {
-      where += " AND v.fecha BETWEEN ? AND ?";
-      args.add(desde.toIso8601String());
-      args.add(hasta.toIso8601String());
-    }
-    if (categoriaId != null) {
-      where += " AND p.categoria_id = ?";
-      args.add(categoriaId);
-    }
-
-    final res = await db.rawQuery('''
-      SELECT SUM( (iv.precio_unitario - iv.costo_unitario) * iv.cantidad ) AS ganancia
-      FROM items_venta iv
-      $join
-      WHERE $where
-    ''', args);
-
-    return (res.first['ganancia'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  Future<List<Map<String, dynamic>>> getGananciaPorProducto({
-    DateTime? desde,
-    DateTime? hasta,
-    int? categoriaId,
-  }) async {
-    final db = await database;
-    String where = "1=1";
-    List<dynamic> args = [];
-
-    String join =
-        "LEFT JOIN productos p ON iv.productoId = p.id INNER JOIN ventas v ON iv.ventaId = v.id ";
-    if (desde != null && hasta != null) {
-      where += " AND v.fecha BETWEEN ? AND ?";
-      args.add(desde.toIso8601String());
-      args.add(hasta.toIso8601String());
-    }
-    if (categoriaId != null) {
-      where += " AND p.categoria_id = ?";
-      args.add(categoriaId);
-    }
-
-    final res = await db.rawQuery('''
-      SELECT COALESCE(iv.producto_nombre, p.nombre) AS nombre,
-             COALESCE(iv.producto_codigo, p.codigo) AS codigo,
-             p.id AS productoId,
-             p.categoria_id,
-             SUM(iv.cantidad) AS cantidadVendida,
-             SUM(iv.cantidad * iv.precio_unitario) AS ingreso,
-             SUM(iv.cantidad * iv.costo_unitario)  AS costo,
-             SUM( (iv.precio_unitario - iv.costo_unitario) * iv.cantidad ) AS ganancia
-      FROM items_venta iv
-      $join
-      WHERE $where
-      GROUP BY nombre, codigo, productoId, p.categoria_id
-      ORDER BY ganancia DESC
-    ''', args);
-
-    return res
-        .map((e) => {
-              'productoId': e['productoId'],
-              'codigo': e['codigo'],
-              'nombre': e['nombre'],
-              'categoria_id': e['categoria_id'],
-              'cantidadVendida': (e['cantidadVendida'] as num?)?.toInt() ?? 0,
-              'ingreso': (e['ingreso'] as num?)?.toDouble() ?? 0.0,
-              'costo': (e['costo'] as num?)?.toDouble() ?? 0.0,
-              'ganancia': (e['ganancia'] as num?)?.toDouble() ?? 0.0,
-            })
-        .toList();
-  }
-
   Future<Map<String, dynamic>?> getProductoByCodigo(String codigo) async {
     final db = await database;
     final res = await db.rawQuery('''
@@ -1347,4 +1411,55 @@ class DBService {
     ''', [codigo]);
     return res.isNotEmpty ? res.first : null;
   }
+
+  // ===== USUARIOS =====
+  Future<int> insertUsuario(String nombre, {String? color}) async {
+    final db = await database;
+    final id = await db.insert(
+      'usuarios',
+      {'nombre': nombre.trim(), 'color': color},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+    notifyDbChange();
+    return id;
+  }
+
+  Future<List<Map<String, dynamic>>> getUsuarios() async {
+    final db = await database;
+    return await db.query('usuarios', orderBy: 'nombre ASC');
+  }
+
+  Future<int> updateUsuario(int id, String nuevoNombre, {String? color}) async {
+    final db = await database;
+    final count = await db.update(
+      'usuarios',
+      {'nombre': nuevoNombre.trim(), 'color': color},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    notifyDbChange();
+    return count;
+  }
+
+  Future<int> deleteUsuario(int id) async {
+    final db = await database;
+    await db.update('ventas', {'userId': null},
+        where: 'userId = ?', whereArgs: [id]);
+    final count = await db.delete('usuarios', where: 'id = ?', whereArgs: [id]);
+    notifyDbChange();
+    return count;
+  }
+
+  // ===== Usuario activo (en memoria) =====
+  int? _activeUserId;
+  String? _activeUserName;
+
+  void setActiveUser({required int? id, String? nombre}) {
+    _activeUserId = id;
+    _activeUserName = nombre;
+    notifyDbChange();
+  }
+
+  int? get activeUserId => _activeUserId;
+  String? get activeUserName => _activeUserName;
 }
