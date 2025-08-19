@@ -21,9 +21,15 @@ import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
+import 'dart:io';
+import 'screens/splash_screen.dart';
+import 'package:window_manager/window_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await initializeDateFormatting('es_AR', null);
+  Intl.defaultLocale = 'es_AR';
   await windowManager.ensureInitialized();
   await initializeDateFormatting('es_AR', null);
   await initializeDateFormatting('es', null); // opcional, por las dudas
