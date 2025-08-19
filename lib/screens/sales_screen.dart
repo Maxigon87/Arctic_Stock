@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/cliente.dart';
-import '../services/db_service.dart';
+import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
-import '../Services/db_service.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});

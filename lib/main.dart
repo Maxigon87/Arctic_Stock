@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'Services/db_service.dart';
 import 'widgets/artic_background.dart';
+import 'widgets/articlogo.dart';
 
 import 'utils/theme_controller.dart';
 import 'screens/splash_screen.dart';
@@ -41,7 +42,7 @@ void main() async {
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
-    title: "Artic Stock",
+    title: "Arctic Stock",
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -94,7 +95,7 @@ class _MyAppState extends State<MyApp> {
       builder: (_, mode, __) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: "Artic Stock",
+          title: "Arctic Stock",
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: mode,
@@ -230,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: Scaffold(
         appBar: AppBar(
             leading: Image.asset('assets/logo/logo_sin_titulo.png'),
-            title: const Text("Artic Stock"),
+            title: const Text("Arctic Stock"),
             actions: [
               if (DBService().activeUserName != null)
                 _UserBadge(
@@ -406,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen>
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("¿Salir de Artic Stock?"),
+        title: const Text("¿Salir de Arctic Stock?"),
         content: const Text("¿Estás seguro que querés cerrar la aplicación?"),
         actions: [
           TextButton(
@@ -467,28 +468,18 @@ class _LogoView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Image.asset('assets/logo/logo_sin_titulo.png',
-              width: 220, height: 220),
-          const SizedBox(height: 16),
-          Text(
-            'Bienvenido a Artic Stock',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: cs.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Elegí una opción en la barra izquierda para empezar',
-            style: Theme.of(context).textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
+        child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const ArticLogo(size: 440),
+        const SizedBox(height: 8),
+        Text(
+          'Bienvenido',
+          style: Theme.of(context).textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ));
   }
 }
 

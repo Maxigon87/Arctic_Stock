@@ -1048,6 +1048,40 @@ class DBService {
     ''', args);
   }
 
+  Future<double> getGananciaTotal({
+    DateTime? desde,
+    DateTime? hasta,
+    int? categoriaId,
+  }) async {
+    final db = await database;
+
+    String where = "1=1";
+    List<dynamic> args = [];
+
+    if (desde != null && hasta != null) {
+      where += " AND v.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    }
+
+    if (categoriaId != null) {
+      where += " AND p.categoria_id = ?";
+      args.add(categoriaId);
+    }
+
+    final res = await db.rawQuery('''
+    SELECT SUM(
+      (iv.precio_unitario - iv.costo_unitario) * iv.cantidad
+    ) as ganancia
+    FROM items_venta iv
+    INNER JOIN ventas v ON iv.ventaId = v.id
+    LEFT JOIN productos p ON iv.productoId = p.id
+    WHERE $where
+  ''', args);
+
+    return (res.first['ganancia'] as num?)?.toDouble() ?? 0.0;
+  }
+
   Future<double> getTotalVentasDia(DateTime fecha,
       {int? categoriaId, DateTime? desde, DateTime? hasta}) async {
     final db = await database;
@@ -1468,4 +1502,25 @@ class DBService {
 
   int? get activeUserId => _activeUserId;
   String? get activeUserName => _activeUserName;
+
+  // Entrada "oficial" desde la UI: normaliza/valida y delega en insertVenta
+  Future<int> insertVentaBase(Map<String, dynamic> data) async {
+    final fechaIso = () {
+      final f = data['fecha'];
+      if (f is DateTime) return f.toIso8601String();
+      if (f is String && f.isNotEmpty) return f;
+      return DateTime.now().toIso8601String();
+    }();
+
+    final normalizado = {
+      'clienteId': data['clienteId'],
+      'fecha': fechaIso,
+      'metodoPago': (data['metodoPago'] ?? 'Efectivo').toString(),
+      'total': (data['total'] as num?)?.toDouble() ?? 0.0,
+      // si no viene, se completa con el usuario activo
+      'userId': data['userId'] ?? _activeUserId,
+    };
+
+    return insertVenta(normalizado);
+  }
 }

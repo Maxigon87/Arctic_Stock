@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'artic_login_screen.dart';
+import '../widgets/articlogo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
@@ -45,11 +46,8 @@ class _SplashScreenState extends State<SplashScreen>
       backgroundColor: Colors.black,
       body: FadeTransition(
         opacity: _fadeIn,
-        child: Center(
-          child: Image.asset(
-            'assets/images/artic_logo.png',
-            width: 180,
-          ),
+        child: const Center(
+          child: ArticLogo(size: 180),
         ),
       ),
     );
