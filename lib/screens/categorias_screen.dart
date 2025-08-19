@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/db_service.dart';
 
 class CategoriasScreen extends StatefulWidget {
-  const CategoriasScreen({Key? key}) : super(key: key);
+  const CategoriasScreen({super.key});
 
   @override
   State<CategoriasScreen> createState() => _CategoriasScreenState();

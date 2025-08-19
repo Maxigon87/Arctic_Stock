@@ -7,7 +7,7 @@ import '../widgets/artic_kpi_card.dart';
 import '../widgets/artic_container.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();

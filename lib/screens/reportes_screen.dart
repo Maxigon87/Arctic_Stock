@@ -12,7 +12,7 @@ import '../utils/file_namer.dart';
 import 'package:intl/intl.dart';
 
 class ReportesScreen extends StatefulWidget {
-  const ReportesScreen({Key? key}) : super(key: key);
+  const ReportesScreen({super.key});
 
   @override
   State<ReportesScreen> createState() => _ReportesScreenState();

@@ -5,7 +5,7 @@ import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 
 class ClientesScreen extends StatefulWidget {
-  const ClientesScreen({Key? key}) : super(key: key);
+  const ClientesScreen({super.key});
 
   @override
   State<ClientesScreen> createState() => _ClientesScreenState();

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class ArticBackground extends StatefulWidget {
   final Widget child;
-  const ArticBackground({Key? key, required this.child}) : super(key: key);
+  const ArticBackground({super.key, required this.child});
 
   @override
   State<ArticBackground> createState() => _ArticBackgroundState();

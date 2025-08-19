@@ -242,7 +242,7 @@ class _ProductFormState extends State<ProductForm> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
-              value: _categoriaId,
+              initialValue: _categoriaId,
               items: _categorias
                   .map((c) => DropdownMenuItem<int>(
                         value: c['id'] as int,

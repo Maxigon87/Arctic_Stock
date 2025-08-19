@@ -36,7 +36,7 @@ class Producto {
 
   /// Cargar desde SQLite (tolerante al viejo 'precio')
   factory Producto.fromMap(Map<String, dynamic> map) {
-    double _toDouble(dynamic v) {
+    double toDouble(dynamic v) {
       if (v == null) return 0.0;
       if (v is num) return v.toDouble();
       return double.tryParse(v.toString()) ?? 0.0;
@@ -44,8 +44,8 @@ class Producto {
 
     // Compatibilidad: si no viene precio_venta, usar 'precio'
     final precioVenta = map.containsKey('precio_venta')
-        ? _toDouble(map['precio_venta'])
-        : _toDouble(map['precio']);
+        ? toDouble(map['precio_venta'])
+        : toDouble(map['precio']);
 
     return Producto(
       id: map['id'] as int?,
@@ -53,7 +53,7 @@ class Producto {
       codigo: map['codigo']?.toString(),
       descripcion: map['descripcion']?.toString(),
       precioVenta: precioVenta,
-      costoCompra: _toDouble(map['costo_compra']),
+      costoCompra: toDouble(map['costo_compra']),
       stock: (map['stock'] is int)
           ? map['stock'] as int
           : int.tryParse('${map['stock'] ?? 0}') ?? 0,

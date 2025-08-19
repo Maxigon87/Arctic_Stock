@@ -7,8 +7,7 @@ import 'product_form.dart';
 class ProductListScreen extends StatefulWidget {
   final bool selectMode;
 
-  const ProductListScreen({Key? key, this.selectMode = false})
-      : super(key: key);
+  const ProductListScreen({super.key, this.selectMode = false});
 
   @override
   State<ProductListScreen> createState() => _ProductListScreenState();
@@ -46,14 +45,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<String?> _mostrarDialogoNuevaCategoria() async {
-    final TextEditingController _controller = TextEditingController();
+    final TextEditingController controller = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Nueva Categoría"),
           content: TextField(
-            controller: _controller,
+            controller: controller,
             decoration:
                 const InputDecoration(labelText: "Nombre de la categoría"),
           ),
@@ -62,7 +61,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, _controller.text.trim()),
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
               child: const Text("Guardar"),
             ),
           ],
@@ -423,14 +422,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<int?> _showAddStockDialog(BuildContext context) async {
-    final TextEditingController _cantidadController = TextEditingController();
+    final TextEditingController cantidadController = TextEditingController();
     return showDialog<int>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Agregar Stock"),
           content: TextField(
-            controller: _cantidadController,
+            controller: cantidadController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: "Cantidad a agregar"),
           ),
@@ -439,8 +438,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () => Navigator.pop(
-                  context, int.tryParse(_cantidadController.text)),
+              onPressed: () =>
+                  Navigator.pop(context, int.tryParse(cantidadController.text)),
               child: const Text("Agregar"),
             ),
           ],
@@ -451,7 +450,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Future<int?> _showRemoveStockDialog(
       BuildContext context, int stockActual) async {
-    final TextEditingController _cantidadController = TextEditingController();
+    final TextEditingController cantidadController = TextEditingController();
     return showDialog<int>(
       context: context,
       builder: (context) {
@@ -463,7 +462,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Text("Stock actual: $stockActual"),
               const SizedBox(height: 8),
               TextField(
-                controller: _cantidadController,
+                controller: cantidadController,
                 keyboardType: TextInputType.number,
                 decoration:
                     const InputDecoration(labelText: "Cantidad a restar"),
@@ -475,8 +474,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () => Navigator.pop(
-                  context, int.tryParse(_cantidadController.text)),
+              onPressed: () =>
+                  Navigator.pop(context, int.tryParse(cantidadController.text)),
               child: const Text("Restar"),
             ),
           ],

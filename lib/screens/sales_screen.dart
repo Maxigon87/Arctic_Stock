@@ -6,7 +6,7 @@ import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
 
 class SalesScreen extends StatefulWidget {
-  const SalesScreen({Key? key}) : super(key: key);
+  const SalesScreen({super.key});
 
   @override
   State<SalesScreen> createState() => _SalesScreenState();
@@ -188,7 +188,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   // Cliente
                   DropdownButtonFormField<Cliente?>(
-                    value: _clienteSeleccionado,
+                    initialValue: _clienteSeleccionado,
                     hint: const Text("Cliente (opcional)"),
                     items: [
                       const DropdownMenuItem<Cliente?>(
@@ -215,7 +215,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   // Método de pago
                   DropdownButtonFormField<String>(
-                    value: metodoSeleccionado ?? "Efectivo",
+                    initialValue: metodoSeleccionado ?? "Efectivo",
                     hint: const Text("Método de Pago"),
                     items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
                         .map((m) => DropdownMenuItem(value: m, child: Text(m)))
@@ -564,8 +564,8 @@ class _SalesScreenState extends State<SalesScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add_shopping_cart),
         onPressed: _abrirCarrito,
+        child: const Icon(Icons.add_shopping_cart),
       ),
     );
   }

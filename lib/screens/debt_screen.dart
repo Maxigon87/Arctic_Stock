@@ -5,7 +5,7 @@ import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 
 class DebtScreen extends StatefulWidget {
-  const DebtScreen({Key? key}) : super(key: key);
+  const DebtScreen({super.key});
 
   @override
   _DebtScreenState createState() => _DebtScreenState();

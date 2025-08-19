@@ -359,12 +359,14 @@ class DBService {
     final hasPU = cols.any((c) => c['name'] == 'precio_unitario');
     final hasCU = cols.any((c) => c['name'] == 'costo_unitario');
 
-    if (!hasPU)
+    if (!hasPU) {
       await db
           .execute("ALTER TABLE items_venta ADD COLUMN precio_unitario REAL;");
-    if (!hasCU)
+    }
+    if (!hasCU) {
       await db.execute(
           "ALTER TABLE items_venta ADD COLUMN costo_unitario REAL DEFAULT 0;");
+    }
 
     await db.execute('''
       UPDATE items_venta
@@ -508,15 +510,18 @@ class DBService {
     bool hasDesc = cols.any((c) => c['name'] == 'producto_descripcion');
     bool hasCod = cols.any((c) => c['name'] == 'producto_codigo');
 
-    if (!hasNombre)
+    if (!hasNombre) {
       await db
           .execute("ALTER TABLE items_venta ADD COLUMN producto_nombre TEXT;");
-    if (!hasDesc)
+    }
+    if (!hasDesc) {
       await db.execute(
           "ALTER TABLE items_venta ADD COLUMN producto_descripcion TEXT;");
-    if (!hasCod)
+    }
+    if (!hasCod) {
       await db
           .execute("ALTER TABLE items_venta ADD COLUMN producto_codigo TEXT;");
+    }
 
     await db.execute('''
       UPDATE items_venta AS iv
@@ -812,8 +817,9 @@ class DBService {
     );
 
     if (producto.isEmpty) throw Exception("Producto inexistente");
-    if ((producto.first['activo'] as int? ?? 1) == 0)
+    if ((producto.first['activo'] as int? ?? 1) == 0) {
       throw Exception("Producto inactivo");
+    }
 
     final stockActual = (producto.first['stock'] as int? ?? 0);
     final cant = (data['cantidad'] as num?)?.toInt() ?? 0;

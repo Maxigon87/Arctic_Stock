@@ -6,7 +6,7 @@ import '../widgets/artic_background.dart';
 import '../Services/db_service.dart'; // usuarios + setActiveUser
 
 class ArticLoginScreen extends StatefulWidget {
-  const ArticLoginScreen({Key? key}) : super(key: key);
+  const ArticLoginScreen({super.key});
 
   @override
   State<ArticLoginScreen> createState() => _ArticLoginScreenState();
@@ -203,7 +203,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                                 ? const LinearProgressIndicator(
                                                     minHeight: 48)
                                                 : DropdownButtonFormField<int>(
-                                                    value:
+                                                    initialValue:
                                                         (_usuarios.isNotEmpty)
                                                             ? _selectedUserId
                                                             : null,

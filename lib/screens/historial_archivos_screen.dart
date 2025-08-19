@@ -9,7 +9,7 @@ import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
 
 class HistorialArchivosScreen extends StatefulWidget {
-  const HistorialArchivosScreen({Key? key}) : super(key: key);
+  const HistorialArchivosScreen({super.key});
 
   @override
   _HistorialArchivosScreenState createState() =>

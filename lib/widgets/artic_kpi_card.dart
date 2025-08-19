@@ -7,12 +7,12 @@ class ArticKpiCard extends StatelessWidget {
   final IconData? icon; // ✅ nuevo parámetro opcional
 
   const ArticKpiCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.accentColor,
     this.icon, // ✅ inicializado aquí
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -4,7 +4,7 @@ import '../services/db_service.dart';
 class DetalleVentaScreen extends StatefulWidget {
   final int ventaId; // ✅ ahora solo recibe el ID de la venta
 
-  const DetalleVentaScreen({Key? key, required this.ventaId}) : super(key: key);
+  const DetalleVentaScreen({super.key, required this.ventaId});
 
   @override
   State<DetalleVentaScreen> createState() => _DetalleVentaScreenState();

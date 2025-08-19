@@ -55,7 +55,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -122,7 +122,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -260,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen>
                     decoration: BoxDecoration(
                       color: Theme.of(context)
                           .colorScheme
-                          .surfaceVariant, // <- antes: surfaceContainerHighest
+                          .surfaceContainerHighest, // <- antes: surfaceContainerHighest
                       border: Border(
                         right: BorderSide(
                             color: Theme.of(context).dividerColor, width: 0.6),
@@ -440,7 +440,7 @@ class _NavMeta {
 class _PageWrap extends StatelessWidget {
   final Widget child;
   final String keyName;
-  const _PageWrap({required this.child, required this.keyName, super.key});
+  const _PageWrap({required this.child, required this.keyName});
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +451,7 @@ class _PageWrap extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
           child: child,
         ),
