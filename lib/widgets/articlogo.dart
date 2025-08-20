@@ -12,7 +12,7 @@ class ArticLogo extends StatelessWidget {
       duration: const Duration(milliseconds: 300),
       child: Image.asset(
         isDark
-            ? 'assets/imges/artic_logo.png'
+            ? 'assets/images/artic_logo.png'
             : 'assets/logo/logo_con_titulo.png',
         key: ValueKey(isDark),
         width: size,
