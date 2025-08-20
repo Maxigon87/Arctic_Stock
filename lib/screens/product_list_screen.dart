@@ -1,7 +1,9 @@
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
-import '../services/db_service.dart';
+// En TODAS las pantallas, unifica así:
+import '../Services/db_service.dart';
+
 import 'product_form.dart';
 
 class ProductListScreen extends StatefulWidget {

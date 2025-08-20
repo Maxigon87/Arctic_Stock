@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../widgets/artic_background.dart';
 import '../Services/db_service.dart'; // usuarios + setActiveUser
+import '../widgets/articlogo.dart';
 
 class ArticLoginScreen extends StatefulWidget {
   const ArticLoginScreen({super.key});
@@ -151,10 +152,12 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                     scale: _scaleAnimation,
                     child: FadeTransition(
                       opacity: _opacityAnimation,
-                      child: Image.asset(
-                        'assets/images/artic_logo.png',
-                        height: 240,
-                        fit: BoxFit.contain,
+                      child: ScaleTransition(
+                        scale: _scaleAnimation,
+                        child: FadeTransition(
+                          opacity: _opacityAnimation,
+                          child: const ArticLogo(size: 240),
+                        ),
                       ),
                     ),
                   ),

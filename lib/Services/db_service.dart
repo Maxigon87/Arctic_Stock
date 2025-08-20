@@ -48,6 +48,7 @@ class DBService {
           if (oldV < 8) await _migrateToV8(db);
           if (oldV < 9) await _migrateToV9(db);
           if (oldV < 10) await _migrateUsersV10(db);
+          if (oldV < 10) await _migrateMovimientosV11(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -66,6 +67,11 @@ class DBService {
 
           await _ensureStockColumn(db);
           await _createItemVentaTriggersV8(db);
+
+          await db.execute(
+              "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
+          await db.execute(
+              "CREATE INDEX IF NOT EXISTS idx_movs_tipo ON movimientos_stock(tipo);");
         },
       ),
     );
@@ -258,6 +264,25 @@ class DBService {
         producto_codigo TEXT
       )
     ''');
+
+    // en _createTables(...)
+    await db.execute('''
+  CREATE TABLE movimientos_stock (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT NOT NULL,
+    productoId INTEGER NOT NULL,
+    tipo TEXT NOT NULL,                -- 'ingreso' | 'egreso' | 'ajuste' | 'alta_producto'
+    cantidad INTEGER NOT NULL,
+    nota TEXT,
+    producto_nombre TEXT,              -- snapshot opcional
+    producto_codigo TEXT,              -- snapshot opcional
+    FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE CASCADE
+  )
+''');
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_movs_tipo ON movimientos_stock(tipo);");
 
     await _ensureColumnExists(db, 'productos', 'activo',
         "ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;");
@@ -984,11 +1009,14 @@ class DBService {
     String? metodoPago,
     DateTime? desde,
     DateTime? hasta,
+    String? productoQuery, // 👈 nuevo
+    String? productoSearch,
   }) async {
     final db = await database;
 
     String where = "1=1";
     List<dynamic> args = [];
+    String extraJoins = "";
 
     if (clienteId != null) {
       where += " AND v.clienteId = ?";
@@ -998,21 +1026,48 @@ class DBService {
       where += " AND v.metodoPago = ?";
       args.add(metodoPago);
     }
+
+    // RANGO SEMI-ABIERTO [desde, hasta+1d)
     if (desde != null && hasta != null) {
-      where += " AND v.fecha BETWEEN ? AND ?";
-      args.add(desde.toIso8601String());
-      args.add(hasta.toIso8601String());
+      final desdeIso =
+          DateTime(desde.year, desde.month, desde.day).toIso8601String();
+      final hastaExcl = DateTime(hasta.year, hasta.month, hasta.day)
+          .add(const Duration(days: 1))
+          .toIso8601String();
+      where += " AND v.fecha >= ? AND v.fecha < ?";
+      args.addAll([desdeIso, hastaExcl]);
+    }
+
+    // 🔎 Filtro por producto (busca en snapshot de items_venta y, si existe, en productos)
+    if (productoQuery != null && productoQuery.trim().isNotEmpty) {
+      final q = '%${productoQuery.trim()}%';
+      extraJoins += '''
+      LEFT JOIN items_venta iv ON iv.ventaId = v.id
+      LEFT JOIN productos p ON iv.productoId = p.id
+    ''';
+      where += '''
+      AND (
+        COALESCE(iv.producto_nombre, p.nombre, '') LIKE ?
+        OR COALESCE(iv.producto_descripcion, p.descripcion, '') LIKE ?
+        OR COALESCE(iv.producto_codigo, p.codigo, '') LIKE ?
+      )
+    ''';
+      args.addAll([q, q, q]);
     }
 
     return await db.rawQuery('''
-      SELECT v.*, COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
-             u.nombre AS usuarioNombre
-      FROM ventas v
-      LEFT JOIN clientes c ON v.clienteId = c.id
-      LEFT JOIN usuarios u ON v.userId = u.id
-      WHERE $where
-      ORDER BY v.fecha DESC
-    ''', args);
+    SELECT 
+      v.*,
+      COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+      u.nombre AS usuarioNombre
+    FROM ventas v
+    LEFT JOIN clientes c ON v.clienteId = c.id
+    LEFT JOIN usuarios u ON v.userId = u.id
+    $extraJoins
+    WHERE $where
+    GROUP BY v.id                 -- evita duplicar ventas con varios ítems
+    ORDER BY v.fecha DESC
+  ''', args);
   }
 
   Future<List<Map<String, dynamic>>> buscarDeudas({
@@ -1356,9 +1411,13 @@ class DBService {
       args.add(estado);
     }
     if (desde != null && hasta != null) {
-      where += " AND d.fecha BETWEEN ? AND ?";
-      args.add(desde.toIso8601String());
-      args.add(hasta.toIso8601String());
+      final desdeIso =
+          DateTime(desde.year, desde.month, desde.day).toIso8601String();
+      final hastaExcl = DateTime(hasta.year, hasta.month, hasta.day)
+          .add(const Duration(days: 1))
+          .toIso8601String();
+      where += " AND d.fecha >= ? AND d.fecha < ?";
+      args.addAll([desdeIso, hastaExcl]);
     }
 
     return await db.rawQuery('''
@@ -1522,5 +1581,57 @@ class DBService {
     };
 
     return insertVenta(normalizado);
+  }
+
+  Future<void> _migrateMovimientosV11(Database db) async {
+    final exists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='movimientos_stock';");
+    if (exists.isEmpty) {
+      await db.execute('''
+      CREATE TABLE movimientos_stock (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT NOT NULL,
+        productoId INTEGER NOT NULL,
+        tipo TEXT NOT NULL,
+        cantidad INTEGER NOT NULL,
+        nota TEXT,
+        producto_nombre TEXT,
+        producto_codigo TEXT,
+        FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE CASCADE
+      )
+    ''');
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_movs_tipo ON movimientos_stock(tipo);");
+    }
+  }
+
+  Future<void> _logMovimientoStock({
+    required int productoId,
+    required String tipo, // 'ingreso' | 'egreso' | 'ajuste' | 'alta_producto'
+    required int cantidad,
+    String? nota,
+  }) async {
+    final db = await database;
+
+    // snapshots del producto (nombre/codigo) para el reporte
+    final p = await db.query('productos',
+        columns: ['nombre', 'codigo'],
+        where: 'id = ?',
+        whereArgs: [productoId]);
+    final nombre = p.isNotEmpty ? (p.first['nombre'] as String? ?? '') : '';
+    final codigo = p.isNotEmpty ? (p.first['codigo'] as String? ?? '') : '';
+
+    await db.insert('movimientos_stock', {
+      'fecha': DateTime.now().toIso8601String(),
+      'productoId': productoId,
+      'tipo': tipo,
+      'cantidad': cantidad,
+      'nota': nota,
+      'producto_nombre': nombre,
+      'producto_codigo': codigo,
+    });
+    notifyDbChange();
   }
 }

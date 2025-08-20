@@ -4,6 +4,8 @@ import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
+import 'dart:async' as dart_async;
+import 'dart:async';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -14,6 +16,7 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> {
   final dbService = DBService();
+  dart_async.Timer? _debounce;
 
   // Filtros de búsqueda de ventas
   Cliente? _clienteSeleccionado;
@@ -21,6 +24,15 @@ class _SalesScreenState extends State<SalesScreen> {
   DateTime? desde;
   DateTime? hasta;
   List<Cliente> _clientes = [];
+
+  final _productoCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _productoCtrl.dispose();
+    super.dispose();
+  }
 
   // 🛒 Carrito (usa snapshots)
   // Keys: productoId, nombre, codigo, cantidad, precioUnit, costoUnit, subtotal
@@ -35,18 +47,177 @@ class _SalesScreenState extends State<SalesScreen> {
     _cargarClientes();
   }
 
+  Future<void> _verDetalleVenta(int ventaId) async {
+    try {
+      // header (cliente, vendedor, total, fecha, etc.)
+      final header = await dbService.getVentaById(ventaId);
+      // ítems de la venta
+      final items = await dbService.getItemsByVenta(ventaId);
+
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            maxChildSize: 0.95,
+            minChildSize: 0.5,
+            builder: (_, scroll) {
+              final cliente =
+                  (header?['clienteNombre']?.toString().isNotEmpty ?? false)
+                      ? header!['clienteNombre']
+                      : 'Consumidor Final';
+              final vendedor =
+                  (header?['usuarioNombre']?.toString().isNotEmpty ?? false)
+                      ? header!['usuarioNombre']
+                      : '—';
+              final total = (header?['total'] as num?)?.toDouble() ?? 0.0;
+              final fecha =
+                  (header?['fecha']?.toString().split('T').first) ?? '';
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor.withOpacity(0.98),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          const Icon(Icons.receipt_long),
+                          const SizedBox(width: 8),
+                          Text("Venta #$ventaId",
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          Text(fecha,
+                              style:
+                                  const TextStyle(fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        children: [
+                          Chip(label: Text("Cliente: $cliente")),
+                          Chip(label: Text("Vendedor: $vendedor")),
+                          Chip(
+                              label: Text(
+                                  "Método: ${header?['metodoPago'] ?? '—'}")),
+                          Chip(label: Text("Total: ${_money(total)}")),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+                      const Divider(),
+
+                      const Text("Productos",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+
+                      // Lista de items
+                      Expanded(
+                        child: items.isEmpty
+                            ? const Center(child: Text("Sin ítems"))
+                            : ListView.builder(
+                                controller: scroll,
+                                itemCount: items.length,
+                                itemBuilder: (_, i) {
+                                  final it = items[i];
+                                  final nombre = it['producto'] ?? 'Producto';
+                                  final codigo =
+                                      (it['codigo']?.toString().isNotEmpty ??
+                                              false)
+                                          ? " · Código: ${it['codigo']}"
+                                          : "";
+                                  final cant =
+                                      (it['cantidad'] as num?)?.toInt() ?? 0;
+                                  final pu = (it['precioUnitario'] as num?)
+                                          ?.toDouble() ??
+                                      0.0;
+                                  final cu = (it['costoUnitario'] as num?)
+                                          ?.toDouble() ??
+                                      0.0;
+                                  final sub =
+                                      (it['subtotal'] as num?)?.toDouble() ??
+                                          (pu * cant);
+
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text("$nombre"),
+                                    subtitle: Text(
+                                      "Cant: $cant · PU: ${_money(pu)} · Costo: ${_money(cu)}$codigo",
+                                    ),
+                                    trailing: Text(_money(sub),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                  );
+                                },
+                              ),
+                      ),
+
+                      const Divider(),
+
+                      // Total (por las dudas)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text("TOTAL: ${_money(total)}",
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            )),
+                      ),
+
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("Cerrar"),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("No se pudo cargar el detalle: $e")),
+      );
+    }
+  }
+
   Future<void> _cargarClientes() async {
     final clientes = await dbService.getClientes();
     setState(() => _clientes = clientes);
   }
 
   Future<void> _cargarVentasFiltradas() async {
+    final q = _productoCtrl.text.trim();
     setState(() {
       _ventasFuture = dbService.buscarVentasAvanzado(
         clienteId: _clienteSeleccionado?.id,
         metodoPago: metodoSeleccionado,
         desde: desde,
         hasta: hasta,
+        productoSearch: q.isEmpty ? null : q,
       );
     });
   }
@@ -502,13 +673,33 @@ class _SalesScreenState extends State<SalesScreen> {
             );
             if (rango != null) {
               setState(() {
-                desde = rango.start;
-                hasta = rango.end;
+                desde = DateTime(rango.start.year, rango.start.month,
+                    rango.start.day, 0, 0, 0, 0);
+                hasta = DateTime(rango.end.year, rango.end.month, rango.end.day,
+                    23, 59, 59, 999);
               });
               _cargarVentasFiltradas();
             }
           },
           child: const Text("Filtrar por Fecha"),
+        ),
+        const SizedBox(height: 10),
+
+        // 👇 Campo de búsqueda de productos
+        TextField(
+          controller: _productoCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Buscar producto por nombre o código',
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) {
+            _debounce?.cancel();
+            _debounce = dart_async.Timer(
+              const Duration(milliseconds: 350),
+              _cargarVentasFiltradas,
+            );
+          },
         ),
       ],
     );
@@ -545,14 +736,22 @@ class _SalesScreenState extends State<SalesScreen> {
                             (v['clienteNombre']?.toString().isNotEmpty ?? false)
                                 ? v['clienteNombre']
                                 : 'Consumidor Final';
+                        final vendedor =
+                            (v['usuarioNombre']?.toString().isNotEmpty ?? false)
+                                ? v['usuarioNombre']
+                                : '—';
+
                         return Card(
                           child: ListTile(
-                            title: Text("Venta #${v['id']} - $cliente"),
-                            subtitle: Text(
-                                "Total: ${_money(v['total'])} - Método: ${v['metodoPago']}"),
-                            trailing:
-                                Text(v['fecha'].toString().split('T').first),
-                          ),
+                              title: Text("Venta #${v['id']} - $cliente"),
+                              subtitle: Text(
+                                "Total: ${_money(v['total'])} · "
+                                "Método: ${v['metodoPago']} · "
+                                "Vendedor: $vendedor",
+                              ),
+                              trailing:
+                                  Text(v['fecha'].toString().split('T').first),
+                              onTap: () => _verDetalleVenta(v['id']) as int),
                         );
                       },
                     );

@@ -22,9 +22,6 @@ import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
-import 'dart:io';
-import 'screens/splash_screen.dart';
-import 'package:window_manager/window_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -229,23 +226,20 @@ class _HomeScreenState extends State<HomeScreen>
       onWillPop: () async =>
           await _mostrarDialogoConfirmacion(context) ?? false,
       child: Scaffold(
-        appBar: AppBar(
-            leading: Image.asset('assets/logo/logo_sin_titulo.png'),
-            title: const Text("Arctic Stock"),
-            actions: [
-              if (DBService().activeUserName != null)
-                _UserBadge(
-                  name: DBService().activeUserName!,
-                  onChangeUser: _goToLogin, // 👈 acá
-                  onSettings: () =>
-                      setState(() => _selected = NavItem.configuracion),
-                ),
-              IconButton(
-                tooltip: "Salir de la App",
-                icon: const Icon(Icons.exit_to_app),
-                onPressed: () async {/* ... tu confirmación y exit(0) ... */},
-              ),
-            ]),
+        appBar: AppBar(title: const Text("Gestión comercial total"), actions: [
+          if (DBService().activeUserName != null)
+            _UserBadge(
+              name: DBService().activeUserName!,
+              onChangeUser: _goToLogin, // 👈 acá
+              onSettings: () =>
+                  setState(() => _selected = NavItem.configuracion),
+            ),
+          IconButton(
+            tooltip: "Salir de la App",
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: () async {/* ... tu confirmación y exit(0) ... */},
+          ),
+        ]),
         body: ArticBackground(
           child: FadeTransition(
             opacity: _fadeAnimation,
@@ -422,13 +416,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
-  // window_manager: interceptar cierre de ventana (X)
-  @override
-  Future<bool> onWindowClose() async {
-    final shouldExit = await _mostrarDialogoConfirmacion(context);
-    return shouldExit == true;
-  }
 }
 
 class _NavMeta {
@@ -513,6 +500,12 @@ class _DotBadge extends StatelessWidget {
 class _MyWindowListener extends WindowListener {
   final _HomeScreenState state;
   _MyWindowListener(this.state);
+
+  @override
+  Future<bool> onWindowClose() async {
+    final shouldExit = await state._mostrarDialogoConfirmacion(state.context);
+    return shouldExit == true;
+  }
 }
 
 class _UserBadge extends StatelessWidget {
