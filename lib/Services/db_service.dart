@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:ArticStock/models/producto.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite_common/sqlite_api.dart' show ConflictAlgorithm;
@@ -48,7 +49,7 @@ class DBService {
           if (oldV < 8) await _migrateToV8(db);
           if (oldV < 9) await _migrateToV9(db);
           if (oldV < 10) await _migrateUsersV10(db);
-          if (oldV < 10) await _migrateMovimientosV11(db);
+          if (oldV < 11) await _migrateMovimientosV11(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -265,9 +266,8 @@ class DBService {
       )
     ''');
 
-    // en _createTables(...)
     await db.execute('''
-  CREATE TABLE movimientos_stock (
+  CREATE TABLE IF NOT EXISTS movimientos_stock (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha TEXT NOT NULL,
     productoId INTEGER NOT NULL,
@@ -279,6 +279,7 @@ class DBService {
     FOREIGN KEY (productoId) REFERENCES productos(id) ON DELETE CASCADE
   )
 ''');
+
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
     await db.execute(
@@ -739,6 +740,15 @@ class DBService {
       'stock': data['stock'] ?? 0,
       'categoria_id': data['categoria_id']
     });
+    final stockInicial = (data['stock'] as int?) ?? 0;
+    if (stockInicial > 0) {
+      await _logMovimientoStock(
+        productoId: id,
+        tipo: 'alta_producto',
+        cantidad: stockInicial,
+        nota: 'Alta con stock inicial',
+      );
+    }
     notifyDbChange();
     return id;
   }
@@ -873,9 +883,22 @@ class DBService {
           data['producto_codigo'] ?? (producto.first['codigo'] ?? ''),
     };
 
+    // Insertamos el ítem
     final id = await db.insert('items_venta', row);
-    await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
-        [cant, data['productoId']]);
+
+    // Restamos stock del producto
+    await db.rawUpdate(
+      'UPDATE productos SET stock = stock - ? WHERE id = ?',
+      [cant, data['productoId']],
+    );
+
+    // Registramos movimiento de stock (EGRESO por venta)
+    await _logMovimientoStock(
+      productoId: data['productoId'] as int,
+      tipo: 'egreso',
+      cantidad: cant,
+      nota: 'Venta #${row['ventaId']}',
+    );
 
     notifyDbChange();
     return id;
@@ -1465,10 +1488,33 @@ class DBService {
     notifyDbChange();
   }
 
-  Future<void> incrementarStock(int productoId, int cantidad) async {
+  Future<void> incrementarStock(int productoId, int cantidad,
+      {String? nota}) async {
+    if (cantidad <= 0) {
+      throw ArgumentError('La cantidad debe ser mayor a 0');
+    }
+
     final db = await database;
-    await db.rawUpdate('UPDATE productos SET stock = stock + ? WHERE id = ?',
-        [cantidad, productoId]);
+
+    // Verificamos que el producto exista (opcional pero útil)
+    final prod = await db.query('productos',
+        columns: ['id'], where: 'id = ?', whereArgs: [productoId], limit: 1);
+    if (prod.isEmpty) throw Exception('Producto inexistente');
+
+    // 1) Actualizo stock
+    await db.rawUpdate(
+      'UPDATE productos SET stock = stock + ? WHERE id = ?',
+      [cantidad, productoId],
+    );
+
+    // 2) Registro el movimiento (ingreso)
+    await _logMovimientoStock(
+      productoId: productoId,
+      tipo: 'ingreso',
+      cantidad: cantidad,
+      nota: nota ?? 'Ingreso manual',
+    );
+
     notifyDbChange();
   }
 
@@ -1476,6 +1522,12 @@ class DBService {
     final db = await database;
     await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
         [cantidad, productoId]);
+    await _logMovimientoStock(
+      productoId: productoId,
+      tipo: 'egreso',
+      cantidad: cantidad,
+      nota: 'Egreso manual',
+    );
     notifyDbChange();
   }
 
@@ -1633,5 +1685,37 @@ class DBService {
       'producto_codigo': codigo,
     });
     notifyDbChange();
+  }
+
+  Future<List<Map<String, dynamic>>> getIngresosStock({
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    final db = await database;
+
+    String where = "m.tipo IN ('ingreso','alta_producto')";
+    final args = <dynamic>[];
+
+    if (desde != null && hasta != null) {
+      where += " AND m.fecha BETWEEN ? AND ?";
+      args.add(desde.toIso8601String());
+      args.add(hasta.toIso8601String());
+    }
+
+    return await db.rawQuery('''
+    SELECT 
+      m.id            AS id,
+      m.fecha         AS fecha,
+      m.productoId    AS productoId,
+      m.tipo          AS tipo,
+      m.cantidad      AS cantidad,
+      m.nota          AS nota,
+      COALESCE(m.producto_nombre, p.nombre) AS producto,
+      COALESCE(m.producto_codigo, p.codigo) AS codigo
+    FROM movimientos_stock m
+    LEFT JOIN productos p ON p.id = m.productoId
+    WHERE $where
+    ORDER BY m.fecha DESC
+  ''', args);
   }
 }

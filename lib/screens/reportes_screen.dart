@@ -38,6 +38,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
     return DateFormat('dd/MM/yyyy HH:mm').format(fecha);
   }
 
+  String _fmt(DateTime d) => DateFormat('dd/MM/yyyy HH:mm').format(d);
+
   DateTimeRange _rangeMensual(DateTime referencia) {
     final inicio = DateTime(referencia.year, referencia.month, 1);
     final fin = DateTime(referencia.year, referencia.month + 1, 0, 23, 59, 59);
@@ -398,6 +400,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
             children: [
               _buildFiltroMes(),
               const SizedBox(height: 20),
+
+              // Botones existentes
               ElevatedButton.icon(
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text("Generar PDF"),
@@ -408,6 +412,54 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 icon: const Icon(Icons.table_chart),
                 label: const Text("Exportar Excel"),
                 onPressed: () => _exportarExcelMensual(context),
+              ),
+
+              const SizedBox(height: 24),
+              Text(
+                'Ingresos de stock',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+
+              // ====== LISTA SIMPLE DE INGRESOS ======
+              Expanded(
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future:
+                      dbService.getIngresosStock(desde: desde, hasta: hasta),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snap.hasError) {
+                      return Center(child: Text('Error: ${snap.error}'));
+                    }
+                    final ingresos = snap.data ?? const [];
+                    if (ingresos.isEmpty) {
+                      return const Center(
+                          child: Text('No hay ingresos en este período'));
+                    }
+                    return ListView.builder(
+                      itemCount: ingresos.length,
+                      itemBuilder: (_, i) {
+                        final r = ingresos[i];
+                        final nombre = (r['producto'] ?? '').toString();
+                        final cant = (r['cantidad'] as num?)?.toInt() ?? 0;
+                        final fecha =
+                            DateTime.tryParse((r['fecha'] ?? '').toString());
+
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.add_shopping_cart),
+                            title: Text('$nombre (+$cant)'),
+                            subtitle: Text(
+                              fecha != null ? _fmt(fecha) : '-',
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
