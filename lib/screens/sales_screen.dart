@@ -359,7 +359,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   // Cliente
                   DropdownButtonFormField<Cliente?>(
-                    initialValue: _clienteSeleccionado,
+                    value: _clienteSeleccionado,
                     hint: const Text("Cliente (opcional)"),
                     items: [
                       const DropdownMenuItem<Cliente?>(
@@ -386,7 +386,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
                   // Método de pago
                   DropdownButtonFormField<String>(
-                    initialValue: metodoSeleccionado ?? "Efectivo",
+                    value: metodoSeleccionado ?? "Efectivo",
                     hint: const Text("Método de Pago"),
                     items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
                         .map((m) => DropdownMenuItem(value: m, child: Text(m)))

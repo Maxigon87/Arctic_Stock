@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ArticStock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
+import 'package:ArticStock/widgets/artic_background.dart';
+import 'package:ArticStock/widgets/artic_container.dart';
 
 class ProductForm extends StatefulWidget {
   final Map<String, dynamic>? initial; // null = crear, con datos = editar
@@ -160,117 +162,122 @@ class _ProductFormState extends State<ProductForm> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _codigoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Código (único)',
-                hintText: 'EJ: ABC-123',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _nombreCtrl,
-              decoration: const InputDecoration(labelText: 'Nombre *'),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Nombre requerido' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Descripción'),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _costoCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Costo de compra *'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
-                    ],
-                    validator: (v) {
-                      final n = _toDouble(v ?? '');
-                      if (n <= 0) return 'Costo > 0';
-                      return null;
-                    },
-                    onChanged: (_) => setState(() {}),
-                  ),
+      body: ArticBackground(
+          child: ArticContainer(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _codigoCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Código (único)',
+                  hintText: 'EJ: ABC-123',
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _precioCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Precio de venta *'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
-                    ],
-                    validator: (v) {
-                      final n = _toDouble(v ?? '');
-                      if (n <= 0) return 'Precio > 0';
-                      return null;
-                    },
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              // 👈 Campo de stock
-              controller: _stockCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Stock inicial'),
-              validator: (v) {
-                final n = int.tryParse((v ?? '').trim()) ?? 0;
-                if (n < 0) return 'Stock no puede ser negativo';
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: _categoriaId,
-              items: _categorias
-                  .map((c) => DropdownMenuItem<int>(
-                        value: c['id'] as int,
-                        child: Text(c['nombre'] as String),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _categoriaId = v),
-              decoration: const InputDecoration(labelText: 'Categoría'),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Utilidad por unidad'),
-              subtitle: Text(utilidad.toStringAsFixed(2)),
-              trailing: Icon(
-                utilidad < 0 ? Icons.warning_amber : Icons.check_circle_outline,
-                color: utilidad < 0 ? Colors.amber : null,
               ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: const Icon(Icons.save),
-              label: Text(isEdit ? 'Guardar cambios' : 'Crear producto'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nombreCtrl,
+                decoration: const InputDecoration(labelText: 'Nombre *'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Nombre requerido' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _costoCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Costo de compra *'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
+                      ],
+                      validator: (v) {
+                        final n = _toDouble(v ?? '');
+                        if (n <= 0) return 'Costo > 0';
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _precioCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Precio de venta *'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\s]')),
+                      ],
+                      validator: (v) {
+                        final n = _toDouble(v ?? '');
+                        if (n <= 0) return 'Precio > 0';
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                // 👈 Campo de stock
+                controller: _stockCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: 'Stock inicial'),
+                validator: (v) {
+                  final n = int.tryParse((v ?? '').trim()) ?? 0;
+                  if (n < 0) return 'Stock no puede ser negativo';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                value: _categoriaId,
+                items: _categorias
+                    .map((c) => DropdownMenuItem<int>(
+                          value: c['id'] as int,
+                          child: Text(c['nombre'] as String),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _categoriaId = v),
+                decoration: const InputDecoration(labelText: 'Categoría'),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Utilidad por unidad'),
+                subtitle: Text(utilidad.toStringAsFixed(2)),
+                trailing: Icon(
+                  utilidad < 0
+                      ? Icons.warning_amber
+                      : Icons.check_circle_outline,
+                  color: utilidad < 0 ? Colors.amber : null,
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: const Icon(Icons.save),
+                label: Text(isEdit ? 'Guardar cambios' : 'Crear producto'),
+              ),
+            ],
+          ),
         ),
-      ),
+      )),
     );
   }
 }

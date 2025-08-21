@@ -205,8 +205,9 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                             child: _loadingUsers
                                                 ? const LinearProgressIndicator(
                                                     minHeight: 48)
-                                                : DropdownButtonFormField<int>(
-                                                    initialValue:
+                                                : // DESPUÉS
+                                                DropdownButtonFormField<int>(
+                                                    value:
                                                         (_usuarios.isNotEmpty)
                                                             ? _selectedUserId
                                                             : null,

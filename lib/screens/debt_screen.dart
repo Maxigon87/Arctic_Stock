@@ -3,6 +3,7 @@ import '../models/cliente.dart';
 import '../services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
+import 'package:intl/intl.dart';
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -22,6 +23,17 @@ class _DebtScreenState extends State<DebtScreen> {
   DateTime? hasta;
 
   final dbService = DBService();
+
+  String _fmtFecha(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final dt = DateTime.tryParse(iso);
+    return dt != null ? DateFormat('dd/MM/yyyy HH:mm').format(dt) : iso;
+  }
+
+  String _fmtMoneda(dynamic v) {
+    final n = (v as num?)?.toDouble() ?? 0;
+    return NumberFormat.currency(locale: 'es_AR', symbol: r'$').format(n);
+  }
 
   @override
   void initState() {
@@ -321,7 +333,7 @@ class _DebtScreenState extends State<DebtScreen> {
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
                             title: Text(
-                              '${d['cliente']} - \$${d['monto']}',
+                              '${d['clienteNombre'] ?? 'Consumidor Final'} - ${_fmtMoneda(d['monto'])}',
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
                             ),
