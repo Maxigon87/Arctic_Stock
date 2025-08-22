@@ -831,9 +831,16 @@ class DBService {
          d.fecha,
          d.estado,
          d.descripcion,
-         COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+         COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+         COALESCE(p.cantidad, 0)            AS pendientesCount
   FROM deudas d
   LEFT JOIN clientes c ON d.clienteId = c.id
+  LEFT JOIN (
+    SELECT clienteId, COUNT(*) AS cantidad
+    FROM deudas
+    WHERE estado = 'Pendiente'
+    GROUP BY clienteId
+  ) p ON d.clienteId = p.clienteId
   ORDER BY d.fecha DESC
 ''');
     return res;
@@ -1143,10 +1150,22 @@ class DBService {
     }
 
     return await db.rawQuery('''
-      SELECT d.id, d.clienteId, d.monto, d.fecha, d.estado, d.descripcion,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      SELECT d.id,
+             d.clienteId,
+             d.monto,
+             d.fecha,
+             d.estado,
+             d.descripcion,
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             COALESCE(p.cantidad, 0)            AS pendientesCount
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
+      LEFT JOIN (
+        SELECT clienteId, COUNT(*) AS cantidad
+        FROM deudas
+        WHERE estado = 'Pendiente'
+        GROUP BY clienteId
+      ) p ON d.clienteId = p.clienteId
       WHERE $where
       ORDER BY d.fecha DESC
     ''', args);
@@ -1470,10 +1489,22 @@ class DBService {
     }
 
     return await db.rawQuery('''
-      SELECT d.id, d.clienteId, d.monto, d.fecha, d.estado, d.descripcion,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+      SELECT d.id,
+             d.clienteId,
+             d.monto,
+             d.fecha,
+             d.estado,
+             d.descripcion,
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
+             COALESCE(p.cantidad, 0)            AS pendientesCount
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
+      LEFT JOIN (
+        SELECT clienteId, COUNT(*) AS cantidad
+        FROM deudas
+        WHERE estado = 'Pendiente'
+        GROUP BY clienteId
+      ) p ON d.clienteId = p.clienteId
       WHERE $where
       ORDER BY d.fecha DESC
     ''', args);
