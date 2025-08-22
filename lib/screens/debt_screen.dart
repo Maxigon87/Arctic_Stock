@@ -23,6 +23,7 @@ class _DebtScreenState extends State<DebtScreen> {
   DateTime? hasta;
 
   final dbService = DBService();
+  final Map<int, int> _deudaCountCache = {};
 
   String _fmtFecha(String? iso) {
     if (iso == null || iso.isEmpty) return '';
@@ -44,6 +45,7 @@ class _DebtScreenState extends State<DebtScreen> {
 
   void _loadDeudas() {
     setState(() {
+      _deudaCountCache.clear();
       _deudasFuture = DBService().getDeudas();
     });
   }
@@ -186,6 +188,7 @@ class _DebtScreenState extends State<DebtScreen> {
 
   Future<void> _cargarDeudasFiltradas() async {
     setState(() {
+      _deudaCountCache.clear();
       _deudasFuture = dbService.buscarDeudasAvanzado(
         clienteId: _clienteSeleccionado?.id,
         estado: estadoSeleccionado,
@@ -326,21 +329,53 @@ class _DebtScreenState extends State<DebtScreen> {
                       itemCount: deudas.length,
                       itemBuilder: (context, index) {
                         final d = deudas[index];
-                        return Card(
-                          elevation: 3,
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            title: Text(
-                              '${d['clienteNombre'] ?? 'Consumidor Final'} - ${_fmtMoneda(d['monto'])}',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                                'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
-                            trailing: Text(d['fecha'] ?? ''),
-                          ),
+                        final clienteId = d['clienteId'] as int?;
+                        Future<int> countFuture;
+                        if (clienteId != null) {
+                          if (_deudaCountCache.containsKey(clienteId)) {
+                            countFuture =
+                                Future.value(_deudaCountCache[clienteId]);
+                          } else {
+                            countFuture =
+                                dbService.countDeudasCliente(clienteId).then(
+                                      (value) {
+                                    _deudaCountCache[clienteId] = value;
+                                    return value;
+                                  },
+                                );
+                          }
+                        } else {
+                          countFuture = Future.value(0);
+                        }
+
+                        return FutureBuilder<int>(
+                          future: countFuture,
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            final highlight = count > 3;
+                            final tileColor =
+                                highlight ? Colors.red.shade100 : null;
+                            return Card(
+                              elevation: 3,
+                              margin:
+                                  const EdgeInsets.symmetric(vertical: 6),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                tileColor: tileColor,
+                                title: Text(
+                                  '${d['clienteNombre'] ?? 'Consumidor Final'} - ${_fmtMoneda(d['monto'])}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: highlight ? Colors.red : null,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                    'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
+                                trailing: Text(d['fecha'] ?? ''),
+                              ),
+                            );
+                          },
                         );
                       },
                     );

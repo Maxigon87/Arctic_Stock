@@ -824,22 +824,40 @@ class DBService {
 
   Future<List<Map<String, dynamic>>> getDeudas() async {
     final db = await database;
-    return await db.rawQuery('''
-      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
-      FROM deudas d
-      LEFT JOIN clientes c ON d.clienteId = c.id
-      ORDER BY d.fecha DESC
-    ''');
+    final res = await db.rawQuery('''
+  SELECT d.id,
+         d.clienteId,
+         d.monto,
+         d.fecha,
+         d.estado,
+         d.descripcion,
+         COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
+  FROM deudas d
+  LEFT JOIN clientes c ON d.clienteId = c.id
+  ORDER BY d.fecha DESC
+''');
+    return res;
   }
 
   Future<int> countDeudasCliente(int clienteId) async {
-    final db = await database;
-    final res = await db.rawQuery(
-        'SELECT COUNT(*) AS cantidad FROM deudas WHERE clienteId = ? AND estado = ?',
-        [clienteId, 'Pendiente']);
-    return res.isNotEmpty ? res.first['cantidad'] as int : 0;
-  }
+  final db = await database;
+  final res = await db.rawQuery(
+    'SELECT COUNT(*) AS cantidad FROM deudas WHERE clienteId = ? AND estado = ?',
+    [clienteId, 'Pendiente'],
+  );
+  final v = res.isNotEmpty ? res.first['cantidad'] : 0;
+  return (v is int) ? v : (v as num?)?.toInt() ?? 0;
+}
+  
+  Future<int> countDeudasClienteTotal(int clienteId) async {
+  final db = await database;
+  final res = await db.rawQuery(
+    'SELECT COUNT(*) AS total FROM deudas WHERE clienteId = ?',
+    [clienteId],
+  );
+  final v = res.isNotEmpty ? res.first['total'] : 0;
+  return (v is int) ? v : (v as num?)?.toInt() ?? 0;
+}
 
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;
@@ -1125,7 +1143,7 @@ class DBService {
     }
 
     return await db.rawQuery('''
-      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+      SELECT d.id, d.clienteId, d.monto, d.fecha, d.estado, d.descripcion,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
@@ -1452,7 +1470,7 @@ class DBService {
     }
 
     return await db.rawQuery('''
-      SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
+      SELECT d.id, d.clienteId, d.monto, d.fecha, d.estado, d.descripcion,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
