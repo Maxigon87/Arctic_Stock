@@ -826,11 +826,19 @@ class DBService {
     final db = await database;
     return await db.rawQuery('''
       SELECT d.id, d.monto, d.fecha, d.estado, d.descripcion,
-             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre 
+             COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre
       FROM deudas d
       LEFT JOIN clientes c ON d.clienteId = c.id
       ORDER BY d.fecha DESC
     ''');
+  }
+
+  Future<int> countDeudasCliente(int clienteId) async {
+    final db = await database;
+    final res = await db.rawQuery(
+        'SELECT COUNT(*) AS cantidad FROM deudas WHERE clienteId = ? AND estado = ?',
+        [clienteId, 'Pendiente']);
+    return res.isNotEmpty ? res.first['cantidad'] as int : 0;
   }
 
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
