@@ -330,6 +330,7 @@ class _SalesScreenState extends State<SalesScreen> {
   // --- BottomSheet carrito ----------------------------------------------------
 
   void _abrirCarrito() {
+    bool clienteConDeudas = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -364,11 +365,30 @@ class _SalesScreenState extends State<SalesScreen> {
                     items: [
                       const DropdownMenuItem<Cliente?>(
                           value: null, child: Text("Consumidor Final")),
-                      ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
-                          value: c, child: Text(c.nombre))),
+                      ..._clientes.map((c) =>
+                          DropdownMenuItem<Cliente?>(value: c, child: Text(c.nombre))),
                     ],
-                    onChanged: (value) =>
-                        setLocalState(() => _clienteSeleccionado = value),
+                    onChanged: (value) async {
+                      setLocalState(() => _clienteSeleccionado = value);
+                      if (value != null && value.id != null) {
+                        final count =
+                            await dbService.countDeudasCliente(value.id!);
+                        final muchas = count > 3;
+                        setLocalState(() => clienteConDeudas = muchas);
+                        if (muchas) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'El cliente tiene múltiples deudas pendientes'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } else {
+                        setLocalState(() => clienteConDeudas = false);
+                      }
+                    },
                   ),
                   TextButton.icon(
                     icon: const Icon(Icons.person_add, color: Colors.teal),
@@ -381,6 +401,23 @@ class _SalesScreenState extends State<SalesScreen> {
                       }
                     },
                   ),
+
+                  if (clienteConDeudas)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.red),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'El cliente tiene múltiples deudas pendientes',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   const SizedBox(height: 10),
 
