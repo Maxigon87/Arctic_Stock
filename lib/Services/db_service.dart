@@ -159,6 +159,7 @@ class DBService {
         fecha TEXT NOT NULL,
         estado TEXT NOT NULL,
         descripcion TEXT,
+        fechaPago TEXT,
         FOREIGN KEY (clienteId) REFERENCES clientes(id)
       )
     ''');
@@ -247,7 +248,8 @@ class DBService {
         monto REAL NOT NULL,
         fecha TEXT NOT NULL,
         estado TEXT NOT NULL,
-        descripcion TEXT
+        descripcion TEXT,
+        fechaPago TEXT
       )
     ''');
 
@@ -289,6 +291,8 @@ class DBService {
         "ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;");
     await _ensureColumnExists(db, 'ventas', 'userId',
         "ALTER TABLE ventas ADD COLUMN userId INTEGER;");
+    await _ensureColumnExists(db, 'deudas', 'fechaPago',
+        "ALTER TABLE deudas ADD COLUMN fechaPago TEXT;");
 
     // índices idempotentes
     await db.execute(
@@ -831,6 +835,7 @@ class DBService {
          d.fecha,
          d.estado,
          d.descripcion,
+         d.fechaPago,
          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
          COALESCE(p.cantidad, 0)            AS pendientesCount
   FROM deudas d
@@ -844,6 +849,38 @@ class DBService {
   ORDER BY d.fecha DESC
 ''');
     return res;
+  }
+
+  Future<void> markDeudaAsPagada(int id, double monto) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    // Obtener cliente para registrar ingreso
+    final deuda = await db.query('deudas',
+        columns: ['clienteId'], where: 'id = ?', whereArgs: [id]);
+    final clienteId = deuda.isNotEmpty ? deuda.first['clienteId'] as int? : null;
+
+    // Actualizar estado y fecha de pago
+    await db.update(
+      'deudas',
+      {
+        'estado': 'Pagada',
+        'fechaPago': now,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    // Registrar ingreso como una venta simple
+    await db.insert('ventas', {
+      'clienteId': clienteId,
+      'fecha': now,
+      'metodoPago': 'PagoDeuda',
+      'total': monto,
+      'userId': _activeUserId,
+    });
+
+    notifyDbChange();
   }
 
   Future<int> countDeudasCliente(int clienteId) async {
@@ -1156,6 +1193,7 @@ class DBService {
              d.fecha,
              d.estado,
              d.descripcion,
+             d.fechaPago,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              COALESCE(p.cantidad, 0)            AS pendientesCount
       FROM deudas d
@@ -1495,6 +1533,7 @@ class DBService {
              d.fecha,
              d.estado,
              d.descripcion,
+             d.fechaPago,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              COALESCE(p.cantidad, 0)            AS pendientesCount
       FROM deudas d
