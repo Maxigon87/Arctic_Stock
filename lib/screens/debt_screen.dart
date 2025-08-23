@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/cliente.dart';
-import '../services/db_service.dart';
+import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import 'package:intl/intl.dart';
@@ -184,6 +184,92 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
+  Future<void> _verDetalleDeuda(Map<String, dynamic> deuda) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.4,
+          maxChildSize: 0.8,
+          minChildSize: 0.3,
+          builder: (_, scroll) {
+            final cliente =
+                (deuda['clienteNombre']?.toString().isNotEmpty ?? false)
+                    ? deuda['clienteNombre']
+                    : 'Consumidor Final';
+            final monto = _fmtMoneda(deuda['monto']);
+            final fecha = _fmtFecha(deuda['fecha']);
+            final estado = deuda['estado'] ?? '';
+            final descripcion = deuda['descripcion'] ?? '';
+            final id = deuda['id'] as int;
+            final isPagada = estado == 'Pagada';
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withOpacity(0.98),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long),
+                        const SizedBox(width: 8),
+                        Text('Deuda #$id',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        Text(fecha,
+                            style:
+                                const TextStyle(fontStyle: FontStyle.italic)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      children: [
+                        Chip(label: Text('Cliente: $cliente')),
+                        Chip(label: Text('Estado: $estado')),
+                        Chip(label: Text('Monto: $monto')),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (descripcion.toString().isNotEmpty) ...[
+                      const Text('Descripción',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text(descripcion),
+                      const SizedBox(height: 10),
+                    ],
+                    const Spacer(),
+                    if (!isPagada)
+                      ElevatedButton(
+                        onPressed: () async {
+                          await dbService.markDeudaAsPagada(
+                              id, (deuda['monto'] as num).toDouble());
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          _loadDeudas();
+                        },
+                        child: const Text('Saldar deuda'),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _cargarDeudasFiltradas() async {
     setState(() {
       _deudasFuture = dbService.buscarDeudasAvanzado(
@@ -328,8 +414,10 @@ class _DebtScreenState extends State<DebtScreen> {
                         final d = deudas[index];
                         final count = d['pendientesCount'] as int? ?? 0;
                         final highlight = count > 3;
-                        final tileColor =
-                            highlight ? Colors.red.shade100 : null;
+                        final isPagada = d['estado'] == 'Pagada';
+                        final tileColor = isPagada
+                            ? Colors.green.shade100
+                            : (highlight ? Colors.red.shade100 : null);
                         return Card(
                           elevation: 3,
                           margin:
@@ -338,11 +426,12 @@ class _DebtScreenState extends State<DebtScreen> {
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
                             tileColor: tileColor,
+                            onTap: () => _verDetalleDeuda(d),
                             title: Text(
                               '${d['clienteNombre'] ?? 'Consumidor Final'} - ${_fmtMoneda(d['monto'])}',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: highlight ? Colors.red : null,
+                                color: highlight && !isPagada ? Colors.red : null,
                               ),
                             ),
                             subtitle: Text(
