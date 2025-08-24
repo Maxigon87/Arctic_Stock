@@ -204,6 +204,7 @@ class _DebtScreenState extends State<DebtScreen> {
             final estado = deuda['estado'] ?? '';
             final descripcion = deuda['descripcion'] ?? '';
             final id = deuda['id'] as int;
+            final int? ventaId = deuda['ventaId'] as int?;
             final isPagada = estado == 'Pagada';
 
             return Container(
@@ -248,7 +249,42 @@ class _DebtScreenState extends State<DebtScreen> {
                       Text(descripcion),
                       const SizedBox(height: 10),
                     ],
-                    const Spacer(),
+                    if (ventaId != null) ...[
+                      const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Expanded(
+                        child: FutureBuilder<List<Map<String, dynamic>>>(
+                          future: dbService.getItemsByVenta(ventaId),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            final items = snapshot.data ?? [];
+                            if (items.isEmpty) {
+                              return const Text('Sin productos');
+                            }
+                            return ListView.builder(
+                              controller: scroll,
+                              itemCount: items.length,
+                              itemBuilder: (_, index) {
+                                final it = items[index];
+                                final cantidad = it['cantidad'];
+                                final producto = it['producto'] ?? '';
+                                final subtotal = _fmtMoneda(it['subtotal']);
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text('$cantidad x $producto'),
+                                  trailing: Text(subtotal),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ] else
+                      const Spacer(),
                     if (!isPagada)
                       ElevatedButton(
                         onPressed: () async {

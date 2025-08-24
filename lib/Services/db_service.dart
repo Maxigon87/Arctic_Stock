@@ -53,7 +53,7 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 10,
+        version: 12,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
@@ -65,6 +65,7 @@ class DBService {
           if (oldV < 9) await _migrateToV9(db);
           if (oldV < 10) await _migrateUsersV10(db);
           if (oldV < 11) await _migrateMovimientosV11(db);
+          if (oldV < 12) await _migrateDeudasVentaIdV12(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -181,9 +182,14 @@ class DBService {
         estado TEXT NOT NULL,
         descripcion TEXT,
         fechaPago TEXT,
-        FOREIGN KEY (clienteId) REFERENCES clientes(id)
+        ventaId INTEGER,
+        FOREIGN KEY (clienteId) REFERENCES clientes(id),
+        FOREIGN KEY (ventaId) REFERENCES ventas(id)
       )
     ''');
+
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_deudas_ventaId ON deudas(ventaId);");
 
     await db.execute('''
       CREATE TABLE items_venta (
@@ -270,7 +276,10 @@ class DBService {
         fecha TEXT NOT NULL,
         estado TEXT NOT NULL,
         descripcion TEXT,
-        fechaPago TEXT
+        fechaPago TEXT,
+        ventaId INTEGER,
+        FOREIGN KEY (clienteId) REFERENCES clientes(id),
+        FOREIGN KEY (ventaId) REFERENCES ventas(id)
       )
     ''');
 
@@ -314,6 +323,8 @@ class DBService {
         "ALTER TABLE ventas ADD COLUMN userId INTEGER;");
     await _ensureColumnExists(db, 'deudas', 'fechaPago',
         "ALTER TABLE deudas ADD COLUMN fechaPago TEXT;");
+    await _ensureColumnExists(db, 'deudas', 'ventaId',
+        "ALTER TABLE deudas ADD COLUMN ventaId INTEGER;");
 
     // índices idempotentes
     await db.execute(
@@ -336,6 +347,8 @@ class DBService {
         "CREATE INDEX IF NOT EXISTS idx_items_venta_ventaId ON items_venta(ventaId);");
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_deudas_ventaId ON deudas(ventaId);");
   }
 
   Future<bool> _tableExists(Database db, String name) async {
@@ -856,6 +869,7 @@ class DBService {
          d.fecha,
          d.estado,
          d.descripcion,
+         d.ventaId,
          d.fechaPago,
          COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
          COALESCE(p.cantidad, 0)            AS pendientesCount
@@ -876,12 +890,13 @@ class DBService {
     final db = await database;
     final now = DateTime.now().toIso8601String();
 
-    // Obtener cliente para registrar ingreso
+    // Obtener datos de la deuda para actualizar la venta asociada
     final deuda = await db.query('deudas',
-        columns: ['clienteId'], where: 'id = ?', whereArgs: [id]);
+        columns: ['clienteId', 'ventaId'], where: 'id = ?', whereArgs: [id]);
     final clienteId = deuda.isNotEmpty ? deuda.first['clienteId'] as int? : null;
+    final ventaId = deuda.isNotEmpty ? deuda.first['ventaId'] as int? : null;
 
-    // Actualizar estado y fecha de pago
+    // Actualizar estado y fecha de pago de la deuda
     await db.update(
       'deudas',
       {
@@ -892,14 +907,27 @@ class DBService {
       whereArgs: [id],
     );
 
-    // Registrar ingreso como una venta simple
-    await db.insert('ventas', {
-      'clienteId': clienteId,
-      'fecha': now,
-      'metodoPago': 'PagoDeuda',
-      'total': monto,
-      'userId': _activeUserId,
-    });
+    if (ventaId != null) {
+      // Actualizar la venta original para reflejar el pago de la deuda
+      await db.update(
+        'ventas',
+        {
+          'metodoPago': 'PagoDeuda',
+          'fecha': now,
+        },
+        where: 'id = ?',
+        whereArgs: [ventaId],
+      );
+    } else {
+      // Fallback para deudas sin venta asociada
+      await db.insert('ventas', {
+        'clienteId': clienteId,
+        'fecha': now,
+        'metodoPago': 'PagoDeuda',
+        'total': monto,
+        'userId': _activeUserId,
+      });
+    }
 
     notifyDbChange();
   }
@@ -1213,6 +1241,7 @@ class DBService {
              d.fecha,
              d.estado,
              d.descripcion,
+             d.ventaId,
              d.fechaPago,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              COALESCE(p.cantidad, 0)            AS pendientesCount
@@ -1553,6 +1582,7 @@ class DBService {
              d.fecha,
              d.estado,
              d.descripcion,
+             d.ventaId,
              d.fechaPago,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              COALESCE(p.cantidad, 0)            AS pendientesCount
@@ -1772,6 +1802,16 @@ class DBService {
           "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
       await db.execute(
           "CREATE INDEX IF NOT EXISTS idx_movs_tipo ON movimientos_stock(tipo);");
+    }
+  }
+
+  Future<void> _migrateDeudasVentaIdV12(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(deudas);");
+    final hasVentaId = cols.any((c) => c['name'] == 'ventaId');
+    if (!hasVentaId) {
+      await db.execute("ALTER TABLE deudas ADD COLUMN ventaId INTEGER;");
+      await db.execute(
+          "CREATE INDEX IF NOT EXISTS idx_deudas_ventaId ON deudas(ventaId);");
     }
   }
 
