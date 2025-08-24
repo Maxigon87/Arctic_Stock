@@ -2,7 +2,6 @@ import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import '../services/db_service.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
@@ -269,7 +268,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (_) async => pdf.save());
+    final dir = await FileHelper.getReportesDir();
+    final file = File('${dir.path}/${FileNamer.reportePdf()}')
+      ..createSync(recursive: true);
+    await file.writeAsBytes(await pdf.save());
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
+    );
+    await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte Mensual");
   }
 
   // ---- Excel mensual (mismas fechas, sin otros filtros) ----
