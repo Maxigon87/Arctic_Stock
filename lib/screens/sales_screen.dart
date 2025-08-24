@@ -640,6 +640,7 @@ class _SalesScreenState extends State<SalesScreen> {
           'fecha': DateTime.now().toIso8601String(),
           'estado': 'Pendiente',
           'descripcion': 'Venta fiada',
+          'ventaId': ventaId,
         });
       }
 
