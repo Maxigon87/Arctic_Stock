@@ -78,6 +78,12 @@ class DBService {
     );
   }
 
+  /// Devuelve la ruta al archivo de base de datos
+  Future<String> getDbPath() async {
+    final db = await database;
+    return db.path;
+  }
+
   // ======= CREATE ALL TABLES =======
   Future _createTables(Database db, int version) async {
     await db.execute('''
