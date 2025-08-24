@@ -208,7 +208,7 @@ class _DebtScreenState extends State<DebtScreen> {
 
             return Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor.withOpacity(0.98),
+                color: Theme.of(context).cardColor,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(18)),
               ),

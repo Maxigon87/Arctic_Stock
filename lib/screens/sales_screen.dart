@@ -80,7 +80,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
               return Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor.withOpacity(0.98),
+                  color: Theme.of(context).cardColor,
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(18)),
                 ),
@@ -346,7 +346,7 @@ class _SalesScreenState extends State<SalesScreen> {
             return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor.withOpacity(0.97),
+                color: Theme.of(context).cardColor,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
               ),
