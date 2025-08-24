@@ -22,6 +22,16 @@ class FileHelper {
     return reportesDir;
   }
 
+  /// Obtiene (y crea si no existe) la carpeta donde se guardan las exportaciones de catálogo
+  static Future<Directory> getCatalogoDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final catalogoDir = Directory('${dir.path}/JeremiasCatalogo');
+    if (!await catalogoDir.exists()) {
+      await catalogoDir.create(recursive: true);
+    }
+    return catalogoDir;
+  }
+
   /// Obtiene (y crea si no existe) la carpeta donde se guardan los respaldos
   static Future<Directory> getBackupsDir() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -36,11 +46,14 @@ class FileHelper {
   static Future<List<FileSystemEntity>> getAllArchivos() async {
     final ventasDir = await getVentasDir();
     final reportesDir = await getReportesDir();
+    final catalogoDir = await getCatalogoDir();
 
     final archivosVentas = ventasDir.existsSync() ? ventasDir.listSync() : [];
     final archivosReportes =
         reportesDir.existsSync() ? reportesDir.listSync() : [];
+    final archivosCatalogo =
+        catalogoDir.existsSync() ? catalogoDir.listSync() : [];
 
-    return [...archivosVentas, ...archivosReportes];
+    return [...archivosVentas, ...archivosReportes, ...archivosCatalogo];
   }
 }
