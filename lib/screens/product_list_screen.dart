@@ -194,203 +194,232 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Expanded(
                 child: productos.isEmpty
                     ? const Center(child: Text('No hay productos'))
-                    : ListView.builder(
-                        itemCount: productos.length,
-                        itemBuilder: (ctx, i) {
-                          final p = productos[i];
-                          final sinStock = (p['stock'] ?? 0) <= 0;
-                          final inactivo = (p['activo'] ?? 1) == 0;
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          int crossAxisCount =
+                              (constraints.maxWidth / 400).floor();
+                          if (crossAxisCount < 1) crossAxisCount = 1;
+                          return GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              childAspectRatio: 3,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                            itemCount: productos.length,
+                            itemBuilder: (ctx, i) {
+                              final p = productos[i];
+                              final sinStock = (p['stock'] ?? 0) <= 0;
+                              final inactivo = (p['activo'] ?? 1) == 0;
 
-                          final precio =
-                              (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
-                          final costo =
-                              (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
-                          final utilidad = (precio - costo);
+                              final precio =
+                                  (p['precio_venta'] as num?)?.toDouble() ??
+                                      0.0;
+                              final costo =
+                                  (p['costo_compra'] as num?)?.toDouble() ??
+                                      0.0;
+                              final utilidad = (precio - costo);
 
-                          return Opacity(
-                            opacity: (sinStock || inactivo) ? 0.55 : 1.0,
-                            child: Card(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(
-                                  color: inactivo
-                                      ? Colors.grey
-                                      : (sinStock
-                                          ? Colors.red
-                                          : Colors.transparent),
-                                  width: 2,
-                                ),
-                              ),
-                              child: Stack(
-                                children: [
-                                  ListTile(
-                                    title: Text(
-                                      p['nombre'] ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                              return Opacity(
+                                opacity: (sinStock || inactivo) ? 0.55 : 1.0,
+                                child: Card(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide(
+                                      color: inactivo
+                                          ? Colors.grey
+                                          : (sinStock
+                                              ? Colors.red
+                                              : Colors.transparent),
+                                      width: 2,
                                     ),
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if ((p['codigo'] ?? '')
-                                            .toString()
-                                            .isNotEmpty)
-                                          Text('Código: ${p['codigo']}'),
-                                        Text(
-                                          'Precio: ${_money(precio)}  |  Costo: ${_money(costo)}  |  Stock: ${p['stock'] ?? 0}',
-                                          style: TextStyle(
-                                            color: utilidad < 0
-                                                ? Colors.red
-                                                : null,
-                                            fontWeight: utilidad < 0
-                                                ? FontWeight.w600
-                                                : FontWeight.normal,
-                                          ),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      ListTile(
+                                        title: Text(
+                                          p['nombre'] ?? '',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        Text(
-                                            'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
-                                        if ((p['descripcion'] ?? '')
-                                            .toString()
-                                            .isNotEmpty)
-                                          Text(
-                                            p['descripcion'],
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                fontStyle: FontStyle.italic),
-                                          ),
-                                      ],
-                                    ),
-                                    onTap: widget.selectMode
-                                        ? ((sinStock || inactivo)
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if ((p['codigo'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
+                                              Text('Código: ${p['codigo']}'),
+                                            Text(
+                                              'Precio: ${_money(precio)}  |  Costo: ${_money(costo)}  |  Stock: ${p['stock'] ?? 0}',
+                                              style: TextStyle(
+                                                color: utilidad < 0
+                                                    ? Colors.red
+                                                    : null,
+                                                fontWeight: utilidad < 0
+                                                    ? FontWeight.w600
+                                                    : FontWeight.normal,
+                                              ),
+                                            ),
+                                            Text(
+                                                'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                                            if ((p['descripcion'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
+                                              Text(
+                                                p['descripcion'],
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                    fontStyle:
+                                                        FontStyle.italic),
+                                              ),
+                                          ],
+                                        ),
+                                        onTap: widget.selectMode
+                                            ? ((sinStock || inactivo)
+                                                ? null
+                                                : () => Navigator.pop(
+                                                    context, p))
+                                            : null,
+                                        trailing: widget.selectMode
                                             ? null
-                                            : () => Navigator.pop(context, p))
-                                        : null,
-                                    trailing: widget.selectMode
-                                        ? null
-                                        : PopupMenuButton<String>(
-                                            onSelected: (value) async {
-                                              if (value == 'edit') {
-                                                await _goToEdit(p);
-                                              }
-                                              if (value == 'delete') {
-                                                await _deleteProducto(
-                                                    p['id'] as int);
-                                              }
-                                              if (value == 'restore') {
-                                                await _restoreProducto(
-                                                    p['id'] as int);
-                                              }
-                                              if (value == 'addStock') {
-                                                if (inactivo) {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    const SnackBar(
-                                                        content: Text(
-                                                            "No podés modificar stock de un producto inactivo.")),
-                                                  );
-                                                  return;
-                                                }
-                                                final cantidad =
-                                                    await _showAddStockDialog(
-                                                        context);
-                                                if (cantidad != null &&
-                                                    cantidad > 0) {
-                                                  await DBService()
-                                                      .incrementarStock(
-                                                          p['id'] as int,
-                                                          cantidad);
-                                                  _loadProductos();
-                                                }
-                                              }
-                                              if (value == 'removeStock') {
-                                                if (inactivo) {
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    const SnackBar(
-                                                        content: Text(
-                                                            "No podés modificar stock de un producto inactivo.")),
-                                                  );
-                                                  return;
-                                                }
-                                                final cantidad =
-                                                    await _showRemoveStockDialog(
-                                                        context,
-                                                        p['stock'] ?? 0);
-                                                if (cantidad != null &&
-                                                    cantidad > 0) {
-                                                  if ((p['stock'] ?? 0) >=
-                                                      cantidad) {
-                                                    await DBService()
-                                                        .decrementarStock(
-                                                            p['id'] as int,
-                                                            cantidad);
-                                                    _loadProductos();
-                                                  } else {
-                                                    ScaffoldMessenger.of(
-                                                            context)
-                                                        .showSnackBar(
-                                                      const SnackBar(
-                                                          content: Text(
-                                                              "No podés restar más de lo disponible")),
-                                                    );
+                                            : PopupMenuButton<String>(
+                                                onSelected: (value) async {
+                                                  if (value == 'edit') {
+                                                    await _goToEdit(p);
                                                   }
-                                                }
-                                              }
-                                            },
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Text('Editar')),
-                                              if (inactivo)
-                                                const PopupMenuItem(
-                                                    value: 'restore',
-                                                    child: Text('Restaurar'))
-                                              else
-                                                const PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Text('Eliminar')),
-                                              const PopupMenuItem(
-                                                  value: 'addStock',
-                                                  child: Text('Agregar Stock')),
-                                              const PopupMenuItem(
-                                                  value: 'removeStock',
-                                                  child: Text('Restar Stock')),
+                                                  if (value == 'delete') {
+                                                    await _deleteProducto(
+                                                        p['id'] as int);
+                                                  }
+                                                  if (value == 'restore') {
+                                                    await _restoreProducto(
+                                                        p['id'] as int);
+                                                  }
+                                                  if (value == 'addStock') {
+                                                    if (inactivo) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                "No podés modificar stock de un producto inactivo.")),
+                                                      );
+                                                      return;
+                                                    }
+                                                    final cantidad =
+                                                        await _showAddStockDialog(
+                                                            context);
+                                                    if (cantidad != null &&
+                                                        cantidad > 0) {
+                                                      await DBService()
+                                                          .incrementarStock(
+                                                              p['id'] as int,
+                                                              cantidad);
+                                                      _loadProductos();
+                                                    }
+                                                  }
+                                                  if (value == 'removeStock') {
+                                                    if (inactivo) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                "No podés modificar stock de un producto inactivo.")),
+                                                      );
+                                                      return;
+                                                    }
+                                                    final cantidad =
+                                                        await _showRemoveStockDialog(
+                                                            context,
+                                                            p['stock'] ?? 0);
+                                                    if (cantidad != null &&
+                                                        cantidad > 0) {
+                                                      if ((p['stock'] ?? 0) >=
+                                                          cantidad) {
+                                                        await DBService()
+                                                            .decrementarStock(
+                                                                p['id']
+                                                                    as int,
+                                                                cantidad);
+                                                        _loadProductos();
+                                                      } else {
+                                                        ScaffoldMessenger.of(
+                                                                context)
+                                                            .showSnackBar(
+                                                          const SnackBar(
+                                                              content: Text(
+                                                                  "No podés restar más de lo disponible")),
+                                                        );
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                itemBuilder: (context) => [
+                                                  const PopupMenuItem(
+                                                      value: 'edit',
+                                                      child: Text('Editar')),
+                                                  if (inactivo)
+                                                    const PopupMenuItem(
+                                                        value: 'restore',
+                                                        child:
+                                                            Text('Restaurar'))
+                                                  else
+                                                    const PopupMenuItem(
+                                                        value: 'delete',
+                                                        child:
+                                                            Text('Eliminar')),
+                                                  const PopupMenuItem(
+                                                      value: 'addStock',
+                                                      child: Text(
+                                                          'Agregar Stock')),
+                                                  const PopupMenuItem(
+                                                      value: 'removeStock',
+                                                      child:
+                                                          Text('Restar Stock')),
+                                                ],
+                                              ),
+                                      ),
+                                      if (sinStock)
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: _chip('SIN STOCK',
+                                              Colors.red.shade700),
+                                        ),
+                                      if (inactivo)
+                                        Positioned(
+                                          top: 6,
+                                          left: 6,
+                                          child: _chip('INACTIVO',
+                                              Colors.grey.shade700),
+                                        ),
+                                      if (utilidad < 0 && !inactivo)
+                                        Positioned(
+                                          bottom: 6,
+                                          right: 6,
+                                          child: Row(
+                                            children: const [
+                                              Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  size: 16,
+                                                  color: Colors.amber),
+                                              SizedBox(width: 4),
+                                              Text("Vendiendo con pérdida",
+                                                  style: TextStyle(
+                                                      fontSize: 12)),
                                             ],
                                           ),
+                                        ),
+                                    ],
                                   ),
-                                  if (sinStock)
-                                    Positioned(
-                                      top: 6,
-                                      right: 6,
-                                      child: _chip(
-                                          'SIN STOCK', Colors.red.shade700),
-                                    ),
-                                  if (inactivo)
-                                    Positioned(
-                                      top: 6,
-                                      left: 6,
-                                      child: _chip(
-                                          'INACTIVO', Colors.grey.shade700),
-                                    ),
-                                  if (utilidad < 0 && !inactivo)
-                                    Positioned(
-                                      bottom: 6,
-                                      right: 6,
-                                      child: Row(
-                                        children: const [
-                                          Icon(Icons.warning_amber_rounded,
-                                              size: 16, color: Colors.amber),
-                                          SizedBox(width: 4),
-                                          Text("Vendiendo con pérdida",
-                                              style: TextStyle(fontSize: 12)),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
