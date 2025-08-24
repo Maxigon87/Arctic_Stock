@@ -11,12 +11,15 @@ class ArticContainer extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 700),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05), // 🔥 leve transparencia
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline,
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.shadow,
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
