@@ -63,8 +63,7 @@ class CatalogService {
       final content = await file.readAsString();
       final csvRows = const CsvToListConverter().convert(content);
       if (csvRows.isEmpty) return;
-      final headers =
-          csvRows.first.map((e) => e.toString()).toList();
+      final headers = csvRows.first.map((e) => e.toString()).toList();
       for (var i = 1; i < csvRows.length; i++) {
         final row = csvRows[i];
         final map = <String, dynamic>{};
@@ -78,8 +77,9 @@ class CatalogService {
       final excel = Excel.decodeBytes(bytes);
       final table = excel.tables['Productos'] ?? excel.tables.values.first;
       if (table == null || table.rows.isEmpty) return;
-      final headers =
-          table.rows.first.map((cell) => cell?.value?.toString() ?? '').toList();
+      final headers = table.rows.first
+          .map((cell) => cell?.value?.toString() ?? '')
+          .toList();
       for (var i = 1; i < table.rows.length; i++) {
         final row = table.rows[i];
         final map = <String, dynamic>{};
@@ -94,7 +94,7 @@ class CatalogService {
     final categorias = await db.getCategorias();
     final Map<String, int> categoriaIds = {
       for (final c in categorias)
-        (c['nombre'] as String).toLowerCase(): c['id'] as int
+        (c['nombre'] as String).toLowerCase(): c['id'] as int,
     };
 
     for (final row in rows) {
@@ -108,7 +108,10 @@ class CatalogService {
       final descripcion = row['descripcion']?.toString().trim();
       final costo =
           double.tryParse(row['costo_compra']?.toString() ?? '0') ?? 0.0;
-      final stock = int.tryParse(row['stock']?.toString() ?? '0') ?? 0;
+      final stockRaw = row['stock'];
+      final stock = stockRaw is num
+          ? stockRaw.toInt()
+          : int.tryParse(stockRaw?.toString() ?? '0') ?? 0;
 
       int? categoriaId;
       final categoriaNombre = row['categoria']?.toString().trim();
@@ -142,4 +145,3 @@ class CatalogService {
     }
   }
 }
-
