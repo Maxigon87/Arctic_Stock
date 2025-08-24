@@ -365,15 +365,15 @@ class _SalesScreenState extends State<SalesScreen> {
                     items: [
                       const DropdownMenuItem<Cliente?>(
                           value: null, child: Text("Consumidor Final")),
-                      ..._clientes.map((c) =>
-                          DropdownMenuItem<Cliente?>(value: c, child: Text(c.nombre))),
+                      ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
+                          value: c, child: Text(c.nombre))),
                     ],
                     onChanged: (value) async {
                       setLocalState(() => _clienteSeleccionado = value);
                       if (value != null && value.id != null) {
                         final count =
                             await dbService.countDeudasCliente(value.id!);
-                        final muchas = count > 3;
+                        final muchas = count > 1;
                         setLocalState(() => clienteConDeudas = muchas);
                         if (muchas) {
                           if (!mounted) return;
