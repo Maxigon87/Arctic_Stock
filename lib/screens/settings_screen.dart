@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../Services/db_service.dart';
+import '../Services/backup_service.dart';
 import '../utils/theme_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -153,6 +155,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final m = s.first;
             setState(() => _mode = m);
             await ThemeController.instance.setMode(m);
+          },
+        ),
+        const Divider(height: 32),
+        ListTile(
+          leading: const Icon(Icons.backup_outlined),
+          title: const Text('Exportar respaldo'),
+          onTap: () async {
+            final file = await BackupService.exportBackup();
+            if (file != null) {
+              await Share.shareXFiles([XFile(file.path)]);
+            }
           },
         ),
       ],

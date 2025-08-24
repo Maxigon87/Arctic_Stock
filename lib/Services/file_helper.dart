@@ -22,6 +22,16 @@ class FileHelper {
     return reportesDir;
   }
 
+  /// Obtiene (y crea si no existe) la carpeta donde se guardan los respaldos
+  static Future<Directory> getBackupsDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final backupsDir = Directory('${dir.path}/JeremiasBackups');
+    if (!await backupsDir.exists()) {
+      await backupsDir.create(recursive: true);
+    }
+    return backupsDir;
+  }
+
   /// Devuelve todos los archivos de las carpetas de ventas y reportes
   static Future<List<FileSystemEntity>> getAllArchivos() async {
     final ventasDir = await getVentasDir();
