@@ -176,7 +176,8 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                 decoration: BoxDecoration(
                                   color: Theme.of(context).cardColor,
                                   border: Border.all(
-                                    color: Theme.of(context).colorScheme.outline,
+                                    color:
+                                        Theme.of(context).colorScheme.outline,
                                   ),
                                   boxShadow: const [
                                     BoxShadow(
@@ -187,68 +188,66 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                   ],
                                 ),
                                 child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Text('Usuario',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: _loadingUsers
-                                                ? const LinearProgressIndicator(
-                                                    minHeight: 48)
-                                                : // DESPUÉS
-                                                DropdownButtonFormField<int>(
-                                                    value:
-                                                        (_usuarios.isNotEmpty)
-                                                            ? _selectedUserId
-                                                            : null,
-                                                    items: _usuarios.map((u) {
-                                                      return DropdownMenuItem<
-                                                          int>(
-                                                        value: u['id'] as int,
-                                                        child: Text(u['nombre']
-                                                            as String),
-                                                      );
-                                                    }).toList(),
-                                                    onChanged: _usuarios
-                                                            .isNotEmpty
-                                                        ? (v) => setState(() =>
-                                                            _selectedUserId = v)
-                                                        : null,
-                                                    decoration:
-                                                        const InputDecoration(
-                                                      hintText:
-                                                          'No hay usuarios. Agregá uno',
-                                                      border:
-                                                          OutlineInputBorder(),
-                                                    ),
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text('Usuario',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _loadingUsers
+                                              ? const LinearProgressIndicator(
+                                                  minHeight: 48)
+                                              : // DESPUÉS
+                                              DropdownButtonFormField<int>(
+                                                  value: (_usuarios.isNotEmpty)
+                                                      ? _selectedUserId
+                                                      : null,
+                                                  items: _usuarios.map((u) {
+                                                    return DropdownMenuItem<
+                                                        int>(
+                                                      value: u['id'] as int,
+                                                      child: Text(u['nombre']
+                                                          as String),
+                                                    );
+                                                  }).toList(),
+                                                  onChanged: _usuarios
+                                                          .isNotEmpty
+                                                      ? (v) => setState(() =>
+                                                          _selectedUserId = v)
+                                                      : null,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                    hintText:
+                                                        'No hay usuarios. Agregá uno',
+                                                    border:
+                                                        OutlineInputBorder(),
                                                   ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          IconButton.outlined(
-                                            tooltip: 'Agregar usuario',
-                                            icon: const Icon(
-                                                Icons.person_add_alt_1),
-                                            onPressed: _addUsuarioDialog,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      FilledButton(
-                                        onPressed: (_usuarios.isNotEmpty &&
-                                                _selectedUserId != null)
-                                            ? _acceder
-                                            : null,
-                                        child: const Text('Acceder'),
-                                      ),
-                                    ],
-                                  ),
+                                                ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton.outlined(
+                                          tooltip: 'Agregar usuario',
+                                          icon: const Icon(
+                                              Icons.person_add_alt_1),
+                                          onPressed: _addUsuarioDialog,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    FilledButton(
+                                      onPressed: (_usuarios.isNotEmpty &&
+                                              _selectedUserId != null)
+                                          ? _acceder
+                                          : null,
+                                      child: const Text('Acceder'),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
