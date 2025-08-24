@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import '../Services/db_service.dart';
 import '../Services/backup_service.dart';
 import '../Services/catalog_service.dart';
@@ -183,6 +186,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   text: '📦 Catálogo de productos');
             }
           },
+        ),
+        Tooltip(
+          message:
+              'El formato válido es el mismo generado por la exportación de catálogo.',
+          child: ListTile(
+            leading: const Icon(Icons.download),
+            title: const Text('Importar catálogo de productos'),
+            onTap: () async {
+              final result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['xlsx', 'csv'],
+              );
+              if (result == null || result.files.isEmpty) return;
+              final path = result.files.single.path;
+              if (path == null) return;
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Importar catálogo'),
+                  content: const Text(
+                      'Se cargarán los productos desde el archivo seleccionado. El formato válido es el mismo generado por la exportación de catálogo. ¿Deseas continuar?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancelar')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Importar')),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await CatalogService.importProductos(File(path));
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('✅ Catálogo importado')),
+                );
+              }
+            },
+          ),
         ),
         ListTile(
           leading: const Icon(Icons.restore),
