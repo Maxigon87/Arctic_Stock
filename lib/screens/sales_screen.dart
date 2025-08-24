@@ -217,7 +217,7 @@ class _SalesScreenState extends State<SalesScreen> {
         metodoPago: metodoSeleccionado,
         desde: desde,
         hasta: hasta,
-        productoSearch: q.isEmpty ? null : q,
+        productoQuery: q.isEmpty ? null : q,
       );
     });
   }

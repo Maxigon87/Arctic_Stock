@@ -1123,8 +1123,7 @@ class DBService {
     String? metodoPago,
     DateTime? desde,
     DateTime? hasta,
-    String? productoQuery, // 👈 nuevo
-    String? productoSearch,
+    String? productoQuery,
   }) async {
     final db = await database;
 
