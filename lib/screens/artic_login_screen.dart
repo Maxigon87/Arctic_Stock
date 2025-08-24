@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../widgets/artic_background.dart';
@@ -163,7 +162,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                   ),
                   const SizedBox(height: 32),
 
-                  // Panel frosted glass
+                  // Panel login card
                   AnimatedOpacity(
                     opacity: showButton ? 1 : 0,
                     duration: const Duration(milliseconds: 800),
@@ -172,24 +171,22 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                             constraints: const BoxConstraints(maxWidth: 520),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(18),
-                              child: BackdropFilter(
-                                filter:
-                                    ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
-                                    border: Border.all(
-                                        color: Colors.white.withOpacity(0.15)),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.25),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
+                              child: Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).cardColor,
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.outline,
                                   ),
-                                  child: Column(
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 16,
+                                      offset: Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
