@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 class ArticContainer extends StatelessWidget {
   final Widget child;
-  const ArticContainer({required this.child, super.key});
+  final double? maxWidth;
+  const ArticContainer({required this.child, this.maxWidth = 700, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 700),
+        constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
