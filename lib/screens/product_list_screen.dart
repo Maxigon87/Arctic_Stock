@@ -1,6 +1,7 @@
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 // En TODAS las pantallas, unifica así:
 import '../Services/db_service.dart';
 
@@ -427,21 +428,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final TextEditingController cantidadController = TextEditingController();
     return showDialog<int>(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           title: const Text("Agregar Stock"),
           content: TextField(
             controller: cantidadController,
             keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(labelText: "Cantidad a agregar"),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogCtx),
                 child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () =>
-                  Navigator.pop(context, int.tryParse(cantidadController.text)),
+              onPressed: () {
+                final cant = int.tryParse(cantidadController.text) ?? 0;
+                if (cant <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Ingrese una cantidad válida (> 0)')));
+                } else {
+                  Navigator.pop(dialogCtx, cant);
+                }
+              },
               child: const Text("Agregar"),
             ),
           ],
@@ -455,7 +464,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final TextEditingController cantidadController = TextEditingController();
     return showDialog<int>(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           title: const Text("Restar Stock"),
           content: Column(
@@ -466,6 +475,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               TextField(
                 controller: cantidadController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration:
                     const InputDecoration(labelText: "Cantidad a restar"),
               ),
@@ -473,11 +483,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogCtx),
                 child: const Text("Cancelar")),
             ElevatedButton(
-              onPressed: () =>
-                  Navigator.pop(context, int.tryParse(cantidadController.text)),
+              onPressed: () {
+                final cant = int.tryParse(cantidadController.text) ?? 0;
+                if (cant <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Ingrese una cantidad válida (> 0)')));
+                } else {
+                  Navigator.pop(dialogCtx, cant);
+                }
+              },
               child: const Text("Restar"),
             ),
           ],
