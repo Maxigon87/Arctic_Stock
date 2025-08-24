@@ -18,4 +18,12 @@ class FileNamer {
     final now = DateTime.now();
     return 'reporte_${now.year}-${now.month.toString().padLeft(2, '0')}.xlsx';
   }
+
+  /// Nombre para exportación del catálogo de productos en Excel
+  static String catalogoExcel() {
+    final now = DateTime.now();
+    final date =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return 'catalogo_$date.xlsx';
+  }
 }

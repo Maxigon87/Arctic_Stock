@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../Services/db_service.dart';
 import '../Services/backup_service.dart';
+import '../Services/catalog_service.dart';
 import '../utils/theme_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -165,6 +166,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final file = await BackupService.exportBackup();
             if (file != null) {
               await Share.shareXFiles([XFile(file.path)]);
+            }
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.inventory_2),
+          title: const Text('Exportar catálogo de productos'),
+          onTap: () async {
+            final file = await CatalogService.exportProductos();
+            if (file != null) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('✅ Catálogo guardado: ${file.path}')),
+              );
+              await Share.shareXFiles([XFile(file.path)],
+                  text: '📦 Catálogo de productos');
             }
           },
         ),
