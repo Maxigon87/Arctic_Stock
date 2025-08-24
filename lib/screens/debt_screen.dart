@@ -436,7 +436,7 @@ class _DebtScreenState extends State<DebtScreen> {
                             ),
                             subtitle: Text(
                                 'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
-                            trailing: Text(d['fecha'] ?? ''),
+                            trailing: Text(_fmtFecha(d['fecha'])),
                           ),
                         );
                       },
