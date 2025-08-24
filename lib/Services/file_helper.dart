@@ -2,10 +2,22 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 class FileHelper {
+  static const _rootFolder = 'Arctic stock';
+
+  /// Obtiene (y crea si no existe) la carpeta raíz "Arctic stock" dentro de Documentos
+  static Future<Directory> _getRootDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final root = Directory('${dir.path}/$_rootFolder');
+    if (!await root.exists()) {
+      await root.create(recursive: true);
+    }
+    return root;
+  }
+
   /// Obtiene (y crea si no existe) la carpeta donde se guardan las facturas de ventas
   static Future<Directory> getVentasDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final ventasDir = Directory('${dir.path}/JeremiasVentas');
+    final root = await _getRootDir();
+    final ventasDir = Directory('${root.path}/Arctic stock Ventas');
     if (!await ventasDir.exists()) {
       await ventasDir.create(recursive: true);
     }
@@ -14,8 +26,8 @@ class FileHelper {
 
   /// Obtiene (y crea si no existe) la carpeta donde se guardan los reportes (PDF/Excel)
   static Future<Directory> getReportesDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final reportesDir = Directory('${dir.path}/JeremiasReportes');
+    final root = await _getRootDir();
+    final reportesDir = Directory('${root.path}/Arctic stock Reportes');
     if (!await reportesDir.exists()) {
       await reportesDir.create(recursive: true);
     }
@@ -24,8 +36,8 @@ class FileHelper {
 
   /// Obtiene (y crea si no existe) la carpeta donde se guardan las exportaciones de catálogo
   static Future<Directory> getCatalogoDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final catalogoDir = Directory('${dir.path}/JeremiasCatalogo');
+    final root = await _getRootDir();
+    final catalogoDir = Directory('${root.path}/Arctic stock Catalogo');
     if (!await catalogoDir.exists()) {
       await catalogoDir.create(recursive: true);
     }
@@ -34,8 +46,8 @@ class FileHelper {
 
   /// Obtiene (y crea si no existe) la carpeta donde se guardan los respaldos
   static Future<Directory> getBackupsDir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final backupsDir = Directory('${dir.path}/JeremiasBackups');
+    final root = await _getRootDir();
+    final backupsDir = Directory('${root.path}/Arctic stock Backups');
     if (!await backupsDir.exists()) {
       await backupsDir.create(recursive: true);
     }
