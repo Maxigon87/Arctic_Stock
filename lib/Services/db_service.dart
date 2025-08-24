@@ -20,6 +20,21 @@ class DBService {
 
   static Database? _db;
 
+  /// Cierra la conexión actual a la base de datos.
+  Future<void> close() async {
+    if (_db != null) {
+      await _db!.close();
+      _db = null;
+    }
+  }
+
+  /// Reinicia la conexión para asegurar que se utilice la nueva base.
+  Future<void> reopen() async {
+    await close();
+    await database;
+    notifyDbChange();
+  }
+
   Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await _initDB();

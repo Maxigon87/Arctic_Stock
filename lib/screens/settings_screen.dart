@@ -168,6 +168,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }
           },
         ),
+        ListTile(
+          leading: const Icon(Icons.restore),
+          title: const Text('Importar respaldo'),
+          onTap: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Importar respaldo'),
+                content: const Text(
+                    'Se reemplazará la base de datos y los assets actuales. ¿Continuar?'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancelar')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Importar')),
+                ],
+              ),
+            );
+            if (ok == true) {
+              await BackupService.importBackup();
+              await _load();
+              widget.onUsersChanged?.call();
+            }
+          },
+        ),
       ],
     );
   }
