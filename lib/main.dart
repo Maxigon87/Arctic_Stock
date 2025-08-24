@@ -69,22 +69,40 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final lightTheme = ThemeData(
       brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal, brightness: Brightness.light),
+      colorScheme:
+          ColorScheme.fromSeed(
+            seedColor: Colors.teal,
+            brightness: Brightness.light,
+          ).copyWith(
+            outline: const Color(0xFFE3F2FD),
+            shadow: const Color(0xFFE3F2FD),
+          ),
       useMaterial3: true,
       scaffoldBackgroundColor: const Color(0xFFF6F6F6),
       appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white, foregroundColor: Colors.black87),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+      ),
+      cardColor: const Color(0xFFE3F2FD),
     );
 
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal, brightness: Brightness.dark),
+      colorScheme:
+          ColorScheme.fromSeed(
+            seedColor: Colors.teal,
+            brightness: Brightness.dark,
+          ).copyWith(
+            outline: const Color(0xFF0D1B2A),
+            shadow: const Color(0xFF0D1B2A),
+          ),
       useMaterial3: true,
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black87, foregroundColor: Colors.white),
+        backgroundColor: Colors.black87,
+        foregroundColor: Colors.white,
+      ),
+      cardColor: const Color(0xFF0D1B2A),
     );
 
     return ValueListenableBuilder<ThemeMode>(
@@ -100,7 +118,7 @@ class _MyAppState extends State<MyApp> {
           supportedLocales: const [
             Locale('es', 'AR'),
             Locale('es'),
-            Locale('en')
+            Locale('en'),
           ],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
@@ -135,7 +153,7 @@ enum NavItem {
   deudas,
   clientes,
   historial,
-  configuracion
+  configuracion,
 }
 
 class _HomeScreenState extends State<HomeScreen>
@@ -176,14 +194,16 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 800),
     );
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _scaleAnimation = Tween<double>(begin: 0.98, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.98,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _controller.forward();
 
     _loadProductosSinStock();
-    _dbSub =
-        DBService().onDatabaseChanged.listen((_) => _loadProductosSinStock());
+    _dbSub = DBService().onDatabaseChanged.listen(
+      (_) => _loadProductosSinStock(),
+    );
   }
 
   Future<void> _loadProductosSinStock() async {
@@ -226,20 +246,25 @@ class _HomeScreenState extends State<HomeScreen>
       onWillPop: () async =>
           await _mostrarDialogoConfirmacion(context) ?? false,
       child: Scaffold(
-        appBar: AppBar(title: const Text("Gestión comercial total"), actions: [
-          if (DBService().activeUserName != null)
-            _UserBadge(
-              name: DBService().activeUserName!,
-              onChangeUser: _goToLogin, // 👈 acá
-              onSettings: () =>
-                  setState(() => _selected = NavItem.configuracion),
+        appBar: AppBar(
+          title: const Text("Gestión comercial total"),
+          actions: [
+            if (DBService().activeUserName != null)
+              _UserBadge(
+                name: DBService().activeUserName!,
+                onChangeUser: _goToLogin, // 👈 acá
+                onSettings: () =>
+                    setState(() => _selected = NavItem.configuracion),
+              ),
+            IconButton(
+              tooltip: "Salir de la App",
+              icon: const Icon(Icons.exit_to_app),
+              onPressed: () async {
+                /* ... tu confirmación y exit(0) ... */
+              },
             ),
-          IconButton(
-            tooltip: "Salir de la App",
-            icon: const Icon(Icons.exit_to_app),
-            onPressed: () async {/* ... tu confirmación y exit(0) ... */},
-          ),
-        ]),
+          ],
+        ),
         body: ArticBackground(
           child: FadeTransition(
             opacity: _fadeAnimation,
@@ -258,7 +283,9 @@ class _HomeScreenState extends State<HomeScreen>
                           .surfaceContainerHighest, // <- antes: surfaceContainerHighest
                       border: Border(
                         right: BorderSide(
-                            color: Theme.of(context).dividerColor, width: 0.6),
+                          color: Theme.of(context).dividerColor,
+                          width: 0.6,
+                        ),
                       ),
                     ),
 
@@ -282,8 +309,9 @@ class _HomeScreenState extends State<HomeScreen>
                           child: NavigationRail(
                             extended: !isCompact,
                             minExtendedWidth: 240,
-                            selectedIndex:
-                                (_selectedIndex() >= 0) ? _selectedIndex() : 0,
+                            selectedIndex: (_selectedIndex() >= 0)
+                                ? _selectedIndex()
+                                : 0,
                             onDestinationSelected: (idx) {
                               setState(() => _selected = _items[idx].id);
                             },
@@ -304,10 +332,12 @@ class _HomeScreenState extends State<HomeScreen>
                                         right: -6,
                                         child: AnimatedScale(
                                           scale: _animarBadge ? 1.2 : 1.0,
-                                          duration:
-                                              const Duration(milliseconds: 300),
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
                                           child: _DotBadge(
-                                              count: _productosSinStock),
+                                            count: _productosSinStock,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -322,10 +352,12 @@ class _HomeScreenState extends State<HomeScreen>
                                         right: -6,
                                         child: AnimatedScale(
                                           scale: _animarBadge ? 1.2 : 1.0,
-                                          duration:
-                                              const Duration(milliseconds: 300),
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
                                           child: _DotBadge(
-                                              count: _productosSinStock),
+                                            count: _productosSinStock,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -372,7 +404,9 @@ class _HomeScreenState extends State<HomeScreen>
 
       case NavItem.productos:
         return const _PageWrap(
-            keyName: 'productos', child: ProductListScreen());
+          keyName: 'productos',
+          child: ProductListScreen(),
+        );
 
       case NavItem.reportes:
         return const _PageWrap(keyName: 'reportes', child: ReportesScreen());
@@ -455,18 +489,19 @@ class _LogoView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Center(
-        child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const ArticLogo(size: 440),
-        const SizedBox(height: 8),
-        Text(
-          'Bienvenido',
-          style: Theme.of(context).textTheme.titleMedium,
-          textAlign: TextAlign.center,
-        ),
-      ],
-    ));
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ArticLogo(size: 440),
+          const SizedBox(height: 8),
+          Text(
+            'Bienvenido',
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 }
 
