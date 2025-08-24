@@ -188,6 +188,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ),
       body: ArticBackground(
         child: ArticContainer(
+          maxWidth: double.infinity,
           child: Column(
             children: [
               _buildFiltros(),
