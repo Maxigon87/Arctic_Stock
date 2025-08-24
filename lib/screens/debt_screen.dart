@@ -415,17 +415,22 @@ class _DebtScreenState extends State<DebtScreen> {
                         final count = d['pendientesCount'] as int? ?? 0;
                         final highlight = count > 3;
                         final isPagada = d['estado'] == 'Pagada';
+                        final brightness =
+                            Theme.of(context).colorScheme.brightness;
                         final tileColor = isPagada
-                            ? Colors.green.shade100
+                            ? (brightness == Brightness.dark
+                                ? Colors.green.shade900
+                                : Colors.green.shade100)
                             : (highlight ? Colors.red.shade100 : null);
                         return Card(
+                          color: tileColor,
+                          surfaceTintColor: Colors.transparent,
                           elevation: 3,
                           margin:
                               const EdgeInsets.symmetric(vertical: 6),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
-                            tileColor: tileColor,
                             onTap: () => _verDetalleDeuda(d),
                             title: Text(
                               '${d['clienteNombre'] ?? 'Consumidor Final'} - ${_fmtMoneda(d['monto'])}',
@@ -436,7 +441,7 @@ class _DebtScreenState extends State<DebtScreen> {
                             ),
                             subtitle: Text(
                                 'Estado: ${d['estado']}\n${d['descripcion'] ?? ''}'),
-                            trailing: Text(d['fecha'] ?? ''),
+                            trailing: Text(_fmtFecha(d['fecha'])),
                           ),
                         );
                       },
