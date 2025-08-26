@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
@@ -393,6 +394,44 @@ class _SalesScreenState extends State<SalesScreen> {
       );
       return;
     }
+    final TextEditingController cantCtrl = TextEditingController(text: '1');
+    final int? cantidad = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cantidad'),
+          content: TextField(
+            controller: cantCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(
+                    context, int.tryParse(cantCtrl.text) ?? 0),
+                child: const Text('Agregar')),
+          ],
+        );
+      },
+    );
+    if (cantidad == null) return;
+
+    final int cant = cantidad;
+    if (cant <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cantidad inválida')),
+      );
+      return;
+    }
+    if (cant > stock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Solo hay $stock unidades disponibles')),
+      );
+      return;
+    }
 
     final double precio = (producto['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final double costo = (producto['costo_compra'] as num?)?.toDouble() ?? 0.0;
@@ -409,51 +448,21 @@ class _SalesScreenState extends State<SalesScreen> {
           'codigo': producto['codigo'],
           'precioUnit': precio,
           'costoUnit': costo,
-          'cantidad': 1,
-          'subtotal': precio * 1,
+          'cantidad': cant,
+          'subtotal': precio * cant,
         });
       } else {
         final actual = _carrito[idx]['cantidad'] as int;
-        if (actual + 1 > stock) {
+        if (actual + cant > stock) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Solo hay $stock unidades disponibles")),
+            SnackBar(content: Text('Solo hay $stock unidades disponibles')),
           );
         } else {
-          _carrito[idx]['cantidad'] = actual + 1;
-          _carrito[idx]['subtotal'] = precio * (actual + 1);
+          _carrito[idx]['cantidad'] = actual + cant;
+          _carrito[idx]['subtotal'] = precio * (actual + cant);
         }
       }
     });
-  }
-
-  Future<void> _incrementarItem(
-      int i, void Function(void Function()) setLocal) async {
-    final item = _carrito[i];
-    final stock = await _stockDisponible(item['productoId'] as int);
-    final cant = (item['cantidad'] as int);
-    if (cant + 1 > stock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Solo hay $stock unidades disponibles")),
-      );
-      return;
-    }
-    final precio = (item['precioUnit'] as num).toDouble();
-    setLocal(() {
-      item['cantidad'] = cant + 1;
-      item['subtotal'] = precio * (cant + 1);
-    });
-  }
-
-  void _decrementarItem(int i, void Function(void Function()) setLocal) {
-    final item = _carrito[i];
-    final cant = (item['cantidad'] as int);
-    if (cant > 1) {
-      final precio = (item['precioUnit'] as num).toDouble();
-      setLocal(() {
-        item['cantidad'] = cant - 1;
-        item['subtotal'] = precio * (cant - 1);
-      });
-    }
   }
 
   // --- BottomSheet carrito ----------------------------------------------------
@@ -607,22 +616,79 @@ class _SalesScreenState extends State<SalesScreen> {
                                         ),
                                         Row(
                                           children: [
-                                            IconButton(
-                                              icon: const Icon(
-                                                  Icons.remove_circle,
-                                                  color: Colors.redAccent),
-                                              onPressed: () => _decrementarItem(
-                                                  i, setLocalState),
-                                            ),
-                                            Text("Cant: $cantidad",
-                                                style: const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            IconButton(
-                                              icon: const Icon(Icons.add_circle,
-                                                  color: Colors.green),
-                                              onPressed: () => _incrementarItem(
-                                                  i, setLocalState),
+                                            const Text('Cant:'),
+                                            const SizedBox(width: 8),
+                                            Builder(
+                                              builder: (_) {
+                                                final controller =
+                                                    TextEditingController(
+                                                        text: cantidad
+                                                            .toString());
+                                                return SizedBox(
+                                                  width: 60,
+                                                  child: TextField(
+                                                    controller: controller,
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    inputFormatters: const [
+                                                      FilteringTextInputFormatter
+                                                          .digitsOnly,
+                                                    ],
+                                                    onChanged: (value) async {
+                                                      final nuevaCantidad =
+                                                          int.tryParse(value) ??
+                                                              0;
+                                                      if (nuevaCantidad <= 0) {
+                                                        controller.text =
+                                                            item['cantidad']
+                                                                .toString();
+                                                        controller.selection =
+                                                            TextSelection.fromPosition(
+                                                          TextPosition(
+                                                              offset: controller
+                                                                  .text.length),
+                                                        );
+                                                        return;
+                                                      }
+                                                      final stock =
+                                                          await _stockDisponible(
+                                                              item['productoId']
+                                                                  as int);
+                                                      if (nuevaCantidad >
+                                                          stock) {
+                                                        ScaffoldMessenger.of(
+                                                                context)
+                                                            .showSnackBar(
+                                                          SnackBar(
+                                                              content: Text(
+                                                                  "Solo hay $stock unidades disponibles")),
+                                                        );
+                                                        controller.text =
+                                                            item['cantidad']
+                                                                .toString();
+                                                        controller.selection =
+                                                            TextSelection.fromPosition(
+                                                          TextPosition(
+                                                              offset: controller
+                                                                  .text.length),
+                                                        );
+                                                        return;
+                                                      }
+                                                      final precio =
+                                                          (item['precioUnit']
+                                                                  as num)
+                                                              .toDouble();
+                                                      setLocalState(() {
+                                                        item['cantidad'] =
+                                                            nuevaCantidad;
+                                                        item['subtotal'] =
+                                                            precio *
+                                                                nuevaCantidad;
+                                                      });
+                                                    },
+                                                  ),
+                                                );
+                                              },
                                             ),
                                           ],
                                         ),
