@@ -401,7 +401,7 @@ class _SalesScreenState extends State<SalesScreen> {
           content: TextField(
             controller: cantCtrl,
             keyboardType: TextInputType.number,
-            inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           actions: [
             TextButton(
