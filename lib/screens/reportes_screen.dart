@@ -183,6 +183,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
               0,
               (acc, it) => acc + ((it['cantidad'] as num?)?.toInt() ?? 0),
             );
+            final precioTotal = items.fold<double>(
+              0.0,
+              (acc, it) {
+                final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+                final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+                final sub =
+                    (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+                return acc + sub;
+              },
+            );
 
             // Cabecera compra
             widgets.add(
@@ -206,7 +216,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   final prod =
                       (it['producto'] ?? it['nombre'] ?? '').toString();
                   final desc = (it['descripcion'] ?? '').toString();
-                  final cant = (it['cantidad'] ?? '').toString();
+                  final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+                  final pu =
+                      (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
 
                   return pw.Padding(
                     padding: const pw.EdgeInsets.only(bottom: 2),
@@ -219,6 +231,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
                             style: const pw.TextStyle(fontSize: 12),
                           ),
                         ),
+                        pw.Text(
+                          '\$${pu.toStringAsFixed(2)}',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                        pw.SizedBox(width: 4),
                         pw.Text('x$cant',
                             style: const pw.TextStyle(fontSize: 12)),
                       ],
@@ -249,6 +266,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     ),
                     pw.Text(
                       'Cantidad de productos: $totalUnidades',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                    pw.Text(
+                      'Total de la compra: \$${precioTotal.toStringAsFixed(2)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                   ],
@@ -397,6 +418,89 @@ class _ReportesScreenState extends State<ReportesScreen> {
     await Share.shareXFiles([XFile(file.path)], text: "📊 Reporte Mensual");
   }
 
+  // ---- PDF con listado de productos por categoría ----
+  Future<void> _generarReporteProductos(BuildContext context) async {
+    final productos = await dbService.getProductos(incluirInactivos: true);
+
+    // Agrupar por categoría
+    final Map<String, List<Map<String, dynamic>>> porCat = {};
+    for (final p in productos) {
+      final cat = (p['categoria_nombre'] ?? 'Sin categoría').toString();
+      porCat.putIfAbsent(cat, () => []).add(p);
+    }
+
+    final categorias = porCat.keys.toList()..sort();
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.MultiPage(
+        pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(24)),
+        build: (context) {
+          final widgets = <pw.Widget>[
+            pw.Text(
+              'Reporte de Productos',
+              style:
+                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 16),
+          ];
+
+          for (final cat in categorias) {
+            final prods = porCat[cat]!;
+            prods.sort((a, b) =>
+                (a['nombre'] ?? '').toString().compareTo((b['nombre'] ?? '').toString()));
+
+            widgets.add(pw.Text(cat,
+                style: pw.TextStyle(
+                    fontSize: 16, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.SizedBox(height: 6));
+
+            widgets.add(pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: prods.map((p) {
+                final nombre = (p['nombre'] ?? '').toString();
+                final stock = (p['stock'] as num?)?.toInt() ?? 0;
+                final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(nombre,
+                            style: const pw.TextStyle(fontSize: 12)),
+                      ),
+                      pw.Text('Stock: $stock',
+                          style: const pw.TextStyle(fontSize: 12)),
+                      pw.SizedBox(width: 12),
+                      pw.Text(
+                        '\$${precio.toStringAsFixed(2)}',
+                        style: const pw.TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ));
+            widgets.add(pw.SizedBox(height: 12));
+          }
+
+          return widgets;
+        },
+      ),
+    );
+
+    final dir = await FileHelper.getReportesDir();
+    final file = File('${dir.path}/${FileNamer.reporteProductosPdf()}')
+      ..createSync(recursive: true);
+    await file.writeAsBytes(await pdf.save());
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
+    );
+    await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte de Productos");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -420,6 +524,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 icon: const Icon(Icons.table_chart),
                 label: const Text("Exportar Excel"),
                 onPressed: () => _exportarExcelMensual(context),
+              ),
+
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.inventory),
+                label: const Text("Reporte de Productos"),
+                onPressed: () => _generarReporteProductos(context),
               ),
 
               const SizedBox(height: 24),
