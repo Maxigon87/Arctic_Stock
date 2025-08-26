@@ -615,75 +615,51 @@ class _SalesScreenState extends State<SalesScreen> {
                                           ),
                                         ),
                                         Row(
-                                          children: [
-                                            const Text('Cant:'),
-                                            const SizedBox(width: 8),
-                                            Builder(
-                                              builder: (_) {
-                                                final controller =
-                                                    TextEditingController(
-                                                        text: cantidad
-                                                            .toString());
-                                                return SizedBox(
-                                                  width: 60,
-                                                  child: TextField(
-                                                    controller: controller,
-                                                    keyboardType:
-                                                        TextInputType.number,
-                                                    inputFormatters: const [
-                                                      FilteringTextInputFormatter
-                                                          .digitsOnly,
-                                                    ],
-                                                    onChanged: (value) async {
-                                                      final nuevaCantidad =
-                                                          int.tryParse(value) ??
-                                                              0;
-                                                      if (nuevaCantidad <= 0) {
-                                                        controller.text =
-                                                            p['cantidad']
-                                                                .toString();
-                                                        controller.selection =
-                                                            TextSelection.fromPosition(
-                                                          TextPosition(
-                                                              offset: controller
-                                                                  .text.length),
-                                                        );
-                                                        return;
-                                                      }
-                                                      final stock =
-                                                          await _stockDisponible(
-                                                              p['productoId']
-                                                                  as int);
-                                                      if (nuevaCantidad >
-                                                          stock) {
-                                                        ScaffoldMessenger.of(
-                                                                context)
-                                                            .showSnackBar(
-                                                          SnackBar(
-                                                              content: Text(
-                                                                  "Solo hay $stock unidades disponibles")),
-                                                        );
-                                                        controller.text =
-                                                            p['cantidad']
-                                                                .toString();
-                                                        controller.selection =
-                                                            TextSelection.fromPosition(
-                                                          TextPosition(
-                                                              offset: controller
-                                                                  .text.length),
-                                                        );
-                                                        return;
-                                                      }
-                                                      final precio =
-                                                          (p['precioUnit']
-                                                                  as num)
-                                                              .toDouble();
-                                                      setLocalState(() {
-                                                        p['cantidad'] =
-                                                            nuevaCantidad;
-                                                        p['subtotal'] =
-                                                            precio *
-                                                                nuevaCantidad;
+  children: [
+    const Text('Cant:'),
+    const SizedBox(width: 8),
+    SizedBox(
+      width: 70,
+      child: TextFormField(
+        initialValue: cantidad.toString(),
+        keyboardType: TextInputType.number,
+        inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+        decoration: const InputDecoration(isDense: true),
+        onChanged: (value) async {
+          final nuevaCantidad = int.tryParse(value) ?? 0;
+
+          // No permitir 0 o negativos
+          if (nuevaCantidad <= 0) {
+            // Restaurar valor actual
+            setLocalState(() {
+              p['cantidad'] = (p['cantidad'] as num).toInt();
+              p['subtotal'] =
+                  (p['precioUnit'] as num).toDouble() * (p['cantidad'] as num).toInt();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cantidad inválida')),
+            );
+            return;
+          }
+
+          final stock = await _stockDisponible(p['productoId'] as int);
+          if (nuevaCantidad > stock) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Solo hay $stock unidades disponibles')),
+            );
+            // Restaurar valor actual
+            setLocalState(() {
+              p['cantidad'] = (p['cantidad'] as num).toInt();
+              p['subtotal'] =
+                  (p['precioUnit'] as num).toDouble() * (p['cantidad'] as num).toInt();
+            });
+            return;
+          }
+
+          final precio = (p['precioUnit'] as num).toDouble();
+          setLocalState(() {
+            p['cantidad'] = nuevaCantidad;
+            p['subtotal'] = precio * nuevaCantidad;
                                                       });
                                                     },
                                                   ),

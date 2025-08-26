@@ -131,8 +131,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       rangoVisible = 'Período: ${f.format(desde!)} – ${f.format(hasta!)}';
     }
 
-    final logoBytes =
-        await rootBundle.load('assets/logo/logo_con_titulo.png');
+    final logoBytes = await rootBundle.load('assets/logo/logo_con_titulo.png');
     final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
 
     final pdf = pw.Document();
@@ -174,8 +173,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               pw.Container(
                 padding: const pw.EdgeInsets.all(12),
                 decoration: pw.BoxDecoration(
-                  border:
-                      pw.Border.all(width: 0.6, color: PdfColors.blue),
+                  border: pw.Border.all(width: 0.6, color: PdfColors.blue),
                   borderRadius: pw.BorderRadius.circular(6),
                 ),
                 child: pw.Text(
@@ -202,19 +200,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               (acc, it) {
                 final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
                 final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
-                final sub =
-                    (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
-                return acc + sub;
-              },
-            );
-
-            final precioTotal = items.fold<double>(
-              0.0,
-              (acc, it) {
-                final cant = (it['cantidad'] as num?)?.toDouble() ?? 0.0;
-                final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
-                final sub =
-                    (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+                final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
                 return acc + sub;
               },
             );
@@ -243,8 +229,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   final desc = (it['descripcion'] ?? '').toString();
 
                   final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
-                  final pu =
-                      (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+                  final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
 
                   return pw.Padding(
                     padding: const pw.EdgeInsets.only(bottom: 2),
@@ -257,12 +242,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
                             style: const pw.TextStyle(fontSize: 12),
                           ),
                         ),
-
                         pw.Text(
                           '\$${pu.toStringAsFixed(2)}',
                           style: const pw.TextStyle(fontSize: 12),
                         ),
-
                         pw.SizedBox(width: 4),
                         pw.Text('x$cant',
                             style: const pw.TextStyle(fontSize: 12)),
@@ -471,16 +454,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
           final widgets = <pw.Widget>[
             pw.Text(
               'Reporte de Productos',
-              style:
-                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 16),
           ];
 
           for (final cat in categorias) {
             final prods = porCat[cat]!;
-            prods.sort((a, b) =>
-                (a['nombre'] ?? '').toString().compareTo((b['nombre'] ?? '').toString()));
+            prods.sort((a, b) => (a['nombre'] ?? '')
+                .toString()
+                .compareTo((b['nombre'] ?? '').toString()));
 
             widgets.add(pw.Text(cat,
                 style: pw.TextStyle(
@@ -530,7 +513,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
     );
-    await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte de Productos");
+    await Share.shareXFiles([XFile(file.path)],
+        text: "📄 Reporte de Productos");
   }
 
   @override
