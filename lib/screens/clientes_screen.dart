@@ -13,6 +13,8 @@ class ClientesScreen extends StatefulWidget {
 
 class _ClientesScreenState extends State<ClientesScreen> {
   late Future<List<Cliente>> _clientesFuture;
+  String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -24,6 +26,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
     setState(() {
       _clientesFuture = DBService().getClientes();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _showClienteDialog({Cliente? cliente}) {
@@ -126,44 +134,78 @@ class _ClientesScreenState extends State<ClientesScreen> {
               }
 
               final clientes = snapshot.data ?? [];
-              if (clientes.isEmpty) {
-                return const Center(child: Text("No hay clientes registrados"));
-              }
+              final filtrados = clientes
+                  .where((c) =>
+                      c.nombre.toLowerCase().contains(_search.toLowerCase()))
+                  .toList();
 
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const BouncingScrollPhysics(),
-                itemCount: clientes.length,
-                itemBuilder: (context, index) {
-                  final c = clientes[index];
-                  return Card(
-                    elevation: 3,
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      title: Text(c.nombre,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(c.telefono ?? "",
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 13)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
-                            onPressed: () => _showClienteDialog(cliente: c),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteCliente(c.id!),
-                          ),
-                        ],
-                      ),
+              return Column(
+                children: [
+                  TextField(
+                    controller: _searchCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Buscar cliente',
+                      prefixIcon: Icon(Icons.search),
                     ),
-                  );
-                },
+                    onChanged: (value) => setState(() => _search = value),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: clientes.isEmpty
+                        ? const Center(
+                            child: Text("No hay clientes registrados"),
+                          )
+                        : filtrados.isEmpty
+                            ? const Center(
+                                child:
+                                    Text("No se encontraron clientes"),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: filtrados.length,
+                                itemBuilder: (context, index) {
+                                  final c = filtrados[index];
+                                  return Card(
+                                    elevation: 3,
+                                    margin: const EdgeInsets.symmetric(
+                                        vertical: 6),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    child: ListTile(
+                                      title: Text(c.nombre,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold)),
+                                      subtitle: Text(c.telefono ?? "",
+                                          style: TextStyle(
+                                              color: Colors.white
+                                                  .withOpacity(0.7),
+                                              fontSize: 13)),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.edit,
+                                                color: Colors.orange),
+                                            onPressed: () =>
+                                                _showClienteDialog(
+                                                    cliente: c),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete,
+                                                color: Colors.red),
+                                            onPressed: () =>
+                                                _deleteCliente(c.id!),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
               );
             },
           ),
