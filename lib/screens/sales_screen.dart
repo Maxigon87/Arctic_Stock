@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/cliente.dart';
 import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
+import '../Services/file_helper.dart';
+import '../utils/file_namer.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -182,6 +190,18 @@ class _SalesScreenState extends State<SalesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          IconButton(
+                            icon: const Icon(Icons.share),
+                            tooltip: 'Compartir comprobante',
+                            onPressed: () =>
+                                _compartirComprobante(header!, items),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.print),
+                            tooltip: 'Imprimir comprobante',
+                            onPressed: () =>
+                                _imprimirComprobante(header!, items),
+                          ),
                           TextButton(
                             onPressed: () => Navigator.pop(context),
                             child: const Text("Cerrar"),
@@ -202,6 +222,115 @@ class _SalesScreenState extends State<SalesScreen> {
         SnackBar(content: Text("No se pudo cargar el detalle: $e")),
       );
     }
+  }
+
+
+  Future<Uint8List> _generarPdfComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final pdf = pw.Document();
+    const lineWidth = 32;
+
+    String _repeat(String char, int times) => List.filled(times, char).join();
+
+    List<String> _wrap(String text) {
+      final lines = <String>[];
+      for (var i = 0; i < text.length; i += lineWidth) {
+        final end = (i + lineWidth < text.length) ? i + lineWidth : text.length;
+        lines.add(text.substring(i, end));
+      }
+      return lines;
+    }
+
+    void _addWrapped(List<String> target, String text) {
+      target.addAll(_wrap(text));
+    }
+
+    void _addCentered(List<String> target, String text) {
+      for (final line in _wrap(text)) {
+        final pad = ((lineWidth - line.length) / 2).floor();
+        target.add("${_repeat(' ', pad)}$line");
+      }
+    }
+
+    void _addTwoCols(List<String> target, String left, String right) {
+      if (left.length + right.length > lineWidth) {
+        final parts = _wrap(left);
+        target.addAll(parts.take(parts.length - 1));
+        _addTwoCols(target, parts.last, right);
+      } else {
+        final spaces = lineWidth - left.length - right.length;
+        target.add("$left${_repeat(' ', spaces)}$right");
+      }
+    }
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fecha = header['fecha']?.toString().split('T').first ?? '';
+    final cliente =
+        (header['clienteNombre']?.toString().isNotEmpty ?? false)
+            ? header['clienteNombre']
+            : 'Consumidor Final';
+    final vendedor =
+        (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+            ? header['usuarioNombre']
+            : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+
+    final linesOut = <String>[];
+    _addCentered(linesOut, 'Venta #$ventaId');
+    _addCentered(linesOut, fecha);
+    _addWrapped(linesOut, 'Cliente: $cliente');
+    _addWrapped(linesOut, 'Vendedor: $vendedor');
+    _addWrapped(linesOut, 'Método: $metodo');
+    linesOut.add(_repeat('-', lineWidth));
+    _addCentered(linesOut, 'PRODUCTOS');
+    linesOut.add(_repeat('-', lineWidth));
+
+    for (final it in items) {
+      final nombre = (it['producto'] ?? '').toString();
+      final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+      final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+      final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+
+      _addWrapped(linesOut, nombre);
+      _addTwoCols(linesOut, '${cant} x ${pu.toStringAsFixed(2)}', '\$${sub.toStringAsFixed(2)}');
+      linesOut.add('');
+    }
+
+    linesOut.add(_repeat('-', lineWidth));
+    _addTwoCols(linesOut, 'TOTAL', '\$${total.toStringAsFixed(2)}');
+    linesOut.add(_repeat('-', lineWidth));
+
+    final font = pw.Font.courier();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.all(5),
+        build: (_) => pw.Text(
+          linesOut.join('\n'),
+          style: pw.TextStyle(font: font, fontSize: 8),
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<void> _compartirComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final bytes = await _generarPdfComprobante(header, items);
+    final dir = await FileHelper.getVentasDir();
+    final ventaId = header['id'] as int? ?? 0;
+    final cliente = header['clienteNombre']?.toString() ?? 'Consumidor Final';
+    final file = File('${dir.path}/${FileNamer.factura(ventaId, cliente)}');
+    await file.writeAsBytes(bytes, flush: true);
+    await Share.shareXFiles([XFile(file.path)]);
+  }
+
+  Future<void> _imprimirComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final bytes = await _generarPdfComprobante(header, items);
+    await Printing.layoutPdf(onLayout: (format) async => bytes);
   }
 
   Future<void> _cargarClientes() async {
