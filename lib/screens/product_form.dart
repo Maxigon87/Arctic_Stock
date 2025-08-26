@@ -75,6 +75,41 @@ class _ProductFormState extends State<ProductForm> {
     setState(() => _categorias = cats);
   }
 
+  Future<void> _mostrarDialogoNuevaCategoria() async {
+    final controller = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nueva Categoría'),
+        content: TextField(
+          controller: controller,
+          decoration:
+              const InputDecoration(labelText: 'Nombre de la categoría'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.pop(context, controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (nombre != null && nombre.trim().isNotEmpty) {
+      final id = await DBService().insertCategoria(nombre.trim());
+      final cats = await DBService().getCategorias();
+      if (!mounted) return;
+      setState(() {
+        _categorias = cats;
+        _categoriaId = id;
+      });
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -245,16 +280,28 @@ class _ProductFormState extends State<ProductForm> {
                 },
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                value: _categoriaId,
-                items: _categorias
-                    .map((c) => DropdownMenuItem<int>(
-                          value: c['id'] as int,
-                          child: Text(c['nombre'] as String),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _categoriaId = v),
-                decoration: const InputDecoration(labelText: 'Categoría'),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _categoriaId,
+                      items: _categorias
+                          .map((c) => DropdownMenuItem<int>(
+                                value: c['id'] as int,
+                                child: Text(c['nombre'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _categoriaId = v),
+                      decoration: const InputDecoration(labelText: 'Categoría'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      _mostrarDialogoNuevaCategoria();
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               ListTile(
