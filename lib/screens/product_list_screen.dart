@@ -204,8 +204,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
+
                               // Reduce card height now that we show less content
                               mainAxisExtent: 110,
+
                               mainAxisSpacing: 8,
                               crossAxisSpacing: 8,
                             ),
@@ -250,6 +252,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               style: const TextStyle(
                                                   fontWeight: FontWeight.bold),
                                             ),
+
                                             subtitle: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
