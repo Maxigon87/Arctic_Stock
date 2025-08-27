@@ -79,7 +79,7 @@ class _MyAppState extends State<MyApp> {
             shadow: const Color(0xFFE3F2FD),
           ),
       useMaterial3: true,
-      textTheme: GoogleFonts.interTextTheme(),
+      textTheme: GoogleFonts.manropeTextTheme(),
       scaffoldBackgroundColor: const Color(0xFFF6F6F6),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -99,7 +99,7 @@ class _MyAppState extends State<MyApp> {
             shadow: const Color(0xFF0D1B2A),
           ),
       useMaterial3: true,
-      textTheme: GoogleFonts.interTextTheme(),
+      textTheme: GoogleFonts.manropeTextTheme(),
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.black87,

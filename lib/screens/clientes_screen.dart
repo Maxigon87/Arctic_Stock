@@ -177,11 +177,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                       title: Text(c.nombre,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.bold)),
-                                      subtitle: Text(c.telefono ?? "",
-                                          style: TextStyle(
-                                              color: Colors.white
-                                                  .withOpacity(0.7),
-                                              fontSize: 13)),
+                                      subtitle: Text(
+                                        c.telefono ?? "",
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? Colors.white.withOpacity(0.7)
+                                              : Colors.black,
+                                          fontSize: 13,
+                                        ),
+                                      ),
                                       trailing: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
