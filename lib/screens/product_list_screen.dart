@@ -239,6 +239,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                   child: Stack(
                                     children: [
                                       ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 8),
                                         title: Text(
                                           p['nombre'] ?? '',
                                           maxLines: 1,
