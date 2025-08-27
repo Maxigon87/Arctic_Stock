@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/cliente.dart';
 import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
@@ -198,6 +199,12 @@ class _SalesScreenState extends State<SalesScreen> {
                                 _compartirComprobante(header!, items),
                           ),
                           IconButton(
+                            icon: const Icon(Icons.download),
+                            tooltip: 'Guardar comprobante',
+                            onPressed: () =>
+                                _guardarComprobante(header!, items),
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.print),
                             tooltip: 'Imprimir comprobante',
                             onPressed: () =>
@@ -313,6 +320,41 @@ class _SalesScreenState extends State<SalesScreen> {
     );
 
     return pdf.save();
+  }
+
+  Future<void> _guardarComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Permiso de almacenamiento denegado')),
+          );
+          return;
+        }
+      }
+
+      final bytes = await _generarPdfComprobante(header, items);
+      final dir = await FileHelper.getVentasDir();
+      final ventaId = header['id'] as int? ?? 0;
+      final cliente = header['clienteNombre']?.toString() ??
+          'Consumidor Final';
+      final file = File(
+          '${dir.path}/${FileNamer.factura(ventaId, cliente)}');
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Comprobante guardado en ${file.path}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar comprobante: $e')),
+      );
+    }
   }
 
   Future<void> _compartirComprobante(
