@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:confetti/confetti.dart';
 import '../models/cliente.dart';
 import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
@@ -41,6 +42,7 @@ class _SalesScreenState extends State<SalesScreen> {
   void dispose() {
     _debounce?.cancel();
     _productoCtrl.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -49,12 +51,15 @@ class _SalesScreenState extends State<SalesScreen> {
   final List<Map<String, dynamic>> _carrito = [];
 
   late Future<List<Map<String, dynamic>>> _ventasFuture;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
     _ventasFuture = dbService.getVentas();
     _cargarClientes();
+    _confettiController =
+        ConfettiController(duration: const Duration(milliseconds: 500));
   }
 
   Future<void> _verDetalleVenta(int ventaId) async {
@@ -932,6 +937,7 @@ class _SalesScreenState extends State<SalesScreen> {
       // Refrescar listado con los filtros actuales
       await _cargarVentasFiltradas();
 
+      _confettiController.play();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Venta registrada correctamente!")),
       );
@@ -1027,11 +1033,13 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Ventas")),
-      body: ArticBackground(
-        child: ArticContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: Stack(
+        children: [
+          ArticBackground(
+            child: ArticContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               _buildFiltros(),
               const SizedBox(height: 10),
               Expanded(
@@ -1079,6 +1087,22 @@ class _SalesScreenState extends State<SalesScreen> {
             ],
           ),
         ),
+      ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 10,
+              emissionFrequency: 0.05,
+              maxBlastForce: 8,
+              minBlastForce: 2,
+              gravity: 0.1,
+              colors: const [Colors.teal, Colors.blueGrey],
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _abrirCarrito,
