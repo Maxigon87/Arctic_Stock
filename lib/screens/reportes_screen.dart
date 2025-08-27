@@ -531,12 +531,32 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
               // Botones existentes
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 229, 140, 140), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text("Generar PDF"),
                 onPressed: () => _generarReporteFiltrado(context),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 140, 229, 144), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
                 icon: const Icon(Icons.table_chart),
                 label: const Text("Exportar Excel"),
                 onPressed: () => _exportarExcelMensual(context),
@@ -544,6 +564,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
               const SizedBox(height: 20),
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 209, 154, 241), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
                 icon: const Icon(Icons.inventory),
                 label: const Text("Reporte de Productos"),
                 onPressed: () => _generarReporteProductos(context),
