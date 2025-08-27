@@ -250,32 +250,35 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                   fontWeight: FontWeight.bold),
                                             ),
 
-                                            Text(
-                                                'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
-                                            if ((p['descripcion'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: Text(
-                                                  p['descripcion'],
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                            subtitle: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Precio: ${_money(precio)}',
                                                   style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic),
+                                                      fontWeight:
+                                                          FontWeight.bold),
                                                 ),
-                                              ),
-                                          ],
-                                        ),
-                                        onTap: widget.selectMode
-                                            ? ((sinStock || inactivo)
-                                                ? null
-                                                : () => Navigator.pop(
-                                                    context, p))
-                                            : null,
-
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: Text(
+                                                    p['descripcion'] ?? '',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            onTap: widget.selectMode
+                                                ? ((sinStock || inactivo)
+                                                    ? null
+                                                    : () => Navigator.pop(
+                                                        context, p))
+                                                : () =>
+                                                    _mostrarDetallesProducto(p),
                                         trailing: widget.selectMode
                                             ? null
                                             : PopupMenuButton<String>(
