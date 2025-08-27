@@ -204,7 +204,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
-                              childAspectRatio: 3,
+                              mainAxisExtent: 180,
                               mainAxisSpacing: 8,
                               crossAxisSpacing: 8,
                             ),
@@ -240,54 +240,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     padding: const EdgeInsets.all(8),
                                     child: Stack(
                                       children: [
-                                        ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          title: Text(
-                                            p['nombre'] ?? '',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if ((p['codigo'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                              Text('Código: ${p['codigo']}'),
-                                            Text(
-                                              'Precio: ${_money(precio)}  |  Costo: ${_money(costo)}  |  Stock: ${p['stock'] ?? 0}',
-                                              style: TextStyle(
-                                                color: utilidad < 0
-                                                    ? Colors.red
-                                                    : null,
-                                                fontWeight: utilidad < 0
-                                                    ? FontWeight.w600
-                                                    : FontWeight.normal,
-                                              ),
+                                          ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: Text(
+                                              p['nombre'] ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold),
                                             ),
-                                            Text(
-                                                'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
-                                            if ((p['descripcion'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                              Text(
-                                                p['descripcion'],
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                    fontStyle:
-                                                        FontStyle.italic),
-                                              ),
-                                          ],
-                                        ),
-                                        onTap: widget.selectMode
-                                            ? ((sinStock || inactivo)
-                                                ? null
-                                                : () => Navigator.pop(
-                                                    context, p))
-                                            : null,
+                                            subtitle: Text(
+                                              'Precio: ${_money(precio)}',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold),
+                                            ),
+                                            onTap: widget.selectMode
+                                                ? ((sinStock || inactivo)
+                                                    ? null
+                                                    : () => Navigator.pop(
+                                                        context, p))
+                                                : () => _mostrarDetallesProducto(p),
                                         trailing: widget.selectMode
                                             ? null
                                             : PopupMenuButton<String>(
@@ -439,6 +411,60 @@ class _ProductListScreenState extends State<ProductListScreen> {
               onPressed: _goToCreate,
               child: const Icon(Icons.add),
             ),
+    );
+  }
+
+  void _mostrarDetallesProducto(Map<String, dynamic> p) {
+    final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+    final costo = (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p['nombre'] ?? '',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    if ((p['codigo'] ?? '').toString().isNotEmpty)
+                      Text('Código: ${p['codigo']}'),
+                    Text('Precio: ${_money(precio)}',
+                        style:
+                            const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Costo: ${_money(costo)}'),
+                    Text('Stock: ${p['stock'] ?? 0}'),
+                    Text(
+                        'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                    if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(p['descripcion']),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
