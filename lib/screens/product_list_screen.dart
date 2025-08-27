@@ -249,17 +249,33 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               style: const TextStyle(
                                                   fontWeight: FontWeight.bold),
                                             ),
-                                            subtitle: Text(
-                                              'Precio: ${_money(precio)}',
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold),
-                                            ),
-                                            onTap: widget.selectMode
-                                                ? ((sinStock || inactivo)
-                                                    ? null
-                                                    : () => Navigator.pop(
-                                                        context, p))
-                                                : () => _mostrarDetallesProducto(p),
+
+                                            Text(
+                                                'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                                            if ((p['descripcion'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: Text(
+                                                  p['descripcion'],
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        onTap: widget.selectMode
+                                            ? ((sinStock || inactivo)
+                                                ? null
+                                                : () => Navigator.pop(
+                                                    context, p))
+                                            : null,
+
                                         trailing: widget.selectMode
                                             ? null
                                             : PopupMenuButton<String>(
