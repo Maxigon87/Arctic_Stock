@@ -214,6 +214,8 @@ class _SalesScreenState extends State<SalesScreen> {
                               ),
                             ],
 
+
+
                           ),
                         ],
                       )
@@ -237,6 +239,9 @@ class _SalesScreenState extends State<SalesScreen> {
       Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
     final pdf = pw.Document();
     const lineWidth = 32;
+    final logoData =
+        await rootBundle.load('assets/logo/logo_sin_titulo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
 
     String _repeat(String char, int times) => List.filled(times, char).join();
 
@@ -313,9 +318,16 @@ class _SalesScreenState extends State<SalesScreen> {
       pw.Page(
         pageFormat: PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
         margin: const pw.EdgeInsets.all(5),
-        build: (_) => pw.Text(
-          linesOut.join('\n'),
-          style: pw.TextStyle(font: font, fontSize: 8),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Center(child: pw.Image(logoImage, width: 40)),
+            pw.SizedBox(height: 5),
+            pw.Text(
+              linesOut.join('\n'),
+              style: pw.TextStyle(font: font, fontSize: 8),
+            ),
+          ],
         ),
       ),
     );
