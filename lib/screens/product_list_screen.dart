@@ -236,19 +236,22 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       width: 2,
                                     ),
                                   ),
-                                  child: Stack(
-                                    children: [
-                                      ListTile(
-                                        title: Text(
-                                          p['nombre'] ?? '',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            if ((p['codigo'] ?? '')
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Stack(
+                                      children: [
+                                        ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          title: Text(
+                                            p['nombre'] ?? '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              if ((p['codigo'] ?? '')
                                                 .toString()
                                                 .isNotEmpty)
                                               Text('Código: ${p['codigo']}'),
@@ -385,38 +388,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                 ],
                                               ),
                                       ),
-                                      if (sinStock)
-                                        Positioned(
-                                          top: 6,
-                                          right: 6,
-                                          child: _chip('SIN STOCK',
-                                              Colors.red.shade700),
-                                        ),
-                                      if (inactivo)
-                                        Positioned(
-                                          top: 6,
-                                          left: 6,
-                                          child: _chip('INACTIVO',
-                                              Colors.grey.shade700),
-                                        ),
-                                      if (utilidad < 0 && !inactivo)
-                                        Positioned(
-                                          bottom: 6,
-                                          right: 6,
-                                          child: Row(
-                                            children: const [
-                                              Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  size: 16,
-                                                  color: Colors.amber),
-                                              SizedBox(width: 4),
-                                              Text("Vendiendo con pérdida",
-                                                  style: TextStyle(
-                                                      fontSize: 12)),
-                                            ],
+                                        if (sinStock)
+                                          Positioned(
+                                            top: 0,
+                                            right: 0,
+                                            child: _chip('SIN STOCK',
+                                                Colors.red.shade700),
                                           ),
-                                        ),
-                                    ],
+                                        if (inactivo)
+                                          Positioned(
+                                            top: 0,
+                                            left: 0,
+                                            child: _chip('INACTIVO',
+                                                Colors.grey.shade700),
+                                          ),
+                                        if (utilidad < 0 && !inactivo)
+                                          Positioned(
+                                            bottom: 0,
+                                            right: 0,
+                                            child: Row(
+                                              children: const [
+                                                Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    size: 16,
+                                                    color: Colors.amber),
+                                                SizedBox(width: 4),
+                                                Text("Vendiendo con pérdida",
+                                                    style: TextStyle(
+                                                        fontSize: 12)),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );
