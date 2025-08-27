@@ -461,24 +461,64 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      p['nombre'] ?? '',
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+
+                    Center(
+                      child: Text(
+                        p['nombre'] ?? '',
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    if ((p['codigo'] ?? '').toString().isNotEmpty)
-                      Text('Código: ${p['codigo']}'),
-                    Text('Precio: ${_money(precio)}',
-                        style:
-                            const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Costo: ${_money(costo)}'),
-                    Text('Stock: ${p['stock'] ?? 0}'),
-                    Text(
-                        'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
+                    const Divider(),
+                    if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.qr_code),
+                        title: const Text('Código'),
+                        trailing: Text(p['codigo'].toString()),
+                      ),
+                      const Divider(),
+                    ],
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.attach_money),
+                      title: const Text('Precio'),
+                      trailing: Text(
+                        _money(precio),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.monetization_on_outlined),
+                      title: const Text('Costo'),
+                      trailing: Text(_money(costo)),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.inventory_2_outlined),
+                      title: const Text('Stock'),
+                      trailing: Text((p['stock'] ?? 0).toString()),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.category),
+                      title: const Text('Categoría'),
+                      trailing:
+                          Text(p['categoria_nombre'] ?? 'Sin categoría'),
+                    ),
                     if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(p['descripcion']),
+                      const Divider(),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.description),
+                        title: const Text('Descripción'),
+                        subtitle: Text(p['descripcion']),
+                      ),
                     ],
                   ],
                 ),
