@@ -212,13 +212,10 @@ class _SalesScreenState extends State<SalesScreen> {
                                 onPressed: () => Navigator.pop(context),
                                 child: const Text("Cerrar"),
                               ),
-                            ],
-
-
-
-                          ),
-                        ],
-                      )
+                              ],
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
