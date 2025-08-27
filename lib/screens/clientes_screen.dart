@@ -180,10 +180,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                       subtitle: Text(
                                         c.telefono ?? "",
                                         style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? Colors.white.withOpacity(0.7)
-                                              : Colors.black,
+                                          // Use theme-based color so it adapts to light and dark modes.
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.7),
                                           fontSize: 13,
                                         ),
                                       ),
