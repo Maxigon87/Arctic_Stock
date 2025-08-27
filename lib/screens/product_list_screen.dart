@@ -249,6 +249,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               style: const TextStyle(
                                                   fontWeight: FontWeight.bold),
                                             ),
+
                                             subtitle: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
