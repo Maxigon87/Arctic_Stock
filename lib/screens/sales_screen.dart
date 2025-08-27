@@ -182,6 +182,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
+
                           Text("TOTAL: ${_money(total)}",
                               style: const TextStyle(
                                 fontSize: 18,
@@ -212,6 +213,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                 child: const Text("Cerrar"),
                               ),
                             ],
+
                           ),
                         ],
                       )
