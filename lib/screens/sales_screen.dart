@@ -178,41 +178,42 @@ class _SalesScreenState extends State<SalesScreen> {
 
                       const Divider(),
 
-                      // Total (por las dudas)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text("TOTAL: ${_money(total)}",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            )),
-                      ),
-
-                      const SizedBox(height: 8),
+                      // Total y acciones
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.share),
-                            tooltip: 'Compartir comprobante',
-                            onPressed: () =>
-                                _compartirComprobante(header!, items),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.download),
-                            tooltip: 'Guardar comprobante',
-                            onPressed: () =>
-                                _guardarComprobante(header!, items),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.print),
-                            tooltip: 'Imprimir comprobante',
-                            onPressed: () =>
-                                _imprimirComprobante(header!, items),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text("Cerrar"),
+
+                          Text("TOTAL: ${_money(total)}",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              )),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.share),
+                                tooltip: 'Compartir comprobante',
+                                onPressed: () =>
+                                    _compartirComprobante(header!, items),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.download),
+                                tooltip: 'Guardar comprobante',
+                                onPressed: () =>
+                                    _guardarComprobante(header!, items),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.print),
+                                tooltip: 'Imprimir comprobante',
+                                onPressed: () =>
+                                    _imprimirComprobante(header!, items),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text("Cerrar"),
+                              ),
+                            ],
+
                           ),
                         ],
                       )
