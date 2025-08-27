@@ -204,7 +204,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
-                              childAspectRatio: 3,
+                              mainAxisExtent: 180,
                               mainAxisSpacing: 8,
                               crossAxisSpacing: 8,
                             ),
@@ -271,14 +271,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             if ((p['descripcion'] ?? '')
                                                 .toString()
                                                 .isNotEmpty)
-                                              Text(
-                                                p['descripcion'],
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                    fontStyle:
-                                                        FontStyle.italic),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: Text(
+                                                  p['descripcion'],
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
                                               ),
                                           ],
                                         ),
