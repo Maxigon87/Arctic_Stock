@@ -168,6 +168,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onTap: () async {
             final file = await BackupService.exportBackup();
             if (file != null) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('✅ Respaldo guardado: ${file.path}')),
+              );
               await Share.shareXFiles([XFile(file.path)]);
             }
           },
