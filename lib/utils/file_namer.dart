@@ -21,6 +21,14 @@ class FileNamer {
     return 'reporte_productos_$date.pdf';
   }
 
+  /// Nombre para reporte de ingresos en PDF
+  static String reporteIngresosPdf() {
+    final now = DateTime.now();
+    final date =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return 'reporte_ingresos_$date.pdf';
+  }
+
   /// Nombre para reporte mensual en Excel
   static String reporteExcel() {
     final now = DateTime.now();

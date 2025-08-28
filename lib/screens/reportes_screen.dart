@@ -531,6 +531,110 @@ class _ReportesScreenState extends State<ReportesScreen> {
         text: "📄 Reporte de Productos");
   }
 
+  // ---- PDF con listado de ingresos de stock ----
+  Future<void> _generarReporteIngresos(BuildContext context) async {
+    final ingresos =
+        await dbService.getIngresosStock(desde: desde, hasta: hasta);
+
+    final logoBytes =
+        await rootBundle.load('assets/logo/logo_con_titulo.png');
+    final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
+
+    DateTime baseDate = (desde ??
+        (ingresos.isNotEmpty
+            ? DateTime.parse(ingresos.first['fecha'] as String)
+            : DateTime.now()));
+    final String monthName = DateFormat.MMMM('es_ES').format(baseDate);
+    final int year = baseDate.year;
+
+    String? rangoVisible;
+    if (desde != null && hasta != null) {
+      final f = DateFormat('dd/MM/yyyy');
+      rangoVisible = 'Período: ${f.format(desde!)} – ${f.format(hasta!)}';
+    }
+
+    final numberFmt = NumberFormat.decimalPattern('es_AR');
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.MultiPage(
+        pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(24)),
+        build: (context) {
+          final widgets = <pw.Widget>[];
+
+          widgets.add(pw.Center(child: pw.Image(logo, width: 80)));
+          widgets.add(pw.SizedBox(height: 8));
+          widgets.add(
+            pw.Text(
+              'Reporte de ingresos de stock - $monthName $year',
+              style: pw.TextStyle(
+                  fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+          );
+
+          if (rangoVisible != null) {
+            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(pw.Text(rangoVisible,
+                style: const pw.TextStyle(fontSize: 11)));
+          }
+
+          widgets.add(pw.SizedBox(height: 16));
+
+          if (ingresos.isEmpty) {
+            widgets.add(pw.Text('No hay ingresos en este período.',
+                style: const pw.TextStyle(fontSize: 12)));
+            return widgets;
+          }
+
+          final headers = ['Fecha', 'Producto', 'Cant.', 'Tipo', 'Nota'];
+          final data = ingresos.map((r) {
+            final fecha =
+                DateTime.tryParse((r['fecha'] ?? '').toString());
+            final fechaStr = fecha != null ? _fmt(fecha) : '-';
+            final producto = (r['producto'] ?? '').toString();
+            final cant =
+                numberFmt.format((r['cantidad'] as num?)?.toInt() ?? 0);
+            final tipo = (r['tipo'] ?? '').toString();
+            final nota = (r['nota'] ?? '').toString();
+            return [fechaStr, producto, cant, tipo, nota];
+          }).toList();
+
+          widgets.add(
+            pw.Table.fromTextArray(
+              headers: headers,
+              data: data,
+              headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.blue),
+              cellStyle: const pw.TextStyle(fontSize: 11),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerLeft,
+                2: pw.Alignment.centerRight,
+                3: pw.Alignment.centerLeft,
+                4: pw.Alignment.centerLeft,
+              },
+            ),
+          );
+
+          return widgets;
+        },
+      ),
+    );
+
+    final dir = await FileHelper.getReportesDir();
+    final file = File('${dir.path}/${FileNamer.reporteIngresosPdf()}')
+      ..createSync(recursive: true);
+    await file.writeAsBytes(await pdf.save());
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
+    );
+    await Share.shareXFiles([XFile(file.path)],
+        text: "📄 Reporte de Ingresos");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -591,6 +695,22 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 icon: const Icon(Icons.inventory),
                 label: const Text("Reporte de Productos"),
                 onPressed: () => _generarReporteProductos(context),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 173, 201, 255), // azul suave
+                  foregroundColor: Colors.black,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
+                icon: const Icon(Icons.receipt_long),
+                label: const Text("Reporte de Ingresos"),
+                onPressed: () => _generarReporteIngresos(context),
               ),
 
               const SizedBox(height: 24),
