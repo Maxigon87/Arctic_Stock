@@ -707,9 +707,20 @@ class _SalesScreenState extends State<SalesScreen> {
                                                       const InputDecoration(
                                                           isDense: true),
                                                   onChanged: (value) async {
+                                                    final cantidadAnterior =
+                                                        (p['cantidad'] as num)
+                                                            .toInt();
                                                     final nuevaCantidad =
                                                         int.tryParse(value) ??
                                                             0;
+
+                                                    // Control de versión para evitar validaciones concurrentes
+                                                    final currentVersion =
+                                                        (p['cantidadVersion'] ??
+                                                                0) +
+                                                            1;
+                                                    p['cantidadVersion'] =
+                                                        currentVersion;
 
                                                     if (nuevaCantidad <= 0) {
                                                       ScaffoldMessenger.of(
@@ -720,17 +731,15 @@ class _SalesScreenState extends State<SalesScreen> {
                                                                 'Cantidad inválida')),
                                                       );
                                                       setLocalState(() {
-                                                        final actual =
-                                                            (p['cantidad']
-                                                                    as num)
-                                                                .toInt();
                                                         final precio =
                                                             (p['precioUnit']
                                                                     as num)
                                                                 .toDouble();
-                                                        p['cantidad'] = actual;
+                                                        p['cantidad'] =
+                                                            cantidadAnterior;
                                                         p['subtotal'] =
-                                                            precio * actual;
+                                                            precio *
+                                                                cantidadAnterior;
                                                       });
                                                       return;
                                                     }
@@ -739,6 +748,13 @@ class _SalesScreenState extends State<SalesScreen> {
                                                         await _stockDisponible(
                                                             p['productoId']
                                                                 as int);
+
+                                                    // Si hay una nueva edición, se descarta esta validación
+                                                    if (p['cantidadVersion'] !=
+                                                        currentVersion) {
+                                                      return;
+                                                    }
+
                                                     if (nuevaCantidad > stock) {
                                                       ScaffoldMessenger.of(
                                                               context)
@@ -748,17 +764,15 @@ class _SalesScreenState extends State<SalesScreen> {
                                                                 'Solo hay $stock unidades disponibles')),
                                                       );
                                                       setLocalState(() {
-                                                        final actual =
-                                                            (p['cantidad']
-                                                                    as num)
-                                                                .toInt();
                                                         final precio =
                                                             (p['precioUnit']
                                                                     as num)
                                                                 .toDouble();
-                                                        p['cantidad'] = actual;
+                                                        p['cantidad'] =
+                                                            cantidadAnterior;
                                                         p['subtotal'] =
-                                                            precio * actual;
+                                                            precio *
+                                                                cantidadAnterior;
                                                       });
                                                       return;
                                                     }

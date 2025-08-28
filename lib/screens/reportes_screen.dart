@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
+import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -133,7 +134,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
     final logoBytes = await rootBundle.load('assets/logo/logo_con_titulo.png');
     final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
-
+    final numberFmt = NumberFormat.decimalPattern('es_AR');
     final pdf = pw.Document();
     pdf.addPage(
       pw.MultiPage(
@@ -237,17 +238,29 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Expanded(
-                          child: pw.Text(
-                            desc.isEmpty ? prod : '$prod — $desc',
-                            style: const pw.TextStyle(fontSize: 12),
-                          ),
+                          child: desc.isEmpty
+                              ? pw.Text(prod,
+                                  style: const pw.TextStyle(fontSize: 12))
+                              : pw.Text.rich(
+                                  pw.TextSpan(children: [
+                                    pw.TextSpan(
+                                        text: '$prod — ',
+                                        style:
+                                            const pw.TextStyle(fontSize: 12)),
+                                    pw.TextSpan(
+                                        text: desc,
+                                        style: const pw.TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: pw.FontStyle.italic)),
+                                  ]),
+                                ),
                         ),
                         pw.Text(
-                          '\$${pu.toStringAsFixed(2)}',
+                          formatCurrency(pu),
                           style: const pw.TextStyle(fontSize: 12),
                         ),
                         pw.SizedBox(width: 4),
-                        pw.Text('x$cant',
+                        pw.Text('x${numberFmt.format(cant)}',
                             style: const pw.TextStyle(fontSize: 12)),
                       ],
                     ),
@@ -278,11 +291,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                     pw.Text(
-                      'Cantidad de productos: $totalUnidades',
+                      'Cantidad de productos: ${numberFmt.format(totalUnidades)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                     pw.Text(
-                      'Total de la compra: \$${precioTotal.toStringAsFixed(2)}',
+                      'Total de la compra: ${formatCurrency(precioTotal)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                   ],
@@ -446,6 +459,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
     final categorias = porCat.keys.toList()..sort();
 
+    final numberFmt = NumberFormat.decimalPattern('es_AR');
     final pdf = pw.Document();
     pdf.addPage(
       pw.MultiPage(
@@ -484,11 +498,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         child: pw.Text(nombre,
                             style: const pw.TextStyle(fontSize: 12)),
                       ),
-                      pw.Text('Stock: $stock',
+                      pw.Text('Stock: ${numberFmt.format(stock)}',
                           style: const pw.TextStyle(fontSize: 12)),
                       pw.SizedBox(width: 12),
                       pw.Text(
-                        '\$${precio.toStringAsFixed(2)}',
+                        formatCurrency(precio),
                         style: const pw.TextStyle(fontSize: 12),
                       ),
                     ],
