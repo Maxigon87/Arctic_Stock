@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // En TODAS las pantallas, unifica así:
 import '../Services/db_service.dart';
+import '../utils/currency_formatter.dart';
 
 import 'product_form.dart';
 
@@ -93,12 +94,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<void> _restoreProducto(int id) async {
     await db.activarProducto(id); // ⬅️ requiere el método de abajo en DBService
     _loadProductos();
-  }
-
-  String _money(dynamic n) {
-    if (n == null) return "\$0.00";
-    final d = (n as num).toDouble();
-    return "\$${d.toStringAsFixed(2)}";
   }
 
   Widget _buildFiltros() {
@@ -259,7 +254,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
-                                                  'Precio: ${_money(precio)}',
+                                                  'Precio: ${formatCurrency(precio)}',
                                                   style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold),
@@ -485,7 +480,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       leading: const Icon(Icons.attach_money),
                       title: const Text('Precio'),
                       trailing: Text(
-                        _money(precio),
+                        formatCurrency(precio),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -494,7 +489,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.monetization_on_outlined),
                       title: const Text('Costo'),
-                      trailing: Text(_money(costo)),
+                      trailing: Text(formatCurrency(costo)),
                     ),
                     const Divider(),
                     ListTile(

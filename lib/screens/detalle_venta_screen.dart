@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/db_service.dart';
+import '../utils/currency_formatter.dart';
 
 class DetalleVentaScreen extends StatefulWidget {
   final int ventaId; // ✅ ahora solo recibe el ID de la venta
@@ -42,9 +43,9 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
               children: [
                 // ✅ Datos generales de la venta
                 ListTile(
-                  title: Text("Cliente: ${venta!['cliente'] ?? 'Sin asignar'}"),
-                  subtitle: Text("Fecha: ${venta!['fecha']}"),
-                  trailing: Text("Total: \$${venta!['total']}"),
+                  title: Text("Cliente: " + (venta!['cliente'] ?? 'Sin asignar')),
+                  subtitle: Text("Fecha: " + venta!['fecha'].toString()),
+                  trailing: Text("Total: " + formatCurrency(venta!['total'])),
                 ),
                 const Divider(),
 
@@ -66,9 +67,10 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
                       return ListTile(
                         title: Text(item['producto']),
                         subtitle: Text(
-                          "Cantidad: ${item['cantidad']} x \$${item['precioUnitario']}",
+                          "Cantidad: " + item['cantidad'].toString() +
+                              " x " + formatCurrency(item['precioUnitario']),
                         ),
-                        trailing: Text("\$${item['subtotal']}"),
+                        trailing: Text(formatCurrency(item['subtotal'])),
                       );
                     },
                   ),

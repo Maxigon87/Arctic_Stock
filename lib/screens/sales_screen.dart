@@ -15,6 +15,7 @@ import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
+import '../utils/currency_formatter.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -128,7 +129,7 @@ class _SalesScreenState extends State<SalesScreen> {
                           Chip(
                               label: Text(
                                   "Método: ${header?['metodoPago'] ?? '—'}")),
-                          Chip(label: Text("Total: ${_money(total)}")),
+                          Chip(label: Text("Total: ${formatCurrency(total)}")),
                         ],
                       ),
 
@@ -171,9 +172,9 @@ class _SalesScreenState extends State<SalesScreen> {
                                     dense: true,
                                     title: Text("$nombre"),
                                     subtitle: Text(
-                                      "Cant: $cant · PU: ${_money(pu)} · Costo: ${_money(cu)}$codigo",
+                                      "Cant: $cant · PU: ${formatCurrency(pu)} · Costo: ${formatCurrency(cu)}$codigo",
                                     ),
-                                    trailing: Text(_money(sub),
+                                    trailing: Text(formatCurrency(sub),
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w600)),
                                   );
@@ -188,7 +189,7 @@ class _SalesScreenState extends State<SalesScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
 
-                          Text("TOTAL: ${_money(total)}",
+                          Text("TOTAL: ${formatCurrency(total)}",
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -306,13 +307,13 @@ class _SalesScreenState extends State<SalesScreen> {
       final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
 
       _addWrapped(linesOut, nombre);
-      _addTwoCols(linesOut, '${cant} x ${pu.toStringAsFixed(2)}',
-          '\$${sub.toStringAsFixed(2)}');
+      _addTwoCols(linesOut, '${cant} x ${formatCurrency(pu)}',
+          formatCurrency(sub));
       linesOut.add('');
     }
 
     linesOut.add(_repeat('-', lineWidth));
-    _addTwoCols(linesOut, 'TOTAL', '\$${total.toStringAsFixed(2)}');
+    _addTwoCols(linesOut, 'TOTAL', formatCurrency(total));
     linesOut.add(_repeat('-', lineWidth));
 
     final font = pw.Font.courier();
@@ -407,8 +408,6 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
 
-  String _money(num? n) => "\$${(n ?? 0).toStringAsFixed(2)}";
-
   // --- Helpers carrito / stock ------------------------------------------------
 
   Future<int> _stockDisponible(int productoId) async {
@@ -424,7 +423,7 @@ class _SalesScreenState extends State<SalesScreen> {
         title: const Text('Atención'),
         content: Text(
           'Este producto se venderá con pérdida.\n'
-          'Precio: ${precio.toStringAsFixed(2)} | Costo: ${costo.toStringAsFixed(2)}',
+          'Precio: ${formatCurrency(precio)} | Costo: ${formatCurrency(costo)}',
         ),
         actions: [
           TextButton(
@@ -674,7 +673,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                               false))
                                             Text('Código: ${p['codigo']}'),
                                           Text(
-                                            "Precio: ${_money(precioUnit)}  |  Costo: ${_money(costoUnit)}",
+                                            "Precio: ${formatCurrency(precioUnit)}  |  Costo: ${formatCurrency(costoUnit)}",
                                             style: TextStyle(
                                               color: conPerdida
                                                   ? Colors.red
@@ -779,7 +778,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                             ],
                                           ),
 
-                                          Text("Subtotal: ${_money(subtotal)}"),
+                                          Text("Subtotal: ${formatCurrency(subtotal)}"),
                                         ],
                                       ),
                                       trailing: IconButton(
@@ -807,7 +806,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       alignment: Alignment.centerRight,
                       child: Text(
-                        "TOTAL: ${_money(totalCarrito)}",
+                        "TOTAL: ${formatCurrency(totalCarrito)}",
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1071,7 +1070,7 @@ class _SalesScreenState extends State<SalesScreen> {
                           child: ListTile(
                               title: Text("Venta #${v['id']} - $cliente"),
                               subtitle: Text(
-                                "Total: ${_money(v['total'])} · "
+                                "Total: ${formatCurrency(v['total'])} · "
                                 "Método: ${v['metodoPago']} · "
                                 "Vendedor: $vendedor",
                               ),

@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
+import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -243,7 +244,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           ),
                         ),
                         pw.Text(
-                          '\$${pu.toStringAsFixed(2)}',
+                          formatCurrency(pu),
                           style: const pw.TextStyle(fontSize: 12),
                         ),
                         pw.SizedBox(width: 4),
@@ -282,7 +283,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                     pw.Text(
-                      'Total de la compra: \$${precioTotal.toStringAsFixed(2)}',
+                      'Total de la compra: ${formatCurrency(precioTotal)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                   ],
@@ -488,7 +489,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           style: const pw.TextStyle(fontSize: 12)),
                       pw.SizedBox(width: 12),
                       pw.Text(
-                        '\$${precio.toStringAsFixed(2)}',
+                        formatCurrency(precio),
                         style: const pw.TextStyle(fontSize: 12),
                       ),
                     ],

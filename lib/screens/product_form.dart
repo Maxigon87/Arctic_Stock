@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:ArticStock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
+import '../utils/currency_formatter.dart';
 
 class ProductForm extends StatefulWidget {
   final Map<String, dynamic>? initial; // null = crear, con datos = editar
@@ -57,14 +58,18 @@ class _ProductFormState extends State<ProductForm> {
 
   String _numToStr(dynamic n) {
     if (n == null) return '';
-    if (n is num) return n.toStringAsFixed(2);
+    if (n is num) return formatNumber(n);
     final parsed = double.tryParse(n.toString());
-    return parsed?.toStringAsFixed(2) ?? '';
+    return parsed != null ? formatNumber(parsed) : '';
   }
 
   double _toDouble(String s) {
-    // acepta coma o punto y quita separadores de miles
-    s = s.trim().replaceAll('.', '').replaceAll(',', '.');
+    // acepta coma o punto, espacios, y quita separadores de miles
+    s = s
+        .trim()
+        .replaceAll(RegExp(r'\s'), '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
     if (s.isEmpty) return 0;
     return double.tryParse(s) ?? 0;
   }
@@ -307,7 +312,7 @@ class _ProductFormState extends State<ProductForm> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Utilidad por unidad'),
-                subtitle: Text(utilidad.toStringAsFixed(2)),
+                subtitle: Text(formatCurrency(utilidad)),
                 trailing: Icon(
                   utilidad < 0
                       ? Icons.warning_amber
