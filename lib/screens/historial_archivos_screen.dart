@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
-
 import '../services/file_helper.dart';
-import '../utils/file_namer.dart';
 
 class HistorialArchivosScreen extends StatefulWidget {
   const HistorialArchivosScreen({super.key});
@@ -17,7 +16,10 @@ class HistorialArchivosScreen extends StatefulWidget {
 }
 
 class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
-  List<FileSystemEntity> archivos = [];
+  List<FileSystemEntity> archivosVentas = [];
+  List<FileSystemEntity> archivosReportes = [];
+  List<FileSystemEntity> archivosCatalogo = [];
+  List<FileSystemEntity> archivosProductos = [];
 
   @override
   void initState() {
@@ -28,12 +30,29 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
   Future<void> _cargarArchivos() async {
     final ventasDir = await FileHelper.getVentasDir();
     final reportesDir = await FileHelper.getReportesDir();
+    final catalogoDir = await FileHelper.getCatalogoDir();
 
-    final archivosVentas = ventasDir.listSync();
-    final archivosReportes = reportesDir.listSync();
+    final ventas = ventasDir.existsSync() ? ventasDir.listSync() : [];
+    final reportesAll =
+        reportesDir.existsSync() ? reportesDir.listSync() : [];
+    final reportes = reportesAll
+        .where((f) {
+          final name = f.path.split('/').last;
+          return name.startsWith('reporte_') &&
+              !name.startsWith('reporte_productos_');
+        })
+        .toList();
+    final productos = reportesAll
+        .where((f) =>
+            f.path.split('/').last.startsWith('reporte_productos_'))
+        .toList();
+    final catalogo = catalogoDir.existsSync() ? catalogoDir.listSync() : [];
 
     setState(() {
-      archivos = [...archivosVentas, ...archivosReportes];
+      archivosVentas = ventas;
+      archivosReportes = reportes;
+      archivosCatalogo = catalogo;
+      archivosProductos = productos;
     });
   }
 
@@ -49,16 +68,16 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Eliminar archivo"),
+        title: const Text('Eliminar archivo'),
         content:
-            const Text("¿Estás seguro de que deseas eliminar este archivo?"),
+            const Text('¿Estás seguro de que deseas eliminar este archivo?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancelar")),
+              child: const Text('Cancelar')),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text("Eliminar")),
+              child: const Text('Eliminar')),
         ],
       ),
     );
@@ -69,63 +88,90 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
     }
   }
 
+  bool get _todoVacio =>
+      archivosVentas.isEmpty &&
+      archivosReportes.isEmpty &&
+      archivosCatalogo.isEmpty &&
+      archivosProductos.isEmpty;
+
+  List<Widget> _buildSection(
+      String titulo, List<FileSystemEntity> archivos) {
+    if (archivos.isEmpty) return [];
+    return [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Text(
+          titulo,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+      ...archivos.map((f) => _buildArchivoCard(f as File)).toList(),
+    ];
+  }
+
+  Widget _buildArchivoCard(File file) {
+    final name = file.path.split('/').last;
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(
+          name.endsWith('.pdf')
+              ? Icons.picture_as_pdf
+              : Icons.insert_drive_file,
+          color: Colors.cyanAccent,
+        ),
+        title:
+            Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          file.path,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 12,
+          ),
+        ),
+        onTap: () => _abrirArchivo(file),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.share, color: Colors.blue),
+              onPressed: () => _compartirArchivo(file),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _borrarArchivo(file),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Historial de Archivos")),
+      appBar: AppBar(title: const Text('Historial de Archivos')),
       body: ArticBackground(
         child: ArticContainer(
-          child: archivos.isEmpty
-              ? const Center(child: Text("No hay archivos guardados"))
-              : ListView.builder(
-                  shrinkWrap: true, // ✅ importante para que no rompa layout
+          child: _todoVacio
+              ? const Center(child: Text('No hay archivos guardados'))
+              : ListView(
+                  shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
-                  itemCount: archivos.length,
-                  itemBuilder: (_, i) {
-                    final file = archivos[i] as File;
-                    final name = file.path.split('/').last;
-
-                    return Card(
-                      // ✅ ahora con estilo de tarjeta
-                      elevation: 3,
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        leading: Icon(
-                          name.endsWith('.pdf')
-                              ? Icons.picture_as_pdf
-                              : Icons.insert_drive_file,
-                          color: Colors.cyanAccent,
-                        ),
-                        title: Text(name,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(file.path,
-                            style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 12)),
-                        onTap: () => _abrirArchivo(file),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.share, color: Colors.blue),
-                              onPressed: () => _compartirArchivo(file),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _borrarArchivo(file),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                  children: [
+                    ..._buildSection('Reportes del mes', archivosReportes),
+                    ..._buildSection('Catálogo', archivosCatalogo),
+                    ..._buildSection('Ventas', archivosVentas),
+                    ..._buildSection('Productos', archivosProductos),
+                  ],
                 ),
         ),
       ),
     );
   }
 }
+
