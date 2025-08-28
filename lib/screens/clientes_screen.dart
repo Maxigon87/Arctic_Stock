@@ -36,6 +36,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   void _showClienteDialog({Cliente? cliente}) {
     final nombreCtrl = TextEditingController(text: cliente?.nombre ?? '');
+    final dniCtrl = TextEditingController(text: cliente?.dni ?? '');
     final telefonoCtrl = TextEditingController(text: cliente?.telefono ?? '');
     final emailCtrl = TextEditingController(text: cliente?.email ?? '');
     final direccionCtrl = TextEditingController(text: cliente?.direccion ?? '');
@@ -50,6 +51,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
               TextField(
                   controller: nombreCtrl,
                   decoration: const InputDecoration(labelText: "Nombre")),
+              TextField(
+                  controller: dniCtrl,
+                  decoration: const InputDecoration(labelText: "DNI")),
               TextField(
                   controller: telefonoCtrl,
                   decoration: const InputDecoration(labelText: "Teléfono")),
@@ -88,9 +92,18 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 return;
               }
 
+              final email = emailCtrl.text.trim();
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+              if (email.isNotEmpty && !emailRegex.hasMatch(email)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("⚠️ El correo no es válido")),
+                );
+                return;
+              }
               final nuevo = Cliente(
                 id: cliente?.id,
                 nombre: nombreCtrl.text,
+                dni: dniCtrl.text,
                 telefono: telefonoCtrl.text,
                 email: emailCtrl.text,
                 direccion: direccionCtrl.text,
@@ -115,6 +128,31 @@ class _ClientesScreenState extends State<ClientesScreen> {
   Future<void> _deleteCliente(int id) async {
     await DBService().deleteCliente(id);
     _loadClientes();
+  }
+
+  void _showClienteInfo(Cliente cliente) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Detalles del cliente'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nombre: ${cliente.nombre}'),
+            Text('DNI: ${cliente.dni ?? ''}'),
+            Text('Teléfono: ${cliente.telefono ?? ''}'),
+            Text('Email: ${cliente.email ?? ''}'),
+            Text('Dirección: ${cliente.direccion ?? ''}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar')),
+        ],
+      ),
+    );
   }
 
   @override
@@ -174,6 +212,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                         borderRadius:
                                             BorderRadius.circular(12)),
                                     child: ListTile(
+                                      onTap: () => _showClienteInfo(c),
                                       title: Text(c.nombre,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.bold)),
