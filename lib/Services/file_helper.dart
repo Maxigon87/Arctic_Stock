@@ -47,7 +47,7 @@ class FileHelper {
   /// Obtiene (y crea si no existe) la carpeta donde se guardan los respaldos
   static Future<Directory> getBackupsDir() async {
     final root = await _getRootDir();
-    final backupsDir = Directory('${root.path}/Arctic stock Backups');
+    final backupsDir = Directory('${root.path}/Arctic Stock Respaldo');
     if (!await backupsDir.exists()) {
       await backupsDir.create(recursive: true);
     }
