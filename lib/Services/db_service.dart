@@ -48,7 +48,7 @@ class DBService {
     }
 
     final dbPath = await databaseFactory.getDatabasesPath();
-    final path = join(dbPath, 'jeremias.db');
+    final path = join(dbPath, 'arctic_stock.db');
 
     return await databaseFactory.openDatabase(
       path,
@@ -893,7 +893,8 @@ class DBService {
     // Obtener datos de la deuda para actualizar la venta asociada
     final deuda = await db.query('deudas',
         columns: ['clienteId', 'ventaId'], where: 'id = ?', whereArgs: [id]);
-    final clienteId = deuda.isNotEmpty ? deuda.first['clienteId'] as int? : null;
+    final clienteId =
+        deuda.isNotEmpty ? deuda.first['clienteId'] as int? : null;
     final ventaId = deuda.isNotEmpty ? deuda.first['ventaId'] as int? : null;
 
     // Actualizar estado y fecha de pago de la deuda
@@ -933,24 +934,24 @@ class DBService {
   }
 
   Future<int> countDeudasCliente(int clienteId) async {
-  final db = await database;
-  final res = await db.rawQuery(
-    'SELECT COUNT(*) AS cantidad FROM deudas WHERE clienteId = ? AND estado = ?',
-    [clienteId, 'Pendiente'],
-  );
-  final v = res.isNotEmpty ? res.first['cantidad'] : 0;
-  return (v is int) ? v : (v as num?)?.toInt() ?? 0;
-}
-  
+    final db = await database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) AS cantidad FROM deudas WHERE clienteId = ? AND estado = ?',
+      [clienteId, 'Pendiente'],
+    );
+    final v = res.isNotEmpty ? res.first['cantidad'] : 0;
+    return (v is int) ? v : (v as num?)?.toInt() ?? 0;
+  }
+
   Future<int> countDeudasClienteTotal(int clienteId) async {
-  final db = await database;
-  final res = await db.rawQuery(
-    'SELECT COUNT(*) AS total FROM deudas WHERE clienteId = ?',
-    [clienteId],
-  );
-  final v = res.isNotEmpty ? res.first['total'] : 0;
-  return (v is int) ? v : (v as num?)?.toInt() ?? 0;
-}
+    final db = await database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM deudas WHERE clienteId = ?',
+      [clienteId],
+    );
+    final v = res.isNotEmpty ? res.first['total'] : 0;
+    return (v is int) ? v : (v as num?)?.toInt() ?? 0;
+  }
 
   Future<int> insertItemVenta(Map<String, dynamic> data) async {
     final db = await database;

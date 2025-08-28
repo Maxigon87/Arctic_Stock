@@ -15,15 +15,14 @@ class BackupService {
     final dbFile = File(dbPath);
 
     final backupsDir = await FileHelper.getBackupsDir();
-    final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-');
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
     final zipPath = p.join(backupsDir.path, 'backup_$timestamp.zip');
 
     final archive = Archive();
 
     if (await dbFile.exists()) {
       final bytes = await dbFile.readAsBytes();
-      archive.addFile(ArchiveFile('jeremias.db', bytes.length, bytes));
+      archive.addFile(ArchiveFile('arctic_stock.db', bytes.length, bytes));
     }
 
     final assetsDir = Directory('assets');
@@ -61,15 +60,14 @@ class BackupService {
     final dbFile = File(dbPath);
 
     final backupsDir = await FileHelper.getBackupsDir();
-    final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-');
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
     final preZipPath =
         p.join(backupsDir.path, 'backup_${timestamp}_preRestore.zip');
 
     final preArchive = Archive();
     if (await dbFile.exists()) {
       final bytes = await dbFile.readAsBytes();
-      preArchive.addFile(ArchiveFile('jeremias.db', bytes.length, bytes));
+      preArchive.addFile(ArchiveFile('arctic_stock.db', bytes.length, bytes));
       final preData = ZipEncoder().encode(preArchive);
       if (preData != null) {
         await File(preZipPath).writeAsBytes(preData);

@@ -1,4 +1,4 @@
-package com.example.jeremias_app
+package com.example.arctic_stock_app
 
 import io.flutter.embedding.android.FlutterActivity
 
