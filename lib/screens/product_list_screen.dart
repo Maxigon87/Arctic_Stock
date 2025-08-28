@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // En TODAS las pantallas, unifica así:
 import '../Services/db_service.dart';
+import '../utils/currency_formatter.dart';
 
 import 'product_form.dart';
 
@@ -93,12 +94,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<void> _restoreProducto(int id) async {
     await db.activarProducto(id); // ⬅️ requiere el método de abajo en DBService
     _loadProductos();
-  }
-
-  String _money(dynamic n) {
-    if (n == null) return "\$0.00";
-    final d = (n as num).toDouble();
-    return "\$${d.toStringAsFixed(2)}";
   }
 
   Widget _buildFiltros() {
@@ -204,7 +199,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
-                              childAspectRatio: 3,
+
+                              // Reduce card height now that we show less content
+                              mainAxisExtent: 110,
+
                               mainAxisSpacing: 8,
                               crossAxisSpacing: 8,
                             ),
@@ -236,55 +234,49 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       width: 2,
                                     ),
                                   ),
-                                  child: Stack(
-                                    children: [
-                                      ListTile(
-                                        title: Text(
-                                          p['nombre'] ?? '',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            if ((p['codigo'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                              Text('Código: ${p['codigo']}'),
-                                            Text(
-                                              'Precio: ${_money(precio)}  |  Costo: ${_money(costo)}  |  Stock: ${p['stock'] ?? 0}',
-                                              style: TextStyle(
-                                                color: utilidad < 0
-                                                    ? Colors.red
-                                                    : null,
-                                                fontWeight: utilidad < 0
-                                                    ? FontWeight.w600
-                                                    : FontWeight.normal,
-                                              ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Stack(
+                                      children: [
+                                          ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: Text(
+                                              p['nombre'] ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold),
                                             ),
-                                            Text(
-                                                'Categoría: ${p['categoria_nombre'] ?? 'Sin categoría'}'),
-                                            if ((p['descripcion'] ?? '')
-                                                .toString()
-                                                .isNotEmpty)
-                                              Text(
-                                                p['descripcion'],
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                    fontStyle:
-                                                        FontStyle.italic),
-                                              ),
-                                          ],
-                                        ),
-                                        onTap: widget.selectMode
-                                            ? ((sinStock || inactivo)
-                                                ? null
-                                                : () => Navigator.pop(
-                                                    context, p))
-                                            : null,
+
+                                            subtitle: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Precio: ${formatCurrency(precio)}',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: Text(
+                                                    p['descripcion'] ?? '',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            onTap: widget.selectMode
+                                                ? ((sinStock || inactivo)
+                                                    ? null
+                                                    : () => Navigator.pop(
+                                                        context, p))
+                                                : () =>
+                                                    _mostrarDetallesProducto(p),
                                         trailing: widget.selectMode
                                             ? null
                                             : PopupMenuButton<String>(
@@ -385,38 +377,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                 ],
                                               ),
                                       ),
-                                      if (sinStock)
-                                        Positioned(
-                                          top: 6,
-                                          right: 6,
-                                          child: _chip('SIN STOCK',
-                                              Colors.red.shade700),
-                                        ),
-                                      if (inactivo)
-                                        Positioned(
-                                          top: 6,
-                                          left: 6,
-                                          child: _chip('INACTIVO',
-                                              Colors.grey.shade700),
-                                        ),
-                                      if (utilidad < 0 && !inactivo)
-                                        Positioned(
-                                          bottom: 6,
-                                          right: 6,
-                                          child: Row(
-                                            children: const [
-                                              Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  size: 16,
-                                                  color: Colors.amber),
-                                              SizedBox(width: 4),
-                                              Text("Vendiendo con pérdida",
-                                                  style: TextStyle(
-                                                      fontSize: 12)),
-                                            ],
+                                        if (sinStock)
+                                          Positioned(
+                                            top: 0,
+                                            right: 0,
+                                            child: _chip('SIN STOCK',
+                                                Colors.red.shade700),
                                           ),
-                                        ),
-                                    ],
+                                        if (inactivo)
+                                          Positioned(
+                                            top: 0,
+                                            left: 0,
+                                            child: _chip('INACTIVO',
+                                                Colors.grey.shade700),
+                                          ),
+                                        if (utilidad < 0 && !inactivo)
+                                          Positioned(
+                                            bottom: 0,
+                                            right: 0,
+                                            child: Row(
+                                              children: const [
+                                                Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    size: 16,
+                                                    color: Colors.amber),
+                                                SizedBox(width: 4),
+                                                Text("Vendiendo con pérdida",
+                                                    style: TextStyle(
+                                                        fontSize: 12)),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );
@@ -435,6 +428,100 @@ class _ProductListScreenState extends State<ProductListScreen> {
               onPressed: _goToCreate,
               child: const Icon(Icons.add),
             ),
+    );
+  }
+
+  void _mostrarDetallesProducto(Map<String, dynamic> p) {
+    final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+    final costo = (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          minChildSize: 0.4,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    Center(
+                      child: Text(
+                        p['nombre'] ?? '',
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.qr_code),
+                        title: const Text('Código'),
+                        trailing: Text(p['codigo'].toString()),
+                      ),
+                      const Divider(),
+                    ],
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.attach_money),
+                      title: const Text('Precio'),
+                      trailing: Text(
+                        formatCurrency(precio),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.monetization_on_outlined),
+                      title: const Text('Costo'),
+                      trailing: Text(formatCurrency(costo)),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.inventory_2_outlined),
+                      title: const Text('Stock'),
+                      trailing: Text((p['stock'] ?? 0).toString()),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.category),
+                      title: const Text('Categoría'),
+                      trailing:
+                          Text(p['categoria_nombre'] ?? 'Sin categoría'),
+                    ),
+                    if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
+                      const Divider(),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.description),
+                        title: const Text('Descripción'),
+                        subtitle: Text(p['descripcion']),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

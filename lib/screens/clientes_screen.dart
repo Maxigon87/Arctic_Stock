@@ -13,6 +13,8 @@ class ClientesScreen extends StatefulWidget {
 
 class _ClientesScreenState extends State<ClientesScreen> {
   late Future<List<Cliente>> _clientesFuture;
+  String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -26,8 +28,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   void _showClienteDialog({Cliente? cliente}) {
     final nombreCtrl = TextEditingController(text: cliente?.nombre ?? '');
+    final dniCtrl = TextEditingController(text: cliente?.dni ?? '');
     final telefonoCtrl = TextEditingController(text: cliente?.telefono ?? '');
     final emailCtrl = TextEditingController(text: cliente?.email ?? '');
     final direccionCtrl = TextEditingController(text: cliente?.direccion ?? '');
@@ -42,6 +51,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
               TextField(
                   controller: nombreCtrl,
                   decoration: const InputDecoration(labelText: "Nombre")),
+              TextField(
+                  controller: dniCtrl,
+                  decoration: const InputDecoration(labelText: "DNI")),
               TextField(
                   controller: telefonoCtrl,
                   decoration: const InputDecoration(labelText: "Teléfono")),
@@ -80,9 +92,18 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 return;
               }
 
+              final email = emailCtrl.text.trim();
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+              if (email.isNotEmpty && !emailRegex.hasMatch(email)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("⚠️ El correo no es válido")),
+                );
+                return;
+              }
               final nuevo = Cliente(
                 id: cliente?.id,
                 nombre: nombreCtrl.text,
+                dni: dniCtrl.text,
                 telefono: telefonoCtrl.text,
                 email: emailCtrl.text,
                 direccion: direccionCtrl.text,
@@ -109,6 +130,31 @@ class _ClientesScreenState extends State<ClientesScreen> {
     _loadClientes();
   }
 
+  void _showClienteInfo(Cliente cliente) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Detalles del cliente'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nombre: ${cliente.nombre}'),
+            Text('DNI: ${cliente.dni ?? ''}'),
+            Text('Teléfono: ${cliente.telefono ?? ''}'),
+            Text('Email: ${cliente.email ?? ''}'),
+            Text('Dirección: ${cliente.direccion ?? ''}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,44 +172,85 @@ class _ClientesScreenState extends State<ClientesScreen> {
               }
 
               final clientes = snapshot.data ?? [];
-              if (clientes.isEmpty) {
-                return const Center(child: Text("No hay clientes registrados"));
-              }
+              final filtrados = clientes
+                  .where((c) =>
+                      c.nombre.toLowerCase().contains(_search.toLowerCase()))
+                  .toList();
 
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const BouncingScrollPhysics(),
-                itemCount: clientes.length,
-                itemBuilder: (context, index) {
-                  final c = clientes[index];
-                  return Card(
-                    elevation: 3,
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      title: Text(c.nombre,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(c.telefono ?? "",
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 13)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
-                            onPressed: () => _showClienteDialog(cliente: c),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteCliente(c.id!),
-                          ),
-                        ],
-                      ),
+              return Column(
+                children: [
+                  TextField(
+                    controller: _searchCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Buscar cliente',
+                      prefixIcon: Icon(Icons.search),
                     ),
-                  );
-                },
+                    onChanged: (value) => setState(() => _search = value),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: clientes.isEmpty
+                        ? const Center(
+                            child: Text("No hay clientes registrados"),
+                          )
+                        : filtrados.isEmpty
+                            ? const Center(
+                                child:
+                                    Text("No se encontraron clientes"),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: filtrados.length,
+                                itemBuilder: (context, index) {
+                                  final c = filtrados[index];
+                                  return Card(
+                                    elevation: 3,
+                                    margin: const EdgeInsets.symmetric(
+                                        vertical: 6),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    child: ListTile(
+                                      onTap: () => _showClienteInfo(c),
+                                      title: Text(c.nombre,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold)),
+                                      subtitle: Text(
+                                        c.telefono ?? "",
+                                        style: TextStyle(
+                                          // Use theme-based color so it adapts to light and dark modes.
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.7),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.edit,
+                                                color: Colors.orange),
+                                            onPressed: () =>
+                                                _showClienteDialog(
+                                                    cliente: c),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete,
+                                                color: Colors.red),
+                                            onPressed: () =>
+                                                _deleteCliente(c.id!),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
               );
             },
           ),

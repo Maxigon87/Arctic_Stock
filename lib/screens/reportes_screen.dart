@@ -1,6 +1,8 @@
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../services/db_service.dart';
 import 'package:excel/excel.dart';
@@ -8,6 +10,7 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../Services/file_helper.dart';
 import '../utils/file_namer.dart';
+import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -129,12 +132,20 @@ class _ReportesScreenState extends State<ReportesScreen> {
       rangoVisible = 'Período: ${f.format(desde!)} – ${f.format(hasta!)}';
     }
 
+    final logoBytes = await rootBundle.load('assets/logo/logo_con_titulo.png');
+    final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
+    final numberFmt = NumberFormat.decimalPattern('es_AR');
     final pdf = pw.Document();
     pdf.addPage(
       pw.MultiPage(
         pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(24)),
         build: (context) {
           final widgets = <pw.Widget>[];
+
+          widgets.add(
+            pw.Center(child: pw.Image(logo, width: 80)),
+          );
+          widgets.add(pw.SizedBox(height: 8));
 
           // Título
           widgets.add(
@@ -154,6 +165,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
             );
           }
 
+          widgets.add(pw.SizedBox(height: 8));
+          widgets.add(pw.Divider(color: PdfColors.blue, thickness: 2));
           widgets.add(pw.SizedBox(height: 16));
 
           if (data.isEmpty) {
@@ -161,7 +174,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               pw.Container(
                 padding: const pw.EdgeInsets.all(12),
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 0.6),
+                  border: pw.Border.all(width: 0.6, color: PdfColors.blue),
                   borderRadius: pw.BorderRadius.circular(6),
                 ),
                 child: pw.Text(
@@ -183,6 +196,15 @@ class _ReportesScreenState extends State<ReportesScreen> {
               0,
               (acc, it) => acc + ((it['cantidad'] as num?)?.toInt() ?? 0),
             );
+            final precioTotal = items.fold<double>(
+              0.0,
+              (acc, it) {
+                final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+                final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+                final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+                return acc + sub;
+              },
+            );
 
             // Cabecera compra
             widgets.add(
@@ -198,7 +220,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               ),
             );
 
-            // Lista de productos: "Producto — Descripción" ... derecha "xCant"
+            // Lista de productos: "Producto — Descripción" ... precio y "xCant"
             widgets.add(
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -206,7 +228,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   final prod =
                       (it['producto'] ?? it['nombre'] ?? '').toString();
                   final desc = (it['descripcion'] ?? '').toString();
-                  final cant = (it['cantidad'] ?? '').toString();
+
+                  final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+                  final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
 
                   return pw.Padding(
                     padding: const pw.EdgeInsets.only(bottom: 2),
@@ -214,12 +238,29 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Expanded(
-                          child: pw.Text(
-                            desc.isEmpty ? prod : '$prod — $desc',
-                            style: const pw.TextStyle(fontSize: 12),
-                          ),
+                          child: desc.isEmpty
+                              ? pw.Text(prod,
+                                  style: const pw.TextStyle(fontSize: 12))
+                              : pw.Text.rich(
+                                  pw.TextSpan(children: [
+                                    pw.TextSpan(
+                                        text: '$prod — ',
+                                        style:
+                                            const pw.TextStyle(fontSize: 12)),
+                                    pw.TextSpan(
+                                        text: desc,
+                                        style: const pw.TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: pw.FontStyle.italic)),
+                                  ]),
+                                ),
                         ),
-                        pw.Text('x$cant',
+                        pw.Text(
+                          formatCurrency(pu),
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                        pw.SizedBox(width: 4),
+                        pw.Text('x${numberFmt.format(cant)}',
                             style: const pw.TextStyle(fontSize: 12)),
                       ],
                     ),
@@ -232,8 +273,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
             widgets.add(
               pw.Container(
                 margin: const pw.EdgeInsets.only(top: 6),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(top: pw.BorderSide(width: 0.6)),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                    top: pw.BorderSide(width: 0.6, color: PdfColors.blue),
+                  ),
                 ),
                 padding: const pw.EdgeInsets.only(top: 6),
                 child: pw.Column(
@@ -248,7 +291,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                     pw.Text(
-                      'Cantidad de productos: $totalUnidades',
+                      'Cantidad de productos: ${numberFmt.format(totalUnidades)}',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
+                    pw.Text(
+                      'Total de la compra: ${formatCurrency(precioTotal)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
                   ],
@@ -259,7 +306,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
             // Separador entre compras
             if (i < data.length - 1) {
               widgets.add(pw.SizedBox(height: 10));
-              widgets.add(pw.Divider(thickness: 0.5));
+              widgets.add(
+                pw.Divider(thickness: 0.5, color: PdfColors.blue),
+              );
             }
           }
 
@@ -397,6 +446,91 @@ class _ReportesScreenState extends State<ReportesScreen> {
     await Share.shareXFiles([XFile(file.path)], text: "📊 Reporte Mensual");
   }
 
+  // ---- PDF con listado de productos por categoría ----
+  Future<void> _generarReporteProductos(BuildContext context) async {
+    final productos = await dbService.getProductos(incluirInactivos: true);
+
+    // Agrupar por categoría
+    final Map<String, List<Map<String, dynamic>>> porCat = {};
+    for (final p in productos) {
+      final cat = (p['categoria_nombre'] ?? 'Sin categoría').toString();
+      porCat.putIfAbsent(cat, () => []).add(p);
+    }
+
+    final categorias = porCat.keys.toList()..sort();
+
+    final numberFmt = NumberFormat.decimalPattern('es_AR');
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.MultiPage(
+        pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(24)),
+        build: (context) {
+          final widgets = <pw.Widget>[
+            pw.Text(
+              'Reporte de Productos',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 16),
+          ];
+
+          for (final cat in categorias) {
+            final prods = porCat[cat]!;
+            prods.sort((a, b) => (a['nombre'] ?? '')
+                .toString()
+                .compareTo((b['nombre'] ?? '').toString()));
+
+            widgets.add(pw.Text(cat,
+                style: pw.TextStyle(
+                    fontSize: 16, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.SizedBox(height: 6));
+
+            widgets.add(pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: prods.map((p) {
+                final nombre = (p['nombre'] ?? '').toString();
+                final stock = (p['stock'] as num?)?.toInt() ?? 0;
+                final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(nombre,
+                            style: const pw.TextStyle(fontSize: 12)),
+                      ),
+                      pw.Text('Stock: ${numberFmt.format(stock)}',
+                          style: const pw.TextStyle(fontSize: 12)),
+                      pw.SizedBox(width: 12),
+                      pw.Text(
+                        formatCurrency(precio),
+                        style: const pw.TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ));
+            widgets.add(pw.SizedBox(height: 12));
+          }
+
+          return widgets;
+        },
+      ),
+    );
+
+    final dir = await FileHelper.getReportesDir();
+    final file = File('${dir.path}/${FileNamer.reporteProductosPdf()}')
+      ..createSync(recursive: true);
+    await file.writeAsBytes(await pdf.save());
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
+    );
+    await Share.shareXFiles([XFile(file.path)],
+        text: "📄 Reporte de Productos");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -411,15 +545,52 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
               // Botones existentes
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 229, 140, 140), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text("Generar PDF"),
                 onPressed: () => _generarReporteFiltrado(context),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 140, 229, 144), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
                 icon: const Icon(Icons.table_chart),
                 label: const Text("Exportar Excel"),
                 onPressed: () => _exportarExcelMensual(context),
+              ),
+
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color.fromARGB(255, 209, 154, 241), // turquesa
+                  foregroundColor: Colors.black, // texto/ícono
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
+                icon: const Icon(Icons.inventory),
+                label: const Text("Reporte de Productos"),
+                onPressed: () => _generarReporteProductos(context),
               ),
 
               const SizedBox(height: 24),

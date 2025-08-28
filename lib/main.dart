@@ -6,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'Services/db_service.dart';
 import 'widgets/artic_background.dart';
@@ -69,15 +70,16 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final lightTheme = ThemeData(
       brightness: Brightness.light,
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: Colors.teal,
-            brightness: Brightness.light,
-          ).copyWith(
-            outline: const Color(0xFFE3F2FD),
-            shadow: const Color(0xFFE3F2FD),
-          ),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.teal,
+        brightness: Brightness.light,
+      ).copyWith(
+        outline: const Color(0xFFE3F2FD),
+        shadow: const Color(0xFFE3F2FD),
+      ),
       useMaterial3: true,
+      // Provide a base light text theme so colors adapt automatically.
+      textTheme: GoogleFonts.manropeTextTheme(ThemeData.light().textTheme),
       scaffoldBackgroundColor: const Color(0xFFF6F6F6),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -88,15 +90,17 @@ class _MyAppState extends State<MyApp> {
 
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: Colors.teal,
-            brightness: Brightness.dark,
-          ).copyWith(
-            outline: const Color(0xFF0D1B2A),
-            shadow: const Color(0xFF0D1B2A),
-          ),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.teal,
+        brightness: Brightness.dark,
+      ).copyWith(
+        outline: const Color(0xFF0D1B2A),
+        shadow: const Color(0xFF0D1B2A),
+      ),
       useMaterial3: true,
+      // Ensure text contrasts properly on dark backgrounds.
+      textTheme: GoogleFonts.manropeTextTheme(ThemeData.dark().textTheme)
+          .apply(bodyColor: Colors.white, displayColor: Colors.white),
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.black87,

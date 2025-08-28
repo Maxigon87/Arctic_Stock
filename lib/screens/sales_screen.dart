@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:confetti/confetti.dart';
 import '../models/cliente.dart';
 import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
+import '../Services/file_helper.dart';
+import '../utils/file_namer.dart';
+import '../utils/currency_formatter.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -31,6 +43,7 @@ class _SalesScreenState extends State<SalesScreen> {
   void dispose() {
     _debounce?.cancel();
     _productoCtrl.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -39,12 +52,15 @@ class _SalesScreenState extends State<SalesScreen> {
   final List<Map<String, dynamic>> _carrito = [];
 
   late Future<List<Map<String, dynamic>>> _ventasFuture;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
     _ventasFuture = dbService.getVentas();
     _cargarClientes();
+    _confettiController =
+        ConfettiController(duration: const Duration(milliseconds: 500));
   }
 
   Future<void> _verDetalleVenta(int ventaId) async {
@@ -113,7 +129,7 @@ class _SalesScreenState extends State<SalesScreen> {
                           Chip(
                               label: Text(
                                   "Método: ${header?['metodoPago'] ?? '—'}")),
-                          Chip(label: Text("Total: ${_money(total)}")),
+                          Chip(label: Text("Total: ${formatCurrency(total)}")),
                         ],
                       ),
 
@@ -156,9 +172,9 @@ class _SalesScreenState extends State<SalesScreen> {
                                     dense: true,
                                     title: Text("$nombre"),
                                     subtitle: Text(
-                                      "Cant: $cant · PU: ${_money(pu)} · Costo: ${_money(cu)}$codigo",
+                                      "Cant: $cant · PU: ${formatCurrency(pu)} · Costo: ${formatCurrency(cu)}$codigo",
                                     ),
-                                    trailing: Text(_money(sub),
+                                    trailing: Text(formatCurrency(sub),
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w600)),
                                   );
@@ -168,26 +184,44 @@ class _SalesScreenState extends State<SalesScreen> {
 
                       const Divider(),
 
-                      // Total (por las dudas)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text("TOTAL: ${_money(total)}",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            )),
-                      ),
-
-                      const SizedBox(height: 8),
+                      // Total y acciones
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text("Cerrar"),
-                          ),
-                        ],
-                      )
+
+                          Text("TOTAL: ${formatCurrency(total)}",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              )),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.share),
+                                tooltip: 'Compartir comprobante',
+                                onPressed: () =>
+                                    _compartirComprobante(header!, items),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.download),
+                                tooltip: 'Guardar comprobante',
+                                onPressed: () =>
+                                    _guardarComprobante(header!, items),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.print),
+                                tooltip: 'Imprimir comprobante',
+                                onPressed: () =>
+                                    _imprimirComprobante(header!, items),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text("Cerrar"),
+                              ),
+                              ],
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -202,6 +236,158 @@ class _SalesScreenState extends State<SalesScreen> {
         SnackBar(content: Text("No se pudo cargar el detalle: $e")),
       );
     }
+  }
+
+  Future<Uint8List> _generarPdfComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final pdf = pw.Document();
+    const lineWidth = 32;
+    final logoData =
+        await rootBundle.load('assets/logo/logo_sin_titulo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
+    String _repeat(String char, int times) => List.filled(times, char).join();
+
+    List<String> _wrap(String text) {
+      final lines = <String>[];
+      for (var i = 0; i < text.length; i += lineWidth) {
+        final end = (i + lineWidth < text.length) ? i + lineWidth : text.length;
+        lines.add(text.substring(i, end));
+      }
+      return lines;
+    }
+
+    void _addWrapped(List<String> target, String text) {
+      target.addAll(_wrap(text));
+    }
+
+    void _addCentered(List<String> target, String text) {
+      for (final line in _wrap(text)) {
+        final pad = ((lineWidth - line.length) / 2).floor();
+        target.add("${_repeat(' ', pad)}$line");
+      }
+    }
+
+    void _addTwoCols(List<String> target, String left, String right) {
+      if (left.length + right.length > lineWidth) {
+        final parts = _wrap(left);
+        target.addAll(parts.take(parts.length - 1));
+        _addTwoCols(target, parts.last, right);
+      } else {
+        final spaces = lineWidth - left.length - right.length;
+        target.add("$left${_repeat(' ', spaces)}$right");
+      }
+    }
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fecha = header['fecha']?.toString().split('T').first ?? '';
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+
+    final linesOut = <String>[];
+    _addCentered(linesOut, 'Venta #$ventaId');
+    _addCentered(linesOut, fecha);
+    _addWrapped(linesOut, 'Cliente: $cliente');
+    _addWrapped(linesOut, 'Vendedor: $vendedor');
+    _addWrapped(linesOut, 'Método: $metodo');
+    linesOut.add(_repeat('-', lineWidth));
+    _addCentered(linesOut, 'PRODUCTOS');
+    linesOut.add(_repeat('-', lineWidth));
+
+    for (final it in items) {
+      final nombre = (it['producto'] ?? '').toString();
+      final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+      final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+      final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+
+      _addWrapped(linesOut, nombre);
+      _addTwoCols(linesOut, '${cant} x ${formatCurrency(pu)}',
+          formatCurrency(sub));
+      linesOut.add('');
+    }
+
+    linesOut.add(_repeat('-', lineWidth));
+    _addTwoCols(linesOut, 'TOTAL', formatCurrency(total));
+    linesOut.add(_repeat('-', lineWidth));
+
+    final font = pw.Font.courier();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.all(5),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Center(child: pw.Image(logoImage, width: 40)),
+            pw.SizedBox(height: 5),
+            pw.Text(
+              linesOut.join('\n'),
+              style: pw.TextStyle(font: font, fontSize: 8),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<void> _guardarComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Permiso de almacenamiento denegado')),
+          );
+          return;
+        }
+      }
+
+      final bytes = await _generarPdfComprobante(header, items);
+      final dir = await FileHelper.getVentasDir();
+      final ventaId = header['id'] as int? ?? 0;
+      final cliente = header['clienteNombre']?.toString() ??
+          'Consumidor Final';
+      final file = File(
+          '${dir.path}/${FileNamer.factura(ventaId, cliente)}');
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Comprobante guardado en ${file.path}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar comprobante: $e')),
+      );
+    }
+  }
+
+  Future<void> _compartirComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final bytes = await _generarPdfComprobante(header, items);
+    final dir = await FileHelper.getVentasDir();
+    final ventaId = header['id'] as int? ?? 0;
+    final cliente = header['clienteNombre']?.toString() ?? 'Consumidor Final';
+    final file = File('${dir.path}/${FileNamer.factura(ventaId, cliente)}');
+    await file.writeAsBytes(bytes, flush: true);
+    await Share.shareXFiles([XFile(file.path)]);
+  }
+
+  Future<void> _imprimirComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final bytes = await _generarPdfComprobante(header, items);
+    await Printing.layoutPdf(onLayout: (format) async => bytes);
   }
 
   Future<void> _cargarClientes() async {
@@ -222,8 +408,6 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
 
-  String _money(num? n) => "\$${(n ?? 0).toStringAsFixed(2)}";
-
   // --- Helpers carrito / stock ------------------------------------------------
 
   Future<int> _stockDisponible(int productoId) async {
@@ -239,7 +423,7 @@ class _SalesScreenState extends State<SalesScreen> {
         title: const Text('Atención'),
         content: Text(
           'Este producto se venderá con pérdida.\n'
-          'Precio: ${precio.toStringAsFixed(2)} | Costo: ${costo.toStringAsFixed(2)}',
+          'Precio: ${formatCurrency(precio)} | Costo: ${formatCurrency(costo)}',
         ),
         actions: [
           TextButton(
@@ -264,6 +448,44 @@ class _SalesScreenState extends State<SalesScreen> {
       );
       return;
     }
+    final TextEditingController cantCtrl = TextEditingController(text: '1');
+    final int? cantidad = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cantidad'),
+          content: TextField(
+            controller: cantCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () =>
+                    Navigator.pop(context, int.tryParse(cantCtrl.text) ?? 0),
+                child: const Text('Agregar')),
+          ],
+        );
+      },
+    );
+    if (cantidad == null) return;
+
+    final int cant = cantidad;
+    if (cant <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cantidad inválida')),
+      );
+      return;
+    }
+    if (cant > stock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Solo hay $stock unidades disponibles')),
+      );
+      return;
+    }
 
     final double precio = (producto['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final double costo = (producto['costo_compra'] as num?)?.toDouble() ?? 0.0;
@@ -280,57 +502,27 @@ class _SalesScreenState extends State<SalesScreen> {
           'codigo': producto['codigo'],
           'precioUnit': precio,
           'costoUnit': costo,
-          'cantidad': 1,
-          'subtotal': precio * 1,
+          'cantidad': cant,
+          'subtotal': precio * cant,
         });
       } else {
         final actual = _carrito[idx]['cantidad'] as int;
-        if (actual + 1 > stock) {
+        if (actual + cant > stock) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Solo hay $stock unidades disponibles")),
+            SnackBar(content: Text('Solo hay $stock unidades disponibles')),
           );
         } else {
-          _carrito[idx]['cantidad'] = actual + 1;
-          _carrito[idx]['subtotal'] = precio * (actual + 1);
+          _carrito[idx]['cantidad'] = actual + cant;
+          _carrito[idx]['subtotal'] = precio * (actual + cant);
         }
       }
     });
   }
 
-  Future<void> _incrementarItem(
-      int i, void Function(void Function()) setLocal) async {
-    final item = _carrito[i];
-    final stock = await _stockDisponible(item['productoId'] as int);
-    final cant = (item['cantidad'] as int);
-    if (cant + 1 > stock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Solo hay $stock unidades disponibles")),
-      );
-      return;
-    }
-    final precio = (item['precioUnit'] as num).toDouble();
-    setLocal(() {
-      item['cantidad'] = cant + 1;
-      item['subtotal'] = precio * (cant + 1);
-    });
-  }
-
-  void _decrementarItem(int i, void Function(void Function()) setLocal) {
-    final item = _carrito[i];
-    final cant = (item['cantidad'] as int);
-    if (cant > 1) {
-      final precio = (item['precioUnit'] as num).toDouble();
-      setLocal(() {
-        item['cantidad'] = cant - 1;
-        item['subtotal'] = precio * (cant - 1);
-      });
-    }
-  }
-
   // --- BottomSheet carrito ----------------------------------------------------
-
   void _abrirCarrito() {
     bool clienteConDeudas = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -340,231 +532,337 @@ class _SalesScreenState extends State<SalesScreen> {
         maxChildSize: 0.95,
         minChildSize: 0.5,
         builder: (_, scroll) {
-          return StatefulBuilder(builder: (context, setLocalState) {
-            double totalCarrito =
-                _carrito.fold(0.0, (sum, p) => sum + (p['subtotal'] as num));
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text("🛒 Nueva Venta",
+          return StatefulBuilder(
+            builder: (context, setLocalState) {
+              final double totalCarrito = _carrito.fold<double>(
+                0.0,
+                (sum, p) => sum + (p['subtotal'] as num).toDouble(),
+              );
+
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      "🛒 Nueva Venta",
                       style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
 
-                  // Cliente
-                  DropdownButtonFormField<Cliente?>(
-                    value: _clienteSeleccionado,
-                    hint: const Text("Cliente (opcional)"),
-                    items: [
-                      const DropdownMenuItem<Cliente?>(
-                          value: null, child: Text("Consumidor Final")),
-                      ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
-                          value: c, child: Text(c.nombre))),
-                    ],
-                    onChanged: (value) async {
-                      setLocalState(() => _clienteSeleccionado = value);
-                      if (value != null && value.id != null) {
-                        final count =
-                            await dbService.countDeudasCliente(value.id!);
-                        final muchas = count > 1;
-                        setLocalState(() => clienteConDeudas = muchas);
-                        if (muchas) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'El cliente tiene múltiples deudas pendientes'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      } else {
-                        setLocalState(() => clienteConDeudas = false);
-                      }
-                    },
-                  ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.person_add, color: Colors.teal),
-                    label: const Text("Agregar Cliente"),
-                    onPressed: () async {
-                      final nuevo = await _showNuevoClienteDialog();
-                      if (nuevo != null) {
-                        setState(() => _clientes.add(nuevo));
-                        setLocalState(() => _clienteSeleccionado = nuevo);
-                      }
-                    },
-                  ),
-
-                  if (clienteConDeudas)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8.0),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning, color: Colors.red),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'El cliente tiene múltiples deudas pendientes',
-                              style: TextStyle(color: Colors.red),
-                            ),
+                    // Cliente
+                    DropdownButtonFormField<Cliente?>(
+                      value: _clienteSeleccionado,
+                      hint: const Text("Cliente (opcional)"),
+                      items: [
+                        const DropdownMenuItem<Cliente?>(
+                          value: null,
+                          child: Text("Consumidor Final"),
+                        ),
+                        ..._clientes.map(
+                          (c) => DropdownMenuItem<Cliente?>(
+                            value: c,
+                            child: Text(c.nombre),
                           ),
-                        ],
+                        ),
+                      ],
+                      onChanged: (value) async {
+                        setLocalState(() => _clienteSeleccionado = value);
+                        if (value != null && value.id != null) {
+                          final count =
+                              await dbService.countDeudasCliente(value.id!);
+                          final muchas = count > 1;
+                          setLocalState(() => clienteConDeudas = muchas);
+                          if (muchas) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'El cliente tiene múltiples deudas pendientes'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } else {
+                          setLocalState(() => clienteConDeudas = false);
+                        }
+                      },
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.person_add, color: Colors.teal),
+                      label: const Text("Agregar Cliente"),
+                      onPressed: () async {
+                        final nuevo = await _showNuevoClienteDialog();
+                        if (nuevo != null) {
+                          setState(() => _clientes.add(nuevo));
+                          setLocalState(() => _clienteSeleccionado = nuevo);
+                        }
+                      },
+                    ),
+
+                    if (clienteConDeudas)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.red),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'El cliente tiene múltiples deudas pendientes',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const SizedBox(height: 10),
+
+                    // Método de pago
+                    DropdownButtonFormField<String>(
+                      value: metodoSeleccionado ?? "Efectivo",
+                      hint: const Text("Método de Pago"),
+                      items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
+                          .map(
+                              (m) => DropdownMenuItem(value: m, child: Text(m)))
+                          .toList(),
+                      onChanged: (value) =>
+                          setLocalState(() => metodoSeleccionado = value),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // Lista del carrito
+                    Expanded(
+                      child: _carrito.isEmpty
+                          ? const Center(child: Text("Carrito vacío"))
+                          : ListView.builder(
+                              controller: scroll,
+                              itemCount: _carrito.length,
+                              itemBuilder: (_, i) {
+                                final p = _carrito[i];
+                                final double precioUnit =
+                                    (p['precioUnit'] as num).toDouble();
+                                final double costoUnit =
+                                    (p['costoUnit'] as num).toDouble();
+                                final int cantidad =
+                                    (p['cantidad'] as num).toInt();
+                                final double subtotal =
+                                    (p['subtotal'] as num).toDouble();
+                                final bool conPerdida = precioUnit < costoUnit;
+
+                                return Column(
+                                  children: [
+                                    ListTile(
+                                      title:
+                                          Text(p['nombre']?.toString() ?? ''),
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if ((p['codigo']
+                                                  ?.toString()
+                                                  .isNotEmpty ??
+                                              false))
+                                            Text('Código: ${p['codigo']}'),
+                                          Text(
+                                            "Precio: ${formatCurrency(precioUnit)}  |  Costo: ${formatCurrency(costoUnit)}",
+                                            style: TextStyle(
+                                              color: conPerdida
+                                                  ? Colors.red
+                                                  : null,
+                                              fontWeight: conPerdida
+                                                  ? FontWeight.w600
+                                                  : FontWeight.normal,
+                                            ),
+                                          ),
+
+                                          // --- Cantidad editable ---
+                                          Row(
+                                            children: [
+                                              const Text('Cant:'),
+                                              const SizedBox(width: 8),
+                                              SizedBox(
+                                                width: 70,
+                                                child: TextFormField(
+                                                  initialValue:
+                                                      cantidad.toString(),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  textInputAction:
+                                                      TextInputAction.done,
+                                                  textAlign: TextAlign.center,
+                                                  inputFormatters: [
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly
+                                                  ],
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          isDense: true),
+                                                  onChanged: (value) async {
+                                                    final cantidadAnterior =
+                                                        (p['cantidad'] as num)
+                                                            .toInt();
+                                                    final nuevaCantidad =
+                                                        int.tryParse(value) ??
+                                                            0;
+
+                                                    // Control de versión para evitar validaciones concurrentes
+                                                    final currentVersion =
+                                                        (p['cantidadVersion'] ??
+                                                                0) +
+                                                            1;
+                                                    p['cantidadVersion'] =
+                                                        currentVersion;
+
+                                                    if (nuevaCantidad <= 0) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                'Cantidad inválida')),
+                                                      );
+                                                      setLocalState(() {
+                                                        final precio =
+                                                            (p['precioUnit']
+                                                                    as num)
+                                                                .toDouble();
+                                                        p['cantidad'] =
+                                                            cantidadAnterior;
+                                                        p['subtotal'] =
+                                                            precio *
+                                                                cantidadAnterior;
+                                                      });
+                                                      return;
+                                                    }
+
+                                                    final stock =
+                                                        await _stockDisponible(
+                                                            p['productoId']
+                                                                as int);
+
+                                                    // Si hay una nueva edición, se descarta esta validación
+                                                    if (p['cantidadVersion'] !=
+                                                        currentVersion) {
+                                                      return;
+                                                    }
+
+                                                    if (nuevaCantidad > stock) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        SnackBar(
+                                                            content: Text(
+                                                                'Solo hay $stock unidades disponibles')),
+                                                      );
+                                                      setLocalState(() {
+                                                        final precio =
+                                                            (p['precioUnit']
+                                                                    as num)
+                                                                .toDouble();
+                                                        p['cantidad'] =
+                                                            cantidadAnterior;
+                                                        p['subtotal'] =
+                                                            precio *
+                                                                cantidadAnterior;
+                                                      });
+                                                      return;
+                                                    }
+
+                                                    final precio =
+                                                        (p['precioUnit'] as num)
+                                                            .toDouble();
+                                                    setLocalState(() {
+                                                      p['cantidad'] =
+                                                          nuevaCantidad;
+                                                      p['subtotal'] = precio *
+                                                          nuevaCantidad;
+                                                    });
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          Text("Subtotal: ${formatCurrency(subtotal)}"),
+                                        ],
+                                      ),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.delete,
+                                            color: Colors.red),
+                                        onPressed: () => setLocalState(
+                                            () => _carrito.removeAt(i)),
+                                      ),
+                                    ),
+                                    if (i < _carrito.length - 1)
+                                      const Padding(
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 4),
+                                        child: Divider(
+                                            thickness: 1, color: Colors.grey),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                    ),
+
+                    // TOTAL
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        "TOTAL: ${formatCurrency(totalCarrito)}",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal,
+                        ),
                       ),
                     ),
 
-                  const SizedBox(height: 10),
-
-                  // Método de pago
-                  DropdownButtonFormField<String>(
-                    value: metodoSeleccionado ?? "Efectivo",
-                    hint: const Text("Método de Pago"),
-                    items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                        .toList(),
-                    onChanged: (value) =>
-                        setLocalState(() => metodoSeleccionado = value),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  // Lista del carrito
-                  Expanded(
-                    child: _carrito.isEmpty
-                        ? const Center(child: Text("Carrito vacío"))
-                        : ListView.builder(
-                            controller: scroll,
-                            itemCount: _carrito.length,
-                            itemBuilder: (_, i) {
-                              final p = _carrito[i];
-                              final double precioUnit =
-                                  (p['precioUnit'] as num).toDouble();
-                              final double costoUnit =
-                                  (p['costoUnit'] as num).toDouble();
-                              final int cantidad =
-                                  (p['cantidad'] as num).toInt();
-                              final double subtotal =
-                                  (p['subtotal'] as num).toDouble();
-                              final bool conPerdida = precioUnit < costoUnit;
-
-                              return Column(
-                                children: [
-                                  ListTile(
-                                    title: Text(p['nombre']),
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if ((p['codigo']
-                                                ?.toString()
-                                                .isNotEmpty ??
-                                            false))
-                                          Text('Código: ${p['codigo']}'),
-                                        Text(
-                                          "Precio: ${_money(precioUnit)}  |  Costo: ${_money(costoUnit)}",
-                                          style: TextStyle(
-                                            color:
-                                                conPerdida ? Colors.red : null,
-                                            fontWeight: conPerdida
-                                                ? FontWeight.w600
-                                                : FontWeight.normal,
-                                          ),
-                                        ),
-                                        Row(
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(
-                                                  Icons.remove_circle,
-                                                  color: Colors.redAccent),
-                                              onPressed: () => _decrementarItem(
-                                                  i, setLocalState),
-                                            ),
-                                            Text("Cant: $cantidad",
-                                                style: const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            IconButton(
-                                              icon: const Icon(Icons.add_circle,
-                                                  color: Colors.green),
-                                              onPressed: () => _incrementarItem(
-                                                  i, setLocalState),
-                                            ),
-                                          ],
-                                        ),
-                                        Text("Subtotal: ${_money(subtotal)}"),
-                                      ],
-                                    ),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red),
-                                      onPressed: () => setLocalState(
-                                          () => _carrito.removeAt(i)),
-                                    ),
-                                  ),
-                                  if (i < _carrito.length - 1)
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 4),
-                                      child: Divider(
-                                          thickness: 1, color: Colors.grey),
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                  ),
-
-                  // TOTAL
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      "TOTAL: ${_money(totalCarrito)}",
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal),
-                    ),
-                  ),
-
-                  // Agregar producto
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text("Agregar Producto"),
-                    onPressed: () async {
-                      final producto = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
+                    // Agregar producto
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text("Agregar Producto"),
+                      onPressed: () async {
+                        final producto = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
                             builder: (_) =>
-                                const ProductListScreen(selectMode: true)),
-                      );
-                      if (producto != null) {
-                        await _agregarAlCarrito(producto);
-                        setLocalState(() {}); // refresca el sheet
-                      }
-                    },
-                  ),
+                                const ProductListScreen(selectMode: true),
+                          ),
+                        );
+                        if (producto != null) {
+                          await _agregarAlCarrito(producto);
+                          setLocalState(() {}); // refrescar sheet
+                        }
+                      },
+                    ),
 
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
 
-                  // Confirmar venta
-                  ElevatedButton.icon(
-                    style:
-                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text("Confirmar Venta"),
-                    onPressed: _confirmarVenta,
-                  ),
-                ],
-              ),
-            );
-          });
+                    // Confirmar venta
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green),
+                      icon: const Icon(Icons.check_circle),
+                      label: const Text("Confirmar Venta"),
+                      onPressed: _confirmarVenta,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
         },
       ),
     );
@@ -652,6 +950,7 @@ class _SalesScreenState extends State<SalesScreen> {
       // Refrescar listado con los filtros actuales
       await _cargarVentasFiltradas();
 
+      _confettiController.play();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Venta registrada correctamente!")),
       );
@@ -747,11 +1046,13 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Ventas")),
-      body: ArticBackground(
-        child: ArticContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: Stack(
+        children: [
+          ArticBackground(
+            child: ArticContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               _buildFiltros(),
               const SizedBox(height: 10),
               Expanded(
@@ -783,7 +1084,7 @@ class _SalesScreenState extends State<SalesScreen> {
                           child: ListTile(
                               title: Text("Venta #${v['id']} - $cliente"),
                               subtitle: Text(
-                                "Total: ${_money(v['total'])} · "
+                                "Total: ${formatCurrency(v['total'])} · "
                                 "Método: ${v['metodoPago']} · "
                                 "Vendedor: $vendedor",
                               ),
@@ -799,6 +1100,22 @@ class _SalesScreenState extends State<SalesScreen> {
             ],
           ),
         ),
+      ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 10,
+              emissionFrequency: 0.05,
+              maxBlastForce: 8,
+              minBlastForce: 2,
+              gravity: 0.1,
+              colors: const [Colors.teal, Colors.blueGrey],
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _abrirCarrito,

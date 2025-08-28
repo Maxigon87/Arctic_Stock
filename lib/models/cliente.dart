@@ -1,6 +1,7 @@
 class Cliente {
   final int? id;
   final String nombre;
+  final String? dni;
   final String? telefono;
   final String? email;
   final String? direccion;
@@ -8,6 +9,7 @@ class Cliente {
   Cliente(
       {this.id,
       required this.nombre,
+      this.dni,
       this.telefono,
       this.email,
       this.direccion});
@@ -16,6 +18,7 @@ class Cliente {
     return {
       'id': id,
       'nombre': nombre,
+      'dni': dni,
       'telefono': telefono,
       'email': email,
       'direccion': direccion,
@@ -26,6 +29,7 @@ class Cliente {
     return Cliente(
       id: map['id'],
       nombre: map['nombre'],
+      dni: map['dni'],
       telefono: map['telefono'],
       email: map['email'],
       direccion: map['direccion'],

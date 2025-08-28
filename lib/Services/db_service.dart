@@ -53,7 +53,7 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 12,
+        version: 13,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
@@ -66,6 +66,7 @@ class DBService {
           if (oldV < 10) await _migrateUsersV10(db);
           if (oldV < 11) await _migrateMovimientosV11(db);
           if (oldV < 12) await _migrateDeudasVentaIdV12(db);
+          if (oldV < 13) await _migrateClientesDniV13(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -145,6 +146,7 @@ class DBService {
       CREATE TABLE clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
+        dni TEXT,
         telefono TEXT,
         email TEXT,
         direccion TEXT
@@ -251,6 +253,7 @@ class DBService {
       CREATE TABLE clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
+        dni TEXT,
         telefono TEXT,
         email TEXT,
         direccion TEXT
@@ -1813,6 +1816,14 @@ class DBService {
       await db.execute("ALTER TABLE deudas ADD COLUMN ventaId INTEGER;");
       await db.execute(
           "CREATE INDEX IF NOT EXISTS idx_deudas_ventaId ON deudas(ventaId);");
+    }
+  }
+
+  Future<void> _migrateClientesDniV13(Database db) async {
+    final cols = await db.rawQuery("PRAGMA table_info(clientes);");
+    final hasDni = cols.any((c) => c['name'] == 'dni');
+    if (!hasDni) {
+      await db.execute("ALTER TABLE clientes ADD COLUMN dni TEXT;");
     }
   }
 

@@ -5,6 +5,7 @@ import '../Services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_kpi_card.dart';
 import '../widgets/artic_container.dart';
+import '../utils/currency_formatter.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -231,31 +232,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Ventas y Ganancias - Hoy
                 ArticKpiCard(
                   title: "Ventas de Hoy",
-                  value: "💰 \$${ventasHoy.toStringAsFixed(2)}",
+                  value: "💰 ${formatCurrency(ventasHoy)}",
                   accentColor: Colors.green,
                 ),
                 ArticKpiCard(
                   title: "Ganancia de Hoy",
-                  value: "📈 \$${gananciaHoy.toStringAsFixed(2)}",
+                  value: "📈 ${formatCurrency(gananciaHoy)}",
                   accentColor: Colors.lightGreen,
                 ),
 
                 // Ventas y Ganancias - Período (mes o rango)
                 ArticKpiCard(
                   title: tituloVentasPeriodo,
-                  value: "📆 \$${ventasPeriodo.toStringAsFixed(2)}",
+                  value: "📆 ${formatCurrency(ventasPeriodo)}",
                   accentColor: Colors.blue,
                 ),
                 ArticKpiCard(
                   title: tituloGananciaPeriodo,
-                  value: "🏦 \$${gananciaPeriodo.toStringAsFixed(2)}",
+                  value: "🏦 ${formatCurrency(gananciaPeriodo)}",
                   accentColor: Colors.indigo,
                 ),
 
                 // Deudas pendientes
                 ArticKpiCard(
                   title: "Deudas Pendientes",
-                  value: "💸 \$${deudasPendientes.toStringAsFixed(2)}",
+                  value: "💸 ${formatCurrency(deudasPendientes)}",
                   accentColor: Colors.red,
                 ),
 

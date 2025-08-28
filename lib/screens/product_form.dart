@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:ArticStock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
+import '../utils/currency_formatter.dart';
 
 class ProductForm extends StatefulWidget {
   final Map<String, dynamic>? initial; // null = crear, con datos = editar
@@ -57,14 +58,18 @@ class _ProductFormState extends State<ProductForm> {
 
   String _numToStr(dynamic n) {
     if (n == null) return '';
-    if (n is num) return n.toStringAsFixed(2);
+    if (n is num) return formatNumber(n);
     final parsed = double.tryParse(n.toString());
-    return parsed?.toStringAsFixed(2) ?? '';
+    return parsed != null ? formatNumber(parsed) : '';
   }
 
   double _toDouble(String s) {
-    // acepta coma o punto y quita separadores de miles
-    s = s.trim().replaceAll('.', '').replaceAll(',', '.');
+    // acepta coma o punto, espacios, y quita separadores de miles
+    s = s
+        .trim()
+        .replaceAll(RegExp(r'\s'), '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
     if (s.isEmpty) return 0;
     return double.tryParse(s) ?? 0;
   }
@@ -73,6 +78,41 @@ class _ProductFormState extends State<ProductForm> {
     final cats = await DBService().getCategorias();
     if (!mounted) return;
     setState(() => _categorias = cats);
+  }
+
+  Future<void> _mostrarDialogoNuevaCategoria() async {
+    final controller = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nueva Categoría'),
+        content: TextField(
+          controller: controller,
+          decoration:
+              const InputDecoration(labelText: 'Nombre de la categoría'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.pop(context, controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (nombre != null && nombre.trim().isNotEmpty) {
+      final id = await DBService().insertCategoria(nombre.trim());
+      final cats = await DBService().getCategorias();
+      if (!mounted) return;
+      setState(() {
+        _categorias = cats;
+        _categoriaId = id;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -245,22 +285,34 @@ class _ProductFormState extends State<ProductForm> {
                 },
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                value: _categoriaId,
-                items: _categorias
-                    .map((c) => DropdownMenuItem<int>(
-                          value: c['id'] as int,
-                          child: Text(c['nombre'] as String),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _categoriaId = v),
-                decoration: const InputDecoration(labelText: 'Categoría'),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _categoriaId,
+                      items: _categorias
+                          .map((c) => DropdownMenuItem<int>(
+                                value: c['id'] as int,
+                                child: Text(c['nombre'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _categoriaId = v),
+                      decoration: const InputDecoration(labelText: 'Categoría'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      _mostrarDialogoNuevaCategoria();
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Utilidad por unidad'),
-                subtitle: Text(utilidad.toStringAsFixed(2)),
+                subtitle: Text(formatCurrency(utilidad)),
                 trailing: Icon(
                   utilidad < 0
                       ? Icons.warning_amber
