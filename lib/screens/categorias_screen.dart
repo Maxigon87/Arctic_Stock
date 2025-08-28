@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/db_service.dart';
+import '../Services/db_service.dart';
 
 class CategoriasScreen extends StatefulWidget {
   const CategoriasScreen({super.key});

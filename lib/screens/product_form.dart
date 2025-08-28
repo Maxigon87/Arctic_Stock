@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:ArticStock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
+import 'package:ArticStock/Services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 import 'package:ArticStock/widgets/artic_background.dart';
 import 'package:ArticStock/widgets/artic_container.dart';
 import '../utils/currency_formatter.dart';
