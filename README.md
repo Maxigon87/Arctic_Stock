@@ -82,3 +82,10 @@ lib/
  │   ├── artic_container.dart
  │   └── artic_kpi_card.dart
  └── main.dart
+
+### Respaldo
+
+El servicio de respaldo permite exportar la información de ventas,
+ganancias, clientes, datos del dashboard y deudas en un archivo ZIP.
+Los productos no se incluyen ya que poseen su propia opción de
+exportación a través del `CatalogService`.
