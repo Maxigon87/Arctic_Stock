@@ -241,15 +241,15 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           child: desc.isEmpty
                               ? pw.Text(prod,
                                   style: const pw.TextStyle(fontSize: 12))
-                              : pw.Text.rich(
-                                  pw.TextSpan(children: [
+                              : pw.RichText(
+                                  text: pw.TextSpan(children: [
                                     pw.TextSpan(
                                         text: '$prod — ',
                                         style:
                                             const pw.TextStyle(fontSize: 12)),
                                     pw.TextSpan(
                                         text: desc,
-                                        style: const pw.TextStyle(
+                                        style: pw.TextStyle(
                                             fontSize: 12,
                                             fontStyle: pw.FontStyle.italic)),
                                   ]),
@@ -536,8 +536,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final ingresos =
         await dbService.getIngresosStock(desde: desde, hasta: hasta);
 
-    final logoBytes =
-        await rootBundle.load('assets/logo/logo_con_titulo.png');
+    final logoBytes = await rootBundle.load('assets/logo/logo_con_titulo.png');
     final logo = pw.MemoryImage(logoBytes.buffer.asUint8List());
 
     DateTime baseDate = (desde ??
@@ -566,15 +565,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
           widgets.add(
             pw.Text(
               'Reporte de ingresos de stock - $monthName $year',
-              style: pw.TextStyle(
-                  fontSize: 24, fontWeight: pw.FontWeight.bold),
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
             ),
           );
 
           if (rangoVisible != null) {
             widgets.add(pw.SizedBox(height: 6));
-            widgets.add(pw.Text(rangoVisible,
-                style: const pw.TextStyle(fontSize: 11)));
+            widgets.add(
+                pw.Text(rangoVisible, style: const pw.TextStyle(fontSize: 11)));
           }
 
           widgets.add(pw.SizedBox(height: 16));
@@ -587,8 +585,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
           final headers = ['Fecha', 'Producto', 'Cant.', 'Tipo', 'Nota'];
           final data = ingresos.map((r) {
-            final fecha =
-                DateTime.tryParse((r['fecha'] ?? '').toString());
+            final fecha = DateTime.tryParse((r['fecha'] ?? '').toString());
             final fechaStr = fecha != null ? _fmt(fecha) : '-';
             final producto = (r['producto'] ?? '').toString();
             final cant =
@@ -604,8 +601,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
               data: data,
               headerStyle: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-              headerDecoration:
-                  const pw.BoxDecoration(color: PdfColors.blue),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.blue),
               cellStyle: const pw.TextStyle(fontSize: 11),
               cellAlignments: {
                 0: pw.Alignment.centerLeft,
@@ -631,8 +627,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("✅ PDF guardado: ${file.path}")),
     );
-    await Share.shareXFiles([XFile(file.path)],
-        text: "📄 Reporte de Ingresos");
+    await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte de Ingresos");
   }
 
   @override

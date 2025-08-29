@@ -34,12 +34,14 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
 
     if (!mounted) return;
 
+
     final List<FileSystemEntity> ventas =
         ventasDir.existsSync() ? ventasDir.listSync() : <FileSystemEntity>[];
     final List<FileSystemEntity> reportesAll =
         reportesDir.existsSync() ? reportesDir.listSync() : <FileSystemEntity>[];
     final List<FileSystemEntity> reportes = reportesAll
         .where((FileSystemEntity f) {
+
           final name = f.path.split('/').last;
           return name.startsWith('reporte_') &&
               !name.startsWith('reporte_productos_');
@@ -51,6 +53,8 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
         .toList();
     final List<FileSystemEntity> catalogo =
         catalogoDir.existsSync() ? catalogoDir.listSync() : <FileSystemEntity>[];
+
+    if (!mounted) return;
 
     if (!mounted) return;
 
