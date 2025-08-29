@@ -32,6 +32,8 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
     final reportesDir = await FileHelper.getReportesDir();
     final catalogoDir = await FileHelper.getCatalogoDir();
 
+    if (!mounted) return;
+
     final ventas = ventasDir.existsSync() ? ventasDir.listSync() : [];
     final reportesAll =
         reportesDir.existsSync() ? reportesDir.listSync() : [];
@@ -47,6 +49,8 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
             f.path.split('/').last.startsWith('reporte_productos_'))
         .toList();
     final catalogo = catalogoDir.existsSync() ? catalogoDir.listSync() : [];
+
+    if (!mounted) return;
 
     setState(() {
       archivosVentas = ventas;
