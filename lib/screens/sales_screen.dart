@@ -415,6 +415,23 @@ class _SalesScreenState extends State<SalesScreen> {
     return (p?['stock'] as num?)?.toInt() ?? 0;
   }
 
+  TextInputFormatter _maxStockFormatter(
+      int Function() stockProvider, BuildContext context) {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      if (newValue.text.isEmpty) return newValue;
+      final value = int.tryParse(newValue.text);
+      if (value == null) return oldValue;
+      final max = stockProvider();
+      if (value > max) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Solo hay $max unidades disponibles')),
+        );
+        return oldValue;
+      }
+      return newValue;
+    });
+  }
+
   Future<bool> _confirmarPerdidaDialog(double precio, double costo) async {
     if (precio >= costo) return true;
     final ok = await showDialog<bool>(
@@ -457,7 +474,10 @@ class _SalesScreenState extends State<SalesScreen> {
           content: TextField(
             controller: cantCtrl,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              _maxStockFormatter(() => stock, context),
+            ],
           ),
           actions: [
             TextButton(
@@ -707,7 +727,14 @@ class _SalesScreenState extends State<SalesScreen> {
                                                   textAlign: TextAlign.center,
                                                   inputFormatters: [
                                                     FilteringTextInputFormatter
-                                                        .digitsOnly
+                                                        .digitsOnly,
+                                                    _maxStockFormatter(
+                                                      () =>
+                                                          (p['stockDisponible']
+                                                                  as int?) ??
+                                                              0,
+                                                      context,
+                                                    )
                                                   ],
                                                   decoration:
                                                       const InputDecoration(
