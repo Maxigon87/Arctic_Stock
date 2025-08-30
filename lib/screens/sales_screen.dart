@@ -415,6 +415,23 @@ class _SalesScreenState extends State<SalesScreen> {
     return (p?['stock'] as num?)?.toInt() ?? 0;
   }
 
+  TextInputFormatter _maxStockFormatter(
+      int Function() stockProvider, BuildContext context) {
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      if (newValue.text.isEmpty) return newValue;
+      final value = int.tryParse(newValue.text);
+      if (value == null) return oldValue;
+      final max = stockProvider();
+      if (value > max) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Solo hay $max unidades disponibles')),
+        );
+        return oldValue;
+      }
+      return newValue;
+    });
+  }
+
   Future<bool> _confirmarPerdidaDialog(double precio, double costo) async {
     if (precio >= costo) return true;
     final ok = await showDialog<bool>(
@@ -457,7 +474,10 @@ class _SalesScreenState extends State<SalesScreen> {
           content: TextField(
             controller: cantCtrl,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              _maxStockFormatter(() => stock, context),
+            ],
           ),
           actions: [
             TextButton(
@@ -504,6 +524,7 @@ class _SalesScreenState extends State<SalesScreen> {
           'costoUnit': costo,
           'cantidad': cant,
           'subtotal': precio * cant,
+          'stockDisponible': stock,
         });
       } else {
         final actual = _carrito[idx]['cantidad'] as int;
@@ -514,6 +535,7 @@ class _SalesScreenState extends State<SalesScreen> {
         } else {
           _carrito[idx]['cantidad'] = actual + cant;
           _carrito[idx]['subtotal'] = precio * (actual + cant);
+          _carrito[idx]['stockDisponible'] = stock;
         }
       }
     });
@@ -538,6 +560,10 @@ class _SalesScreenState extends State<SalesScreen> {
                 0.0,
                 (sum, p) => sum + (p['subtotal'] as num).toDouble(),
               );
+              final bool hayStockSuficiente = _carrito.isNotEmpty &&
+                  _carrito.every((p) =>
+                      (p['cantidad'] as int) <=
+                      ((p['stockDisponible'] as int?) ?? 0));
 
               return Container(
                 padding: const EdgeInsets.all(16),
@@ -701,7 +727,14 @@ class _SalesScreenState extends State<SalesScreen> {
                                                   textAlign: TextAlign.center,
                                                   inputFormatters: [
                                                     FilteringTextInputFormatter
-                                                        .digitsOnly
+                                                        .digitsOnly,
+                                                    _maxStockFormatter(
+                                                      () =>
+                                                          (p['stockDisponible']
+                                                                  as int?) ??
+                                                              0,
+                                                      context,
+                                                    )
                                                   ],
                                                   decoration:
                                                       const InputDecoration(
@@ -748,6 +781,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                         await _stockDisponible(
                                                             p['productoId']
                                                                 as int);
+                                                    p['stockDisponible'] =
+                                                        stock;
 
                                                     // Si hay una nueva edición, se descarta esta validación
                                                     if (p['cantidadVersion'] !=
@@ -773,6 +808,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                         p['subtotal'] =
                                                             precio *
                                                                 cantidadAnterior;
+                                                        p['stockDisponible'] =
+                                                            stock;
                                                       });
                                                       return;
                                                     }
@@ -785,6 +822,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                           nuevaCantidad;
                                                       p['subtotal'] = precio *
                                                           nuevaCantidad;
+                                                      p['stockDisponible'] =
+                                                          stock;
                                                     });
                                                   },
                                                 ),
@@ -856,7 +895,8 @@ class _SalesScreenState extends State<SalesScreen> {
                           backgroundColor: Colors.green),
                       icon: const Icon(Icons.check_circle),
                       label: const Text("Confirmar Venta"),
-                      onPressed: _confirmarVenta,
+                      onPressed:
+                          hayStockSuficiente ? _confirmarVenta : null,
                     ),
                   ],
                 ),
