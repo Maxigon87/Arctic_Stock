@@ -504,6 +504,7 @@ class _SalesScreenState extends State<SalesScreen> {
           'costoUnit': costo,
           'cantidad': cant,
           'subtotal': precio * cant,
+          'stockDisponible': stock,
         });
       } else {
         final actual = _carrito[idx]['cantidad'] as int;
@@ -514,6 +515,7 @@ class _SalesScreenState extends State<SalesScreen> {
         } else {
           _carrito[idx]['cantidad'] = actual + cant;
           _carrito[idx]['subtotal'] = precio * (actual + cant);
+          _carrito[idx]['stockDisponible'] = stock;
         }
       }
     });
@@ -538,6 +540,10 @@ class _SalesScreenState extends State<SalesScreen> {
                 0.0,
                 (sum, p) => sum + (p['subtotal'] as num).toDouble(),
               );
+              final bool hayStockSuficiente = _carrito.isNotEmpty &&
+                  _carrito.every((p) =>
+                      (p['cantidad'] as int) <=
+                      ((p['stockDisponible'] as int?) ?? 0));
 
               return Container(
                 padding: const EdgeInsets.all(16),
@@ -748,6 +754,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                         await _stockDisponible(
                                                             p['productoId']
                                                                 as int);
+                                                    p['stockDisponible'] =
+                                                        stock;
 
                                                     // Si hay una nueva edición, se descarta esta validación
                                                     if (p['cantidadVersion'] !=
@@ -773,6 +781,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                         p['subtotal'] =
                                                             precio *
                                                                 cantidadAnterior;
+                                                        p['stockDisponible'] =
+                                                            stock;
                                                       });
                                                       return;
                                                     }
@@ -785,6 +795,8 @@ class _SalesScreenState extends State<SalesScreen> {
                                                           nuevaCantidad;
                                                       p['subtotal'] = precio *
                                                           nuevaCantidad;
+                                                      p['stockDisponible'] =
+                                                          stock;
                                                     });
                                                   },
                                                 ),
@@ -856,7 +868,8 @@ class _SalesScreenState extends State<SalesScreen> {
                           backgroundColor: Colors.green),
                       icon: const Icon(Icons.check_circle),
                       label: const Text("Confirmar Venta"),
-                      onPressed: _confirmarVenta,
+                      onPressed:
+                          hayStockSuficiente ? _confirmarVenta : null,
                     ),
                   ],
                 ),
