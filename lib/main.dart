@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,7 +13,6 @@ import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 
 import 'utils/theme_controller.dart';
-import 'screens/splash_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
@@ -24,31 +23,34 @@ import 'screens/historial_archivos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    const windowOptions = WindowOptions(
+      title: 'Arctic Stock',
+      size: Size(1100, 720),
+      minimumSize: Size(800, 600),
+      center: true,
+      backgroundColor: Colors.transparent,
+    );
+
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.setMinimumSize(const Size(800, 600));
+      await Future.delayed(const Duration(milliseconds: 30));
+      await windowManager.maximize();
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
   await initializeDateFormatting('es_AR', null);
-  Intl.defaultLocale = 'es_AR';
-  await windowManager.ensureInitialized();
-  await initializeDateFormatting('es_AR', null);
-  await initializeDateFormatting('es', null); // opcional, por las dudas
+  await initializeDateFormatting('es', null);
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
-
-  WindowOptions windowOptions = const WindowOptions(
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    title: "Arctic Stock",
-  );
-
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize();
-    await windowManager.show();
-    await windowManager.focus();
-    await ThemeController.instance.init();
-  });
 
   runApp(const MyApp());
 }
@@ -133,8 +135,7 @@ class _MyAppState extends State<MyApp> {
             '/login': (_) => const ArticLoginScreen(),
             '/home': (_) => const HomeScreen(),
           },
-          initialRoute:
-              '/login', // o usá '/splash' si querés arrancar por Splash
+          initialRoute: '/login',
         );
       },
     );
@@ -269,8 +270,10 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
-        body: ArticBackground(
-          child: FadeTransition(
+        body: Container(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: ArticBackground(
+            child: FadeTransition(
             opacity: _fadeAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
@@ -392,8 +395,9 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildContent(NavItem item) {
     switch (item) {
