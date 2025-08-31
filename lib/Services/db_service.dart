@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:ArticStock/models/producto.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite_common/sqlite_api.dart' show ConflictAlgorithm;
 
@@ -42,13 +43,13 @@ class DBService {
   }
 
   Future<Database> _initDB() async {
+    // Inicializar sqflite FFI para escritorio
     if (Platform.isWindows || Platform.isLinux) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
 
-    final dbPath = await databaseFactory.getDatabasesPath();
-    final path = join(dbPath, 'arctic_stock.db');
+    final path = await _resolveDbPath();
 
     return await databaseFactory.openDatabase(
       path,
@@ -93,6 +94,39 @@ class DBService {
         },
       ),
     );
+  }
+
+  /// Resuelve la ruta donde se almacenará la base de datos según la plataforma.
+  /// Respeta cualquier ruta establecida mediante [databaseFactory.setDatabasesPath].
+  Future<String> _resolveDbPath() async {
+    // Si se configuró explícitamente una ruta, utilizarla
+    final overridePath = await databaseFactory.getDatabasesPath();
+    if (overridePath.isNotEmpty && overridePath != '.' && overridePath != '/') {
+      final dir = Directory(overridePath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return join(overridePath, 'arctic_stock.db');
+    }
+
+    Directory dir;
+    if (Platform.isWindows) {
+      final appData = Platform.environment['APPDATA'] ?? '';
+      dir = Directory(join(appData, 'ArcticStock'));
+    } else if (Platform.isAndroid) {
+      dir = await getApplicationDocumentsDirectory();
+    } else if (Platform.isLinux) {
+      final home = Platform.environment['HOME'] ?? '';
+      dir = Directory(join(home, '.local', 'share', 'ArcticStock'));
+    } else {
+      dir = Directory(overridePath);
+    }
+
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    return join(dir.path, 'arctic_stock.db');
   }
 
   /// Devuelve la ruta al archivo de base de datos
