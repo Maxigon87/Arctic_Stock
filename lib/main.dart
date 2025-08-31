@@ -13,7 +13,6 @@ import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 
 import 'utils/theme_controller.dart';
-import 'screens/splash_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
@@ -26,28 +25,23 @@ import 'screens/artic_login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
 
   await initializeDateFormatting('es_AR', null);
-  Intl.defaultLocale = 'es_AR';
-  await windowManager.ensureInitialized();
-  await initializeDateFormatting('es_AR', null);
-  await initializeDateFormatting('es', null); // opcional, por las dudas
+  await initializeDateFormatting('es', null); // opcional
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
 
-  WindowOptions windowOptions = const WindowOptions(
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    title: "Arctic Stock",
+  const windowOptions = WindowOptions(
+    title: 'Arctic Stock',
+    minimumSize: Size(800, 600), // ajusta según tu preferencia
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize();
     await windowManager.show();
+    await windowManager.maximize(); // asegurate que se maximiza tras mostrarse
     await windowManager.focus();
-    await ThemeController.instance.init();
   });
 
   runApp(const MyApp());
@@ -133,8 +127,7 @@ class _MyAppState extends State<MyApp> {
             '/login': (_) => const ArticLoginScreen(),
             '/home': (_) => const HomeScreen(),
           },
-          initialRoute:
-              '/login', // o usá '/splash' si querés arrancar por Splash
+          initialRoute: '/login',
         );
       },
     );
