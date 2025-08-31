@@ -26,6 +26,7 @@ import 'screens/artic_login_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
 
@@ -48,9 +49,11 @@ Future<void> main() async {
 
   await initializeDateFormatting('es_AR', null);
   await initializeDateFormatting('es', null);
+
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
+
 
   runApp(const MyApp());
 }
