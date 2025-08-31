@@ -13,7 +13,6 @@ import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 
 import 'utils/theme_controller.dart';
-import 'screens/splash_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
@@ -40,8 +39,8 @@ void main() async {
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize(); // maximiza antes de mostrar
     await windowManager.show();
+    await windowManager.maximize(); // asegurate que se maximiza tras mostrarse
     await windowManager.focus();
   });
 
@@ -128,8 +127,7 @@ class _MyAppState extends State<MyApp> {
             '/login': (_) => const ArticLoginScreen(),
             '/home': (_) => const HomeScreen(),
           },
-          initialRoute:
-              '/login', // o usá '/splash' si querés arrancar por Splash
+          initialRoute: '/login',
         );
       },
     );
