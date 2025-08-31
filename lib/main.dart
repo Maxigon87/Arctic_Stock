@@ -26,28 +26,23 @@ import 'screens/artic_login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
 
   await initializeDateFormatting('es_AR', null);
-  Intl.defaultLocale = 'es_AR';
-  await windowManager.ensureInitialized();
-  await initializeDateFormatting('es_AR', null);
-  await initializeDateFormatting('es', null); // opcional, por las dudas
+  await initializeDateFormatting('es', null); // opcional
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
 
-  WindowOptions windowOptions = const WindowOptions(
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    title: "Arctic Stock",
+  const windowOptions = WindowOptions(
+    title: 'Arctic Stock',
+    minimumSize: Size(800, 600), // ajusta según tu preferencia
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize();
+    await windowManager.maximize(); // maximiza antes de mostrar
     await windowManager.show();
     await windowManager.focus();
-    await ThemeController.instance.init();
   });
 
   runApp(const MyApp());
