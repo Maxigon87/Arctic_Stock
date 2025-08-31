@@ -7,6 +7,8 @@ import 'package:window_manager/window_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'Services/db_service.dart';
 import 'widgets/artic_background.dart';
@@ -26,6 +28,15 @@ import 'screens/artic_login_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (Platform.isWindows) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    final appData = Platform.environment['APPDATA'] ?? '';
+    if (appData.isNotEmpty) {
+      final dbDir = p.join(appData, 'ArcticStock');
+      await databaseFactory.setDatabasesPath(dbDir);
+    }
+  }
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();

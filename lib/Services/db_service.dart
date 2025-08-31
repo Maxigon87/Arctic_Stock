@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ArticStock/models/producto.dart';
-import 'package:path/path.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite_common/sqlite_api.dart' show ConflictAlgorithm;
@@ -103,30 +103,53 @@ class DBService {
     final overridePath = await databaseFactory.getDatabasesPath();
     if (overridePath.isNotEmpty && overridePath != '.' && overridePath != '/') {
       final dir = Directory(overridePath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
+      final exeDir = Directory(p.dirname(Platform.resolvedExecutable));
+      final insideExe =
+          p.isWithin(exeDir.path, p.normalize(p.absolute(overridePath)));
+      if (!insideExe && await _isWritable(dir)) {
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return p.join(dir.path, 'arctic_stock.db');
       }
-      return join(overridePath, 'arctic_stock.db');
     }
 
     Directory dir;
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'] ?? '';
-      dir = Directory(join(appData, 'ArcticStock'));
+      dir = Directory(p.join(appData, 'ArcticStock'));
     } else if (Platform.isAndroid) {
       dir = await getApplicationDocumentsDirectory();
     } else if (Platform.isLinux) {
       final home = Platform.environment['HOME'] ?? '';
-      dir = Directory(join(home, '.local', 'share', 'ArcticStock'));
+      dir = Directory(p.join(home, '.local', 'share', 'ArcticStock'));
+    } else if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'] ?? '';
+      dir = Directory(
+          p.join(home, 'Library', 'Application Support', 'ArcticStock'));
     } else {
-      dir = Directory(overridePath);
+      dir = Directory.current;
     }
 
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
 
-    return join(dir.path, 'arctic_stock.db');
+    return p.join(dir.path, 'arctic_stock.db');
+  }
+
+  Future<bool> _isWritable(Directory dir) async {
+    try {
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final testFile = File(p.join(dir.path, '.dirtest'));
+      await testFile.writeAsString('');
+      await testFile.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Devuelve la ruta al archivo de base de datos
