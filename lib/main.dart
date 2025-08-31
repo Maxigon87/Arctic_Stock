@@ -55,7 +55,6 @@ Future<void> main() async {
   await ThemeController.instance.init();
 
 
-
   runApp(const MyApp());
 }
 
@@ -195,6 +194,14 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final isMax = await windowManager.isMaximized();
+        if (!isMax) {
+          await windowManager.maximize();
+        }
+      }
+    });
     _listener = _MyWindowListener(this); // 👈
     windowManager.addListener(_listener);
 
