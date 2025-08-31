@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -23,26 +23,38 @@ import 'screens/historial_archivos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await windowManager.ensureInitialized();
+
+
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    const windowOptions = WindowOptions(
+      title: 'Arctic Stock',
+      size: Size(1100, 720),
+      minimumSize: Size(800, 600),
+      center: true,
+      backgroundColor: Colors.transparent,
+    );
+
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.setMinimumSize(const Size(800, 600));
+      await Future.delayed(const Duration(milliseconds: 30));
+      await windowManager.maximize();
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   await initializeDateFormatting('es_AR', null);
-  await initializeDateFormatting('es', null); // opcional
+  await initializeDateFormatting('es', null);
+
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
 
-  const windowOptions = WindowOptions(
-    title: 'Arctic Stock',
-    minimumSize: Size(800, 600), // ajusta según tu preferencia
-  );
 
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.maximize(); // asegurate que se maximiza tras mostrarse
-    await windowManager.focus();
-  });
 
   runApp(const MyApp());
 }
@@ -262,8 +274,10 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
-        body: ArticBackground(
-          child: FadeTransition(
+        body: Container(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: ArticBackground(
+            child: FadeTransition(
             opacity: _fadeAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
@@ -385,8 +399,9 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildContent(NavItem item) {
     switch (item) {
