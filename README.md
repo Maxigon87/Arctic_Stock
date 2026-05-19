@@ -6,6 +6,13 @@
 
 ## 🚀 Descripción
 **Arctic Stock** es una aplicación desarrollada en **Flutter** (Desktop/Mobile) para la gestión integral de inventario, ventas, clientes y deudas, con reportes avanzados y estadísticas en tiempo real.  
+## 📥 Instalación
+
+Descarga el instalador con un clic:
+
+[![Download Arctic Stock](https://img.shields.io/badge/Descargar-Instalador-blue?style=for-the-badge&logo=windows)](https://github.com/Maxigon87/Arctic_Stock/releases/download/1.0.0/ArcticStock-Setup-1.0.0.exe)
+
+---
 
 💡 Diseñada para pequeños y medianos negocios que buscan una solución moderna, rápida y visualmente atractiva.
 
