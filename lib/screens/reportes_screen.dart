@@ -1,14 +1,14 @@
-import 'package:ArticStock/widgets/artic_background.dart';
-import 'package:ArticStock/widgets/artic_container.dart';
+import 'package:artic_stock/widgets/artic_background.dart';
+import 'package:artic_stock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import '../Services/db_service.dart';
+import '../services/db_service.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
 import 'package:share_plus/share_plus.dart';
-import '../Services/file_helper.dart';
+import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';

@@ -10,7 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'Services/db_service.dart';
+import 'services/db_service.dart';
 import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 
