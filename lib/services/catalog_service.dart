@@ -61,7 +61,7 @@ class CatalogService {
 
     if (extension == '.csv') {
       final content = await file.readAsString();
-      final csvRows = const CsvToListConverter().convert(content);
+      final csvRows = const CsvToListConverter(eol: '\n', fieldDelimiter: ',').convert(content);
       if (csvRows.isEmpty) return;
       final headers = csvRows.first.map((e) => e.toString()).toList();
       for (var i = 1; i < csvRows.length; i++) {
@@ -111,7 +111,7 @@ class CatalogService {
       final stockRaw = row['stock'];
       final stock = stockRaw is num
           ? stockRaw.toInt()
-          : int.tryParse(stockRaw?.toString() ?? '0') ?? 0;
+          : (double.tryParse(stockRaw?.toString() ?? '0') ?? 0).toInt();
 
       int? categoriaId;
       final categoriaNombre = row['categoria']?.toString().trim();

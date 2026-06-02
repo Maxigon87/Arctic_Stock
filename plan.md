@@ -1,0 +1,4 @@
+1. The user states the program has an issue when running. Looking at `flutter test`, one of the tests `importProductos handles numeric stock values` in `test/catalog_service_import_test.dart` is failing because the stock value parsed is null.
+2. Specifically, when parsing the imported products CSV/Excel in `CatalogService.importProductos` (file `lib/services/catalog_service.dart`), it fails to parse float string numbers correctly (like `50.0`) when reading the 'stock' property because it tries to use `int.tryParse(stockRaw?.toString() ?? '0')` which fails for strings like `"50.0"` and returns null, leading to a fallback value or an error that assigns 0. In this case, `int.tryParse('50.0')` returns null.
+3. Fix the string parsing for stock by first attempting to parse as a double, and then convert to int.
+4. Call `pre_commit_instructions` and follow its instructions to do tests.

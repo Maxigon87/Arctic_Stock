@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import '../Services/db_service.dart';
-import '../Services/backup_service.dart';
-import '../Services/catalog_service.dart';
+import '../services/db_service.dart';
+import '../services/backup_service.dart';
+import '../services/catalog_service.dart';
 import '../utils/theme_controller.dart';
 
 class SettingsScreen extends StatefulWidget {

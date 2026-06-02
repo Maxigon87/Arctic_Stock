@@ -1,9 +1,9 @@
-import 'package:ArticStock/widgets/artic_background.dart';
-import 'package:ArticStock/widgets/artic_container.dart';
+import 'package:artic_stock/widgets/artic_background.dart';
+import 'package:artic_stock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // En TODAS las pantallas, unifica así:
-import '../Services/db_service.dart';
+import '../services/db_service.dart';
 import '../utils/currency_formatter.dart';
 
 import 'product_form.dart';

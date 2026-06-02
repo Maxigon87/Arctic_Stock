@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'package:ArticStock/Services/catalog_service.dart';
-import 'package:ArticStock/Services/db_service.dart';
+import 'package:artic_stock/services/catalog_service.dart';
+import 'package:artic_stock/services/db_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +17,7 @@ void main() {
     final tempDir = await Directory.systemTemp.createTemp();
     databaseFactoryFfi.setDatabasesPath(tempDir.path);
     await DBService().close();
+    await DBService().database;
 
     final csvContent = '''
 codigo,nombre,descripcion,precio_venta,costo_compra,stock,categoria
