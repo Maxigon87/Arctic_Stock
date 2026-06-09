@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:artic_stock/models/producto.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite_common/sqlite_api.dart' show ConflictAlgorithm;
 
 import '../models/cliente.dart';
 
@@ -54,7 +52,7 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 13,
+        version: 14,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
@@ -68,6 +66,7 @@ class DBService {
           if (oldV < 11) await _migrateMovimientosV11(db);
           if (oldV < 12) await _migrateDeudasVentaIdV12(db);
           if (oldV < 13) await _migrateClientesDniV13(db);
+          if (oldV < 14) await _migrateToHybridV14(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -409,6 +408,40 @@ class DBService {
         "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_deudas_ventaId ON deudas(ventaId);");
+
+    // Garantizar columnas de sincronización híbrida
+    final syncTables = [
+      'categorias',
+      'productos',
+      'usuarios',
+      'clientes',
+      'ventas',
+      'deudas',
+      'movimientos_stock'
+    ];
+
+    for (final table in syncTables) {
+      await _ensureColumnExists(db, table, 'firebase_id', "ALTER TABLE $table ADD COLUMN firebase_id TEXT;");
+      await _ensureColumnExists(db, table, 'last_updated', "ALTER TABLE $table ADD COLUMN last_updated TEXT;");
+      await _ensureColumnExists(db, table, 'synced', "ALTER TABLE $table ADD COLUMN synced INTEGER DEFAULT 1;");
+    }
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS deleted_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_name TEXT NOT NULL,
+        firebase_id TEXT NOT NULL,
+        deleted_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS config_sync (
+        negocioId TEXT PRIMARY KEY,
+        ownerEmail TEXT,
+        last_sync_timestamp TEXT
+      )
+    ''');
   }
 
   Future<bool> _tableExists(Database db, String name) async {
@@ -827,6 +860,19 @@ class DBService {
   }
 
   // ======= CRUD / QUERIES =======
+  Map<String, dynamic> _withSyncMeta(Map<String, dynamic> map, {bool forceDirty = true}) {
+    final copy = Map<String, dynamic>.from(map);
+    final now = DateTime.now().toIso8601String();
+    if (forceDirty) {
+      copy['synced'] = 0;
+      copy['last_updated'] = now;
+    } else {
+      copy['synced'] ??= 0;
+      copy['last_updated'] ??= now;
+    }
+    return copy;
+  }
+
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
     final id = await db.insert('productos', {
@@ -873,7 +919,7 @@ class DBService {
 
   Future<int> deleteProducto(int id) async {
     final db = await database;
-    final count = await db.update('productos', {'activo': 0},
+    final count = await db.update('productos', _withSyncMeta({'activo': 0}),
         where: 'id = ?', whereArgs: [id]);
     notifyDbChange();
     return count;
@@ -881,7 +927,7 @@ class DBService {
 
   Future<int> activarProducto(int id) async {
     final db = await database;
-    final count = await db.update('productos', {'activo': 1},
+    final count = await db.update('productos', _withSyncMeta({'activo': 1}),
         where: 'id = ?', whereArgs: [id]);
     notifyDbChange();
     return count;
@@ -889,13 +935,13 @@ class DBService {
 
   Future<int> insertVenta(Map<String, dynamic> data) async {
     final db = await database;
-    final id = await db.insert('ventas', {
+    final id = await db.insert('ventas', _withSyncMeta({
       'clienteId': data['clienteId'],
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
       'userId': data['userId'] ?? _activeUserId,
-    });
+    }, forceDirty: false));
     notifyDbChange();
     return id;
   }
@@ -915,7 +961,7 @@ class DBService {
 
   Future<int> insertDeuda(Map<String, dynamic> data) async {
     final db = await database;
-    final id = await db.insert('deudas', data);
+    final id = await db.insert('deudas', _withSyncMeta(data, forceDirty: false));
     notifyDbChange();
     return id;
   }
@@ -960,10 +1006,10 @@ class DBService {
     // Actualizar estado y fecha de pago de la deuda
     await db.update(
       'deudas',
-      {
+      _withSyncMeta({
         'estado': 'Pagada',
         'fechaPago': now,
-      },
+      }),
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -972,22 +1018,22 @@ class DBService {
       // Actualizar la venta original para reflejar el pago de la deuda
       await db.update(
         'ventas',
-        {
+        _withSyncMeta({
           'metodoPago': 'PagoDeuda',
           'fecha': now,
-        },
+        }),
         where: 'id = ?',
         whereArgs: [ventaId],
       );
     } else {
       // Fallback para deudas sin venta asociada
-      await db.insert('ventas', {
+      await db.insert('ventas', _withSyncMeta({
         'clienteId': clienteId,
         'fecha': now,
         'metodoPago': 'PagoDeuda',
         'total': monto,
         'userId': _activeUserId,
-      });
+      }, forceDirty: false));
     }
 
     notifyDbChange();
@@ -1133,7 +1179,7 @@ class DBService {
 
   Future<int> insertCliente(Cliente cliente) async {
     final db = await database;
-    return await db.insert('clientes', cliente.toMap());
+    return await db.insert('clientes', _withSyncMeta(cliente.toMap(), forceDirty: false));
   }
 
   Future<List<Cliente>> getClientes() async {
@@ -1144,7 +1190,7 @@ class DBService {
 
   Future<int> updateCliente(Cliente cliente) async {
     final db = await database;
-    final count = await db.update('clientes', cliente.toMap(),
+    final count = await db.update('clientes', _withSyncMeta(cliente.toMap()),
         where: 'id = ?', whereArgs: [cliente.id]);
     notifyDbChange();
     return count;
@@ -1152,6 +1198,15 @@ class DBService {
 
   Future<int> deleteCliente(int id) async {
     final db = await database;
+    // Registro de baja en deleted_records para sincronización
+    final rec = await db.query('clientes', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
+    if (rec.isNotEmpty && rec.first['firebase_id'] != null) {
+      await db.insert('deleted_records', {
+        'table_name': 'clientes',
+        'firebase_id': rec.first['firebase_id'] as String,
+        'deleted_at': DateTime.now().toIso8601String(),
+      });
+    }
     final count = await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
     notifyDbChange();
     return count;
@@ -1545,7 +1600,7 @@ class DBService {
 
   Future<int> insertCategoria(String nombre) async {
     final db = await database;
-    return await db.insert('categorias', {'nombre': nombre});
+    return await db.insert('categorias', _withSyncMeta({'nombre': nombre}, forceDirty: false));
   }
 
   Future<List<Map<String, dynamic>>> getProductos({
@@ -1593,17 +1648,26 @@ class DBService {
 
   Future<int> addCategoria(String nombre) async {
     final db = await database;
-    return await db.insert('categorias', {'nombre': nombre});
+    return await db.insert('categorias', _withSyncMeta({'nombre': nombre}, forceDirty: false));
   }
 
   Future<int> updateCategoria(int id, String nombre) async {
     final db = await database;
-    return await db.update('categorias', {'nombre': nombre},
+    return await db.update('categorias', _withSyncMeta({'nombre': nombre}),
         where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteCategoria(int id) async {
     final db = await database;
+    // Registro de baja en deleted_records para sincronización
+    final rec = await db.query('categorias', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
+    if (rec.isNotEmpty && rec.first['firebase_id'] != null) {
+      await db.insert('deleted_records', {
+        'table_name': 'categorias',
+        'firebase_id': rec.first['firebase_id'] as String,
+        'deleted_at': DateTime.now().toIso8601String(),
+      });
+    }
     return await db.delete('categorias', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -1690,7 +1754,7 @@ class DBService {
 
   Future<void> setStock(int productoId, int cantidad) async {
     final db = await database;
-    await db.update('productos', {'stock': cantidad},
+    await db.update('productos', _withSyncMeta({'stock': cantidad}),
         where: 'id = ?', whereArgs: [productoId]);
     notifyDbChange();
   }
@@ -1708,10 +1772,10 @@ class DBService {
         columns: ['id'], where: 'id = ?', whereArgs: [productoId], limit: 1);
     if (prod.isEmpty) throw Exception('Producto inexistente');
 
-    // 1) Actualizo stock
+    // 1) Actualizo stock y marcamos para sincronización
     await db.rawUpdate(
-      'UPDATE productos SET stock = stock + ? WHERE id = ?',
-      [cantidad, productoId],
+      'UPDATE productos SET stock = stock + ?, synced = 0, last_updated = ? WHERE id = ?',
+      [cantidad, DateTime.now().toIso8601String(), productoId],
     );
 
     // 2) Registro el movimiento (ingreso)
@@ -1727,8 +1791,8 @@ class DBService {
 
   Future<void> decrementarStock(int productoId, int cantidad) async {
     final db = await database;
-    await db.rawUpdate('UPDATE productos SET stock = stock - ? WHERE id = ?',
-        [cantidad, productoId]);
+    await db.rawUpdate('UPDATE productos SET stock = stock - ?, synced = 0, last_updated = ? WHERE id = ?',
+        [cantidad, DateTime.now().toIso8601String(), productoId]);
     await _logMovimientoStock(
       productoId: productoId,
       tipo: 'egreso',
@@ -1775,7 +1839,10 @@ class DBService {
     final db = await database;
     final id = await db.insert(
       'usuarios',
-      {'nombre': nombre.trim(), 'color': color},
+      _withSyncMeta({
+        'nombre': nombre.trim(),
+        'color': color,
+      }, forceDirty: false),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
     notifyDbChange();
@@ -1791,7 +1858,10 @@ class DBService {
     final db = await database;
     final count = await db.update(
       'usuarios',
-      {'nombre': nuevoNombre.trim(), 'color': color},
+      _withSyncMeta({
+        'nombre': nuevoNombre.trim(),
+        'color': color,
+      }),
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -1803,6 +1873,15 @@ class DBService {
     final db = await database;
     await db.update('ventas', {'userId': null},
         where: 'userId = ?', whereArgs: [id]);
+    // Registro de baja en deleted_records para sincronización
+    final rec = await db.query('usuarios', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
+    if (rec.isNotEmpty && rec.first['firebase_id'] != null) {
+      await db.insert('deleted_records', {
+        'table_name': 'usuarios',
+        'firebase_id': rec.first['firebase_id'] as String,
+        'deleted_at': DateTime.now().toIso8601String(),
+      });
+    }
     final count = await db.delete('usuarios', where: 'id = ?', whereArgs: [id]);
     notifyDbChange();
     return count;
@@ -1942,5 +2021,50 @@ class DBService {
     WHERE $where
     ORDER BY m.fecha DESC
   ''', args);
+  }
+
+  Future<void> _migrateToHybridV14(Database db) async {
+    final tables = [
+      'categorias',
+      'productos',
+      'usuarios',
+      'clientes',
+      'ventas',
+      'deudas',
+      'movimientos_stock'
+    ];
+
+    for (final table in tables) {
+      if (await _tableExists(db, table)) {
+        if (!await _columnExists(db, table, 'firebase_id')) {
+          await db.execute("ALTER TABLE $table ADD COLUMN firebase_id TEXT;");
+        }
+        if (!await _columnExists(db, table, 'last_updated')) {
+          await db.execute("ALTER TABLE $table ADD COLUMN last_updated TEXT;");
+        }
+        if (!await _columnExists(db, table, 'synced')) {
+          await db.execute("ALTER TABLE $table ADD COLUMN synced INTEGER DEFAULT 1;");
+        }
+        // Marcar registros locales existentes como sucios para sincronizarlos al loguearse en Firebase
+        await db.execute("UPDATE $table SET synced = 0 WHERE firebase_id IS NULL;");
+      }
+    }
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS deleted_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_name TEXT NOT NULL,
+        firebase_id TEXT NOT NULL,
+        deleted_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS config_sync (
+        negocioId TEXT PRIMARY KEY,
+        ownerEmail TEXT,
+        last_sync_timestamp TEXT
+      )
+    ''');
   }
 }

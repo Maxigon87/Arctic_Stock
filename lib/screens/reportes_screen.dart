@@ -329,6 +329,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
     await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte Mensual");
   }
 
+  CellValue? _toCell(dynamic val) {
+    if (val == null) return null;
+    if (val is int) return IntCellValue(val);
+    if (val is double) return DoubleCellValue(val);
+    if (val is bool) return BoolCellValue(val);
+    return TextCellValue(val.toString());
+  }
+
   // ---- Excel mensual (mismas fechas, sin otros filtros) ----
   Future<void> _exportarExcelMensual(BuildContext context) async {
     final ventas = await dbService.getVentasFiltradasParaReporte(
@@ -353,7 +361,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       'Costo',
       'Ganancia',
       'Total Unidades'
-    ]);
+    ].map(_toCell).toList());
     shItems.appendRow([
       'VentaID',
       'Código',
@@ -364,7 +372,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       'Costo Unit.',
       'Subtotal',
       'Ganancia'
-    ]);
+    ].map(_toCell).toList());
 
     double totalIngresoGlobal = 0,
         totalCostoGlobal = 0,
@@ -398,7 +406,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
           cu,
           sub,
           gan,
-        ]);
+        ].map(_toCell).toList());
       }
 
       totalIngresoGlobal += ingresoVenta;
@@ -414,11 +422,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
         costoVenta,
         gananciaVenta,
         totalUnidades,
-      ]);
+      ].map(_toCell).toList());
     }
 
     // Totales globales al pie de Ventas
-    shVentas.appendRow([]);
+    shVentas.appendRow(<CellValue?>[]);
     shVentas.appendRow([
       '',
       '',
@@ -428,7 +436,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       totalCostoGlobal,
       totalGananciaGlobal,
       '', // total unidades globales opcional: podés sumar si querés
-    ]);
+    ].map(_toCell).toList());
 
     final dir = await FileHelper.getReportesDir();
     final file = File('${dir.path}/${FileNamer.reporteExcel()}')

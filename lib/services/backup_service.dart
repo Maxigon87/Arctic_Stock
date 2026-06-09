@@ -109,7 +109,7 @@ class BackupService {
 
   /// Importa un respaldo desde un archivo ZIP seleccionado por el usuario.
   static Future<void> importBackup() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
@@ -175,6 +175,15 @@ class BackupService {
           await txn.insert('deudas', d,
               conflictAlgorithm: ConflictAlgorithm.replace);
         }
+      }
+
+      // Marcar registros importados sin firebase_id como sucios para forzar sincronización
+      final nowStr = DateTime.now().toIso8601String();
+      for (final table in ['clientes', 'ventas', 'deudas']) {
+        await txn.execute(
+          "UPDATE $table SET synced = 0, last_updated = ? WHERE firebase_id IS NULL",
+          [nowStr],
+        );
       }
     });
 

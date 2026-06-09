@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "261389226382",
+    "project_id": "artick-stock",
+    "storage_bucket": "artick-stock.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:261389226382:android:2580946ac250135c71d4df",
+        "android_client_info": {
+          "package_name": "com.example.arctic_stock_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSpj77sN2D-sNxzwkHnM5S_FdQ-3tvemc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

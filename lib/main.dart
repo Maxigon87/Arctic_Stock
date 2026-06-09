@@ -9,8 +9,12 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
 import 'services/db_service.dart';
+import 'services/auth_service.dart';
+import 'services/sync_service.dart';
 import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 
@@ -27,6 +31,11 @@ import 'screens/artic_login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicialización de Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   if (Platform.isWindows) {
     sqfliteFfiInit();
@@ -65,6 +74,14 @@ Future<void> main() async {
 
   await ThemeController.instance.init();
 
+  // Iniciar sincronización si hay un negocio configurado localmente
+  final authService = AuthService();
+  final cachedNegocioId = await authService.getLocalNegocioId();
+  if (cachedNegocioId != null) {
+    SyncService().startPeriodicSync();
+    // Ejecutar una sincronización inicial asíncrona
+    SyncService().syncData();
+  }
 
   runApp(const MyApp());
 }

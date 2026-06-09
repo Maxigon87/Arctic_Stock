@@ -9,6 +9,27 @@ import 'file_helper.dart';
 import '../utils/file_namer.dart';
 
 class CatalogService {
+  /// Helper to extract raw value from Excel CellValue
+  static dynamic _getRawValue(CellValue? value) {
+    if (value == null) return null;
+    if (value is TextCellValue) return value.value;
+    if (value is IntCellValue) return value.value;
+    if (value is DoubleCellValue) return value.value;
+    if (value is BoolCellValue) return value.value;
+    if (value is DateCellValue) return DateTime(value.year, value.month, value.day);
+    if (value is DateTimeCellValue) {
+      return DateTime(
+        value.year,
+        value.month,
+        value.day,
+        value.hour,
+        value.minute,
+        value.second,
+      );
+    }
+    return value.toString();
+  }
+
   /// Exporta todos los productos a un archivo Excel.
   /// Devuelve el [File] generado o null si no se pudo crear.
   static Future<File?> exportProductos() async {
@@ -19,25 +40,25 @@ class CatalogService {
     excel.setDefaultSheet('Productos');
 
     // Encabezados
-    sheet.appendRow([
-      'codigo',
-      'nombre',
-      'descripcion',
-      'precio_venta',
-      'costo_compra',
-      'stock',
-      'categoria',
+    sheet.appendRow(<CellValue?>[
+      TextCellValue('codigo'),
+      TextCellValue('nombre'),
+      TextCellValue('descripcion'),
+      TextCellValue('precio_venta'),
+      TextCellValue('costo_compra'),
+      TextCellValue('stock'),
+      TextCellValue('categoria'),
     ]);
 
     for (final p in productos) {
-      sheet.appendRow([
-        p['codigo'] ?? '',
-        p['nombre'] ?? '',
-        p['descripcion'] ?? '',
-        p['precio_venta'] ?? 0,
-        p['costo_compra'] ?? 0,
-        p['stock'] ?? 0,
-        p['categoria_nombre'] ?? '',
+      sheet.appendRow(<CellValue?>[
+        TextCellValue(p['codigo']?.toString() ?? ''),
+        TextCellValue(p['nombre']?.toString() ?? ''),
+        TextCellValue(p['descripcion']?.toString() ?? ''),
+        DoubleCellValue((p['precio_venta'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((p['costo_compra'] as num?)?.toDouble() ?? 0.0),
+        IntCellValue((p['stock'] as num?)?.toInt() ?? 0),
+        TextCellValue(p['categoria_nombre']?.toString() ?? ''),
       ]);
     }
 
@@ -61,7 +82,7 @@ class CatalogService {
 
     if (extension == '.csv') {
       final content = await file.readAsString();
-      final csvRows = const CsvToListConverter(eol: '\n', fieldDelimiter: ',').convert(content);
+      final csvRows = Csv(lineDelimiter: '\n', fieldDelimiter: ',').decode(content);
       if (csvRows.isEmpty) return;
       final headers = csvRows.first.map((e) => e.toString()).toList();
       for (var i = 1; i < csvRows.length; i++) {
@@ -78,13 +99,13 @@ class CatalogService {
       final table = excel.tables['Productos'] ?? excel.tables.values.first;
       if (table == null || table.rows.isEmpty) return;
       final headers = table.rows.first
-          .map((cell) => cell?.value?.toString() ?? '')
+          .map((cell) => _getRawValue(cell?.value)?.toString() ?? '')
           .toList();
       for (var i = 1; i < table.rows.length; i++) {
         final row = table.rows[i];
         final map = <String, dynamic>{};
         for (var j = 0; j < headers.length && j < row.length; j++) {
-          map[headers[j]] = row[j]?.value;
+          map[headers[j]] = _getRawValue(row[j]?.value);
         }
         rows.add(map);
       }

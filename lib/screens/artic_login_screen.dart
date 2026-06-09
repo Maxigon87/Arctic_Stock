@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../widgets/artic_background.dart';
 import '../services/db_service.dart'; // usuarios + setActiveUser
 import '../widgets/articlogo.dart';
+import '../services/auth_service.dart';
+import '../services/sync_service.dart';
 
 class ArticLoginScreen extends StatefulWidget {
   const ArticLoginScreen({super.key});
@@ -22,6 +24,14 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
   final List<_WindParticle> _windParticles =
       List.generate(40, (_) => _WindParticle());
+
+  // --- Sincronización y Empresa ---
+  bool _isBusinessAuthenticated = false;
+  bool _showRegisterForm = false;
+  bool _authenticating = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _businessNameController = TextEditingController();
 
   // --- Usuarios ---
   List<Map<String, dynamic>> _usuarios = [];
@@ -61,7 +71,111 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
           })
           ..repeat();
 
-    _loadUsuarios();
+    _checkBusinessAuth();
+  }
+
+  Future<void> _checkBusinessAuth() async {
+    final auth = AuthService();
+    final localNegocioId = await auth.getLocalNegocioId();
+    if (auth.isAuthenticated || localNegocioId != null) {
+      setState(() {
+        _isBusinessAuthenticated = true;
+      });
+      SyncService().startPeriodicSync();
+      // Sincronización silenciosa inicial
+      SyncService().syncData().then((_) {
+        if (mounted) _loadUsuarios();
+      });
+    } else {
+      setState(() {
+        _isBusinessAuthenticated = false;
+      });
+    }
+  }
+
+  Future<void> _submitBusinessAuth() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final businessName = _businessNameController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor completa todos los campos')),
+      );
+      return;
+    }
+
+    if (_showRegisterForm && businessName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor escribe el nombre de tu negocio')),
+      );
+      return;
+    }
+
+    setState(() => _authenticating = true);
+
+    try {
+      final auth = AuthService();
+      if (_showRegisterForm) {
+        await auth.registerNegocio(
+          email: email,
+          password: password,
+          nombreNegocio: businessName,
+        );
+      } else {
+        await auth.loginNegocio(email, password);
+      }
+
+      await SyncService().syncData();
+      SyncService().startPeriodicSync();
+      await _loadUsuarios();
+
+      if (mounted) {
+        setState(() {
+          _isBusinessAuthenticated = true;
+          _authenticating = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _authenticating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error de autenticación: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logoutBusiness() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cerrar Sesión de Empresa'),
+        content: const Text('¿Estás seguro de que quieres cerrar la sesión de tu empresa? Se cerrará el acceso local en este dispositivo.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Salir', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() => _loadingUsers = true);
+      SyncService().stopPeriodicSync();
+      await AuthService().logout();
+      if (mounted) {
+        setState(() {
+          _isBusinessAuthenticated = false;
+          _loadingUsers = false;
+          _usuarios = [];
+          _selectedUserId = null;
+        });
+      }
+    }
   }
 
   Future<void> _loadUsuarios() async {
@@ -132,6 +246,9 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   void dispose() {
     _titleController.dispose();
     _windController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _businessNameController.dispose();
     super.dispose();
   }
 
@@ -187,68 +304,78 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                     ),
                                   ],
                                 ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text('Usuario',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _loadingUsers
-                                              ? const LinearProgressIndicator(
-                                                  minHeight: 48)
-                                              : // DESPUÉS
-                                              DropdownButtonFormField<int>(
-                                                  value: (_usuarios.isNotEmpty)
-                                                      ? _selectedUserId
-                                                      : null,
-                                                  items: _usuarios.map((u) {
-                                                    return DropdownMenuItem<
-                                                        int>(
-                                                      value: u['id'] as int,
-                                                      child: Text(u['nombre']
-                                                          as String),
-                                                    );
-                                                  }).toList(),
-                                                  onChanged: _usuarios
-                                                          .isNotEmpty
-                                                      ? (v) => setState(() =>
-                                                          _selectedUserId = v)
-                                                      : null,
-                                                  decoration:
-                                                      const InputDecoration(
-                                                    hintText:
-                                                        'No hay usuarios. Agregá uno',
-                                                    border:
-                                                        OutlineInputBorder(),
-                                                  ),
-                                                ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IconButton.outlined(
-                                          tooltip: 'Agregar usuario',
-                                          icon: const Icon(
-                                              Icons.person_add_alt_1),
-                                          onPressed: _addUsuarioDialog,
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    FilledButton(
-                                      onPressed: (_usuarios.isNotEmpty &&
-                                              _selectedUserId != null)
-                                          ? _acceder
-                                          : null,
-                                      child: const Text('Acceder'),
-                                    ),
-                                  ],
-                                ),
+                                child: _isBusinessAuthenticated
+                                    ? Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          Text('Usuario (Empleado)',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _loadingUsers
+                                                    ? const LinearProgressIndicator(
+                                                        minHeight: 48)
+                                                    : DropdownButtonFormField<int>(
+                                                        value: (_usuarios.isNotEmpty)
+                                                            ? _selectedUserId
+                                                            : null,
+                                                        items: _usuarios.map((u) {
+                                                          return DropdownMenuItem<
+                                                              int>(
+                                                            value: u['id'] as int,
+                                                            child: Text(u['nombre']
+                                                                as String),
+                                                          );
+                                                        }).toList(),
+                                                        onChanged: _usuarios
+                                                                .isNotEmpty
+                                                            ? (v) => setState(() =>
+                                                                _selectedUserId = v)
+                                                            : null,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                          hintText:
+                                                              'No hay usuarios. Agregá uno',
+                                                          border:
+                                                              OutlineInputBorder(),
+                                                        ),
+                                                      ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              IconButton.outlined(
+                                                tooltip: 'Agregar usuario',
+                                                icon: const Icon(
+                                                    Icons.person_add_alt_1),
+                                                onPressed: _addUsuarioDialog,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          FilledButton(
+                                            onPressed: (_usuarios.isNotEmpty &&
+                                                    _selectedUserId != null)
+                                                ? _acceder
+                                                : null,
+                                            child: const Text('Acceder'),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          TextButton.icon(
+                                            onPressed: _logoutBusiness,
+                                            icon: const Icon(Icons.logout, size: 16),
+                                            label: const Text('Salir de la Empresa'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Colors.redAccent,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : _buildBusinessAuthForm(),
                               ),
                             ),
                           )
@@ -260,6 +387,74 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBusinessAuthForm() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _showRegisterForm ? 'Crear Cuenta de Negocio' : 'Iniciar Sesión (Negocio)',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        if (_showRegisterForm) ...[
+          TextField(
+            controller: _businessNameController,
+            decoration: const InputDecoration(
+              labelText: 'Nombre del Negocio',
+              prefixIcon: Icon(Icons.business),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Correo Electrónico',
+            prefixIcon: Icon(Icons.email),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Contraseña',
+            prefixIcon: Icon(Icons.lock),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (_authenticating)
+          const Center(child: Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(),
+          ))
+        else ...[
+          FilledButton(
+            onPressed: _submitBusinessAuth,
+            child: Text(_showRegisterForm ? 'Registrar Negocio' : 'Ingresar al Negocio'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _showRegisterForm = !_showRegisterForm;
+              });
+            },
+            child: Text(_showRegisterForm
+                ? '¿Ya tienes una cuenta? Inicia Sesión'
+                : '¿No tienes cuenta? Registra tu Negocio'),
+          ),
+        ],
+      ],
     );
   }
 }
