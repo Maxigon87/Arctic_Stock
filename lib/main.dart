@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:window_manager/window_manager.dart';
@@ -17,6 +18,7 @@ import 'services/auth_service.dart';
 import 'services/sync_service.dart';
 import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
+import 'widgets/artic_sidebar.dart';
 
 import 'utils/theme_controller.dart';
 import 'screens/dashboard_screen.dart';
@@ -56,6 +58,7 @@ Future<void> main() async {
       minimumSize: Size(800, 600),
       center: true,
       backgroundColor: Colors.transparent,
+      titleBarStyle: TitleBarStyle.hidden,
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -204,6 +207,8 @@ class _HomeScreenState extends State<HomeScreen>
   bool _animarBadge = false;
 
   NavItem _selected = NavItem.none;
+  bool _startNewSaleInVentas = false;
+  bool _isWindowMaximized = false;
 
   int _selectedIndex() => _items.indexWhere((e) => e.id == _selected);
 
@@ -227,6 +232,11 @@ class _HomeScreenState extends State<HomeScreen>
         final isMax = await windowManager.isMaximized();
         if (!isMax) {
           await windowManager.maximize();
+        }
+        if (mounted) {
+          setState(() {
+            _isWindowMaximized = true;
+          });
         }
       }
     });
@@ -281,7 +291,128 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ======== SHELL CON LAYOUT LADO-IZQ / CONTENIDO DERECHA =========
+  // ======== SHELL CON LAYOUT LADO-IZQ / CONTENIDO DERECHA ===
+  Widget _buildCustomTitleBar(BuildContext context) {
+    final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final isWindows = !kIsWeb && Platform.isWindows;
+    final isMac = !kIsWeb && Platform.isMacOS;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (!isDesktop) {
+      return SizedBox(
+        height: 40,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            children: [
+              const Expanded(child: SizedBox()),
+              if (DBService().activeUserName != null)
+                _UserBadge(
+                  name: DBService().activeUserName!,
+                  onChangeUser: _goToLogin,
+                  onSettings: () =>
+                      setState(() => _selected = NavItem.configuracion),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 40,
+      child: Row(
+        children: [
+          if (isMac) const SizedBox(width: 80),
+          const Expanded(
+            child: DragToMoveArea(
+              child: SizedBox.expand(),
+            ),
+          ),
+          if (DBService().activeUserName != null)
+            _UserBadge(
+              name: DBService().activeUserName!,
+              onChangeUser: _goToLogin,
+              onSettings: () =>
+                  setState(() => _selected = NavItem.configuracion),
+            ),
+          if (isWindows) _buildWindowButtons(context, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWindowButtons(BuildContext context, bool isDark) {
+    final iconColor = isDark ? Colors.white70 : const Color(0xFF0F172A);
+    final hoverColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildWindowButton(
+          icon: Icons.minimize,
+          color: iconColor,
+          hoverColor: hoverColor,
+          onTap: () async {
+            await windowManager.minimize();
+          },
+        ),
+        _buildWindowButton(
+          icon: _isWindowMaximized ? Icons.filter_none : Icons.crop_square,
+          iconSize: 12,
+          color: iconColor,
+          hoverColor: hoverColor,
+          onTap: () async {
+            if (_isWindowMaximized) {
+              await windowManager.unmaximize();
+            } else {
+              await windowManager.maximize();
+            }
+            final isMax = await windowManager.isMaximized();
+            setState(() {
+              _isWindowMaximized = isMax;
+            });
+          },
+        ),
+        _buildWindowButton(
+          icon: Icons.close,
+          color: iconColor,
+          hoverColor: isDark ? Colors.red.withOpacity(0.2) : Colors.red.withOpacity(0.1),
+          hoverIconColor: Colors.redAccent,
+          onTap: () async {
+            final salir = await _mostrarDialogoConfirmacion(context);
+            if (salir == true) {
+              exit(0);
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWindowButton({
+    required IconData icon,
+    double iconSize = 14,
+    required Color color,
+    required Color hoverColor,
+    Color? hoverIconColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverColor,
+      child: SizedBox(
+        width: 46,
+        height: 40,
+        child: Icon(
+          icon,
+          size: iconSize,
+          color: color,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.sizeOf(context).width < 1150;
@@ -290,153 +421,57 @@ class _HomeScreenState extends State<HomeScreen>
       onWillPop: () async =>
           await _mostrarDialogoConfirmacion(context) ?? false,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text("Gestión comercial total"),
-          actions: [
-            if (DBService().activeUserName != null)
-              _UserBadge(
-                name: DBService().activeUserName!,
-                onChangeUser: _goToLogin, // 👈 acá
-                onSettings: () =>
-                    setState(() => _selected = NavItem.configuracion),
-              ),
-            IconButton(
-              tooltip: "Salir de la App",
-              icon: const Icon(Icons.exit_to_app),
-              onPressed: () async {
-                /* ... tu confirmación y exit(0) ... */
-              },
-            ),
-          ],
-        ),
         body: Container(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: ArticBackground(
             child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: Row(
-                children: [
-                  // ==== LADO IZQUIERDO: BARRA ====
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: isCompact ? 72 : 260,
-                    // barra izquierda
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest, // <- antes: surfaceContainerHighest
-                      border: Border(
-                        right: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 0.6,
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Column(
+                  children: [
+                    _buildCustomTitleBar(context),
+                    Expanded(
+                      child: SafeArea(
+                        top: false,
+                        child: Row(
+                          children: [
+                            // ==== LADO IZQUIERDO: BARRA ====
+                            ArticSidebar(
+                              selectedItem: _selected,
+                              onItemSelected: (item) => setState(() => _selected = item),
+                              productosSinStock: _productosSinStock,
+                              isCompact: isCompact,
+                              onNewSale: () {
+                                setState(() {
+                                  _startNewSaleInVentas = true;
+                                  _selected = NavItem.ventas;
+                                });
+                              },
+                            ),
+
+                            // ==== LADO DERECHO: CONTENIDO ====
+                            Expanded(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                switchInCurve: Curves.easeOut,
+                                switchOutCurve: Curves.easeIn,
+                                child: _buildContent(_selected),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-
-                    child: Column(
-                      children: [
-                        // Encabezado barra
-                        // Encabezado barra (solo logo, sin texto)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                          child: Center(
-                            child: Image.asset(
-                              'assets/logo/logo_sin_titulo.png',
-                              width: isCompact ? 28 : 36,
-                              height: isCompact ? 28 : 36,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-
-                        Expanded(
-                          child: NavigationRail(
-                            extended: !isCompact,
-                            minExtendedWidth: 240,
-                            selectedIndex: (_selectedIndex() >= 0)
-                                ? _selectedIndex()
-                                : 0,
-                            onDestinationSelected: (idx) {
-                              setState(() => _selected = _items[idx].id);
-                            },
-                            groupAlignment: -1.0,
-                            destinations: _items.map((e) {
-                              final isProductos = e.id == NavItem.productos;
-                              final showBadge =
-                                  isProductos && _productosSinStock > 0;
-
-                              return NavigationRailDestination(
-                                icon: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Icon(e.icon),
-                                    if (showBadge)
-                                      Positioned(
-                                        top: -2,
-                                        right: -6,
-                                        child: AnimatedScale(
-                                          scale: _animarBadge ? 1.2 : 1.0,
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          child: _DotBadge(
-                                            count: _productosSinStock,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                selectedIcon: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Icon(e.icon),
-                                    if (showBadge)
-                                      Positioned(
-                                        top: -2,
-                                        right: -6,
-                                        child: AnimatedScale(
-                                          scale: _animarBadge ? 1.2 : 1.0,
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          child: _DotBadge(
-                                            count: _productosSinStock,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                label: Text(e.label),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  ),
-
-                  // ==== LADO DERECHO: CONTENIDO ====
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      child: _buildContent(_selected),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildContent(NavItem item) {
     switch (item) {
@@ -447,7 +482,12 @@ class _HomeScreenState extends State<HomeScreen>
         return const _PageWrap(keyName: 'dashboard', child: DashboardScreen());
 
       case NavItem.ventas:
-        return const _PageWrap(keyName: 'ventas', child: SalesScreen());
+        final startNew = _startNewSaleInVentas;
+        _startNewSaleInVentas = false; // reset
+        return _PageWrap(
+          keyName: 'ventas',
+          child: SalesScreen(startNewSale: startNew),
+        );
 
       case NavItem.productos:
         return const _PageWrap(
@@ -473,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen>
       case NavItem.configuracion:
         return const _PageWrap(
           keyName: 'config',
-          child: SettingsScreen(), // 👈 sin onUsersChanged
+          child: SettingsScreen(),
         );
     }
   }
@@ -518,12 +558,7 @@ class _PageWrap extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          ),
-          child: child,
-        ),
+        child: child,
       ),
     );
   }
@@ -588,6 +623,20 @@ class _MyWindowListener extends WindowListener {
     final shouldExit = await state._mostrarDialogoConfirmacion(state.context);
     return shouldExit == true;
   }
+
+  @override
+  void onWindowMaximize() {
+    state.setState(() {
+      state._isWindowMaximized = true;
+    });
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    state.setState(() {
+      state._isWindowMaximized = false;
+    });
+  }
 }
 
 class _UserBadge extends StatelessWidget {
@@ -604,6 +653,7 @@ class _UserBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.sizeOf(context).width < 1000;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -631,7 +681,11 @@ class _UserBadge extends StatelessWidget {
                 child: Text(
                   name,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],

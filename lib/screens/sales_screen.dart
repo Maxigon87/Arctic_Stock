@@ -20,7 +20,8 @@ import 'dart:async' as dart_async;
 import 'dart:async';
 
 class SalesScreen extends StatefulWidget {
-  const SalesScreen({super.key});
+  final bool startNewSale;
+  const SalesScreen({super.key, this.startNewSale = false});
 
   @override
   State<SalesScreen> createState() => _SalesScreenState();
@@ -61,6 +62,11 @@ class _SalesScreenState extends State<SalesScreen> {
     _cargarClientes();
     _confettiController =
         ConfettiController(duration: const Duration(milliseconds: 500));
+    if (widget.startNewSale) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _abrirCarrito();
+      });
+    }
   }
 
   Future<void> _verDetalleVenta(int ventaId) async {
