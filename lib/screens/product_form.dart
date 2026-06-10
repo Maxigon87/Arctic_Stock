@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:artic_stock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 import 'package:artic_stock/widgets/artic_background.dart';
 import 'package:artic_stock/widgets/artic_container.dart';
+import 'package:artic_stock/widgets/artic_dialog.dart';
 import '../utils/currency_formatter.dart';
 
 class ProductForm extends StatefulWidget {
@@ -82,25 +83,33 @@ class _ProductFormState extends State<ProductForm> {
 
   Future<void> _mostrarDialogoNuevaCategoria() async {
     final controller = TextEditingController();
-    final nombre = await showDialog<String>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nombre = await showArticDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nueva Categoría'),
-        content: TextField(
-          controller: controller,
-          decoration:
-              const InputDecoration(labelText: 'Nombre de la categoría'),
-        ),
+      builder: (ctx) => ArticDialogCard(
+        title: 'Nueva Categoría',
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar')),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
           ElevatedButton(
-            onPressed: () =>
-                Navigator.pop(context, controller.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Guardar'),
           ),
         ],
+        child: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            labelText: 'Nombre de la categoría',
+            labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+          ),
+        ),
       ),
     );
 
@@ -123,20 +132,24 @@ class _ProductFormState extends State<ProductForm> {
 
     // Aviso si vende con pérdida
     if (precio < costo) {
-      final continuar = await showDialog<bool>(
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final continuar = await showArticDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Atención'),
-          content: const Text(
-              'El precio de venta es menor que el costo de compra.\n¿Querés guardar igual?'),
+        builder: (_) => ArticDialogCard(
+          title: '⚠️ Atención',
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(_, false),
+                child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(_, true),
                 child: const Text('Guardar igual')),
           ],
+          child: Text(
+            'El precio de venta es menor que el costo de compra.\n¿Querés guardar igual?',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          ),
         ),
       );
       if (continuar != true) return;

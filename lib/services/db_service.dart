@@ -1039,6 +1039,35 @@ class DBService {
     notifyDbChange();
   }
 
+  Future<void> revertirDeudaAPendiente(int id) async {
+    final db = await database;
+    final deudas = await db.query('deudas', columns: ['ventaId'], where: 'id = ?', whereArgs: [id]);
+    final ventaId = deudas.isNotEmpty ? deudas.first['ventaId'] as int? : null;
+
+    await db.update(
+      'deudas',
+      _withSyncMeta({
+        'estado': 'Pendiente',
+        'fechaPago': null,
+      }),
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (ventaId != null) {
+      await db.update(
+        'ventas',
+        _withSyncMeta({
+          'metodoPago': 'Fiado',
+        }),
+        where: 'id = ?',
+        whereArgs: [ventaId],
+      );
+    }
+
+    notifyDbChange();
+  }
+
   Future<int> countDeudasCliente(int clienteId) async {
     final db = await database;
     final res = await db.rawQuery(
@@ -1152,6 +1181,11 @@ class DBService {
     await db.update('ventas', {'total': total},
         where: 'id = ?', whereArgs: [ventaId]);
     notifyDbChange();
+  }
+
+  Future<List<Map<String, dynamic>>> getDeudasByCliente(int clienteId) async {
+    final db = await database;
+    return await db.query('deudas', where: 'clienteId = ?', whereArgs: [clienteId], orderBy: 'fecha DESC');
   }
 
   Future<List<Map<String, dynamic>>> getStockProductos() async {

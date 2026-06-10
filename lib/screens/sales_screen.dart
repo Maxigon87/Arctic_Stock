@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -16,6 +18,7 @@ import '../screens/product_list_screen.dart';
 import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
+import '../widgets/artic_dialog.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -69,170 +72,169 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
+  Widget _buildDetailBadge(String label, Color color, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   Future<void> _verDetalleVenta(int ventaId) async {
     try {
-      // header (cliente, vendedor, total, fecha, etc.)
       final header = await dbService.getVentaById(ventaId);
-      // ítems de la venta
       final items = await dbService.getItemsByVenta(ventaId);
 
       if (!mounted) return;
 
-      showModalBottomSheet(
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+
+      showArticDialog(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
         builder: (ctx) {
-          return DraggableScrollableSheet(
-            initialChildSize: 0.7,
-            maxChildSize: 0.95,
-            minChildSize: 0.5,
-            builder: (_, scroll) {
-              final cliente =
-                  (header?['clienteNombre']?.toString().isNotEmpty ?? false)
-                      ? header!['clienteNombre']
-                      : 'Consumidor Final';
-              final vendedor =
-                  (header?['usuarioNombre']?.toString().isNotEmpty ?? false)
-                      ? header!['usuarioNombre']
-                      : '—';
-              final total = (header?['total'] as num?)?.toDouble() ?? 0.0;
-              final fecha =
-                  (header?['fecha']?.toString().split('T').first) ?? '';
+          final cliente =
+              (header?['clienteNombre']?.toString().isNotEmpty ?? false)
+                  ? header!['clienteNombre']
+                  : 'Consumidor Final';
+          final vendedor =
+              (header?['usuarioNombre']?.toString().isNotEmpty ?? false)
+                  ? header!['usuarioNombre']
+                  : '—';
+          final total = (header?['total'] as num?)?.toDouble() ?? 0.0;
+          final fecha =
+              (header?['fecha']?.toString().split('T').first) ?? '';
+          final metodo = header?['metodoPago'] ?? '—';
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(18)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header
-                      Row(
-                        children: [
-                          const Icon(Icons.receipt_long),
-                          const SizedBox(width: 8),
-                          Text("Venta #$ventaId",
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
-                          const Spacer(),
-                          Text(fecha,
-                              style:
-                                  const TextStyle(fontStyle: FontStyle.italic)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 6,
-                        children: [
-                          Chip(label: Text("Cliente: $cliente")),
-                          Chip(label: Text("Vendedor: $vendedor")),
-                          Chip(
-                              label: Text(
-                                  "Método: ${header?['metodoPago'] ?? '—'}")),
-                          Chip(label: Text("Total: ${formatCurrency(total)}")),
-                        ],
-                      ),
-
-                      const SizedBox(height: 10),
-                      const Divider(),
-
-                      const Text("Productos",
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-
-                      // Lista de items
-                      Expanded(
-                        child: items.isEmpty
-                            ? const Center(child: Text("Sin ítems"))
-                            : ListView.builder(
-                                controller: scroll,
-                                itemCount: items.length,
-                                itemBuilder: (_, i) {
-                                  final it = items[i];
-                                  final nombre = it['producto'] ?? 'Producto';
-                                  final codigo =
-                                      (it['codigo']?.toString().isNotEmpty ??
-                                              false)
-                                          ? " · Código: ${it['codigo']}"
-                                          : "";
-                                  final cant =
-                                      (it['cantidad'] as num?)?.toInt() ?? 0;
-                                  final pu = (it['precioUnitario'] as num?)
-                                          ?.toDouble() ??
-                                      0.0;
-                                  final cu = (it['costoUnitario'] as num?)
-                                          ?.toDouble() ??
-                                      0.0;
-                                  final sub =
-                                      (it['subtotal'] as num?)?.toDouble() ??
-                                          (pu * cant);
-
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text("$nombre"),
-                                    subtitle: Text(
-                                      "Cant: $cant · PU: ${formatCurrency(pu)} · Costo: ${formatCurrency(cu)}$codigo",
-                                    ),
-                                    trailing: Text(formatCurrency(sub),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600)),
-                                  );
-                                },
-                              ),
-                      ),
-
-                      const Divider(),
-
-                      // Total y acciones
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-
-                          Text("TOTAL: ${formatCurrency(total)}",
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              )),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.share),
-                                tooltip: 'Compartir comprobante',
-                                onPressed: () =>
-                                    _compartirComprobante(header!, items),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.download),
-                                tooltip: 'Guardar comprobante',
-                                onPressed: () =>
-                                    _guardarComprobante(header!, items),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.print),
-                                tooltip: 'Imprimir comprobante',
-                                onPressed: () =>
-                                    _imprimirComprobante(header!, items),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text("Cerrar"),
-                              ),
-                              ],
-                            ),
-                          ],
-                        ),
-                    ],
+          return ArticDialogCard(
+            title: "Venta #$ventaId",
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.share, color: Colors.blueAccent),
+                tooltip: 'Compartir comprobante',
+                onPressed: () =>
+                    _compartirComprobante(header!, items),
+              ),
+              IconButton(
+                icon: const Icon(Icons.download, color: Colors.green),
+                tooltip: 'Guardar comprobante',
+                onPressed: () =>
+                    _guardarComprobante(header!, items),
+              ),
+              IconButton(
+                icon: Icon(Icons.print, color: isDark ? Colors.white70 : Colors.black54),
+                tooltip: 'Imprimir comprobante',
+                onPressed: () =>
+                    _imprimirComprobante(header!, items),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cerrar"),
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  fecha,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                    fontSize: 12,
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildDetailBadge("Cliente: $cliente", isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), isDark),
+                    _buildDetailBadge("Vendedor: $vendedor", Colors.purpleAccent, isDark),
+                    _buildDetailBadge("Método: $metodo", metodo == "Fiado" ? Colors.amber : Colors.green, isDark),
+                    _buildDetailBadge("Total: ${formatCurrency(total)}", isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), isDark),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+
+                Text(
+                  "Productos",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Lista de items
+                items.isEmpty
+                    ? const Center(child: Text("Sin ítems"))
+                    : ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: items.length,
+                          itemBuilder: (_, i) {
+                            final it = items[i];
+                            final nombre = it['producto'] ?? 'Producto';
+                            final codigo =
+                                (it['codigo']?.toString().isNotEmpty ??
+                                        false)
+                                    ? " · Código: ${it['codigo']}"
+                                    : "";
+                            final cant =
+                                (it['cantidad'] as num?)?.toInt() ?? 0;
+                            final pu = (it['precioUnitario'] as num?)
+                                    ?.toDouble() ??
+                                0.0;
+                            final cu = (it['costoUnitario'] as num?)
+                                    ?.toDouble() ??
+                                0.0;
+                            final sub =
+                                (it['subtotal'] as num?)?.toDouble() ??
+                                    (pu * cant);
+
+                            return ListTile(
+                              dense: true,
+                              title: Text(
+                                "$nombre",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              subtitle: Text(
+                                "Cant: $cant · PU: ${formatCurrency(pu)} · Costo: ${formatCurrency(cu)}$codigo",
+                                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                              ),
+                              trailing: Text(
+                                formatCurrency(sub),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+              ],
+            ),
           );
         },
       );
@@ -440,22 +442,25 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<bool> _confirmarPerdidaDialog(double precio, double costo) async {
     if (precio >= costo) return true;
-    final ok = await showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ok = await showArticDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Atención'),
-        content: Text(
-          'Este producto se venderá con pérdida.\n'
-          'Precio: ${formatCurrency(precio)} | Costo: ${formatCurrency(costo)}',
-        ),
+      builder: (_) => ArticDialogCard(
+        title: '⚠️ Atención',
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(_, false),
-              child: const Text('Cancelar')),
-          FilledButton(
+              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(_, true),
               child: const Text('Continuar')),
         ],
+        child: Text(
+          'Este producto se venderá con pérdida.\n'
+          'Precio: ${formatCurrency(precio)} | Costo: ${formatCurrency(costo)}',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
       ),
     );
     return ok == true;
@@ -471,29 +476,46 @@ class _SalesScreenState extends State<SalesScreen> {
       );
       return;
     }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final TextEditingController cantCtrl = TextEditingController(text: '1');
-    final int? cantidad = await showDialog<int>(
+    final int? cantidad = await showArticDialog<int>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Cantidad'),
-          content: TextField(
-            controller: cantCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              _maxStockFormatter(() => stock, context),
-            ],
-          ),
+      builder: (ctx) {
+        return ArticDialogCard(
+          title: 'Cantidad',
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar')),
-            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                  foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                ),
                 onPressed: () =>
-                    Navigator.pop(context, int.tryParse(cantCtrl.text) ?? 0),
+                    Navigator.pop(ctx, int.tryParse(cantCtrl.text) ?? 0),
                 child: const Text('Agregar')),
           ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text("Ingresa la cantidad a vender (máx. $stock):", style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cantCtrl,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  _maxStockFormatter(() => stock, context),
+                ],
+                decoration: const InputDecoration(
+                  labelText: "Cantidad",
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -550,364 +572,377 @@ class _SalesScreenState extends State<SalesScreen> {
   // --- BottomSheet carrito ----------------------------------------------------
   void _abrirCarrito() {
     bool clienteConDeudas = false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
+    showArticDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (_, scroll) {
-          return StatefulBuilder(
-            builder: (context, setLocalState) {
-              final double totalCarrito = _carrito.fold<double>(
-                0.0,
-                (sum, p) => sum + (p['subtotal'] as num).toDouble(),
-              );
-              final bool hayStockSuficiente = _carrito.isNotEmpty &&
-                  _carrito.every((p) =>
-                      (p['cantidad'] as int) <=
-                      ((p['stockDisponible'] as int?) ?? 0));
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setLocalState) {
+          final double totalCarrito = _carrito.fold<double>(
+            0.0,
+            (sum, p) => sum + (p['subtotal'] as num).toDouble(),
+          );
+          final bool hayStockSuficiente = _carrito.isNotEmpty &&
+              _carrito.every((p) =>
+                  (p['cantidad'] as int) <=
+                  ((p['stockDisponible'] as int?) ?? 0));
 
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(20)),
+          return ArticDialogCard(
+            title: "🛒 Nueva Venta",
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  "Cancelar",
+                  style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      "🛒 Nueva Venta",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.check_circle, size: 18),
+                label: const Text("Confirmar Venta"),
+                onPressed: hayStockSuficiente
+                    ? () {
+                        // Close the dialog first
+                        Navigator.pop(ctx);
+                        _confirmarVenta();
+                      }
+                    : null,
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Cliente
+                DropdownButtonFormField<Cliente?>(
+                  value: _clienteSeleccionado,
+                  hint: const Text("Cliente (opcional)"),
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  items: [
+                    const DropdownMenuItem<Cliente?>(
+                      value: null,
+                      child: Text("Consumidor Final"),
                     ),
-                    const SizedBox(height: 12),
+                    ..._clientes.map(
+                      (c) => DropdownMenuItem<Cliente?>(
+                        value: c,
+                        child: Text(c.nombre),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) async {
+                    setLocalState(() => _clienteSeleccionado = value);
+                    if (value != null && value.id != null) {
+                      final count =
+                          await dbService.countDeudasCliente(value.id!);
+                      final muchas = count > 1;
+                      setLocalState(() => clienteConDeudas = muchas);
+                      if (muchas) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'El cliente tiene múltiples deudas pendientes'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    } else {
+                      setLocalState(() => clienteConDeudas = false);
+                    }
+                  },
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.person_add, color: Colors.teal),
+                  label: const Text("Agregar Cliente"),
+                  onPressed: () async {
+                    final nuevo = await _showNuevoClienteDialog();
+                    if (nuevo != null) {
+                      setState(() => _clientes.add(nuevo));
+                      setLocalState(() => _clienteSeleccionado = nuevo);
+                    }
+                  },
+                ),
 
-                    // Cliente
-                    DropdownButtonFormField<Cliente?>(
-                      value: _clienteSeleccionado,
-                      hint: const Text("Cliente (opcional)"),
-                      items: [
-                        const DropdownMenuItem<Cliente?>(
-                          value: null,
-                          child: Text("Consumidor Final"),
-                        ),
-                        ..._clientes.map(
-                          (c) => DropdownMenuItem<Cliente?>(
-                            value: c,
-                            child: Text(c.nombre),
+                if (clienteConDeudas)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8.0),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.red),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'El cliente tiene múltiples deudas pendientes',
+                            style: TextStyle(color: Colors.red),
                           ),
                         ),
                       ],
-                      onChanged: (value) async {
-                        setLocalState(() => _clienteSeleccionado = value);
-                        if (value != null && value.id != null) {
-                          final count =
-                              await dbService.countDeudasCliente(value.id!);
-                          final muchas = count > 1;
-                          setLocalState(() => clienteConDeudas = muchas);
-                          if (muchas) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'El cliente tiene múltiples deudas pendientes'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        } else {
-                          setLocalState(() => clienteConDeudas = false);
-                        }
-                      },
                     ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.person_add, color: Colors.teal),
-                      label: const Text("Agregar Cliente"),
-                      onPressed: () async {
-                        final nuevo = await _showNuevoClienteDialog();
-                        if (nuevo != null) {
-                          setState(() => _clientes.add(nuevo));
-                          setLocalState(() => _clienteSeleccionado = nuevo);
-                        }
-                      },
-                    ),
+                  ),
 
-                    if (clienteConDeudas)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8.0),
-                        child: Row(
-                          children: [
-                            Icon(Icons.warning, color: Colors.red),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'El cliente tiene múltiples deudas pendientes',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                const SizedBox(height: 10),
 
-                    const SizedBox(height: 10),
+                // Método de pago
+                DropdownButtonFormField<String>(
+                  value: metodoSeleccionado ?? "Efectivo",
+                  hint: const Text("Método de Pago"),
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
+                      .map(
+                          (m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (value) =>
+                      setLocalState(() => metodoSeleccionado = value),
+                ),
 
-                    // Método de pago
-                    DropdownButtonFormField<String>(
-                      value: metodoSeleccionado ?? "Efectivo",
-                      hint: const Text("Método de Pago"),
-                      items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                          .map(
-                              (m) => DropdownMenuItem(value: m, child: Text(m)))
-                          .toList(),
-                      onChanged: (value) =>
-                          setLocalState(() => metodoSeleccionado = value),
-                    ),
+                const SizedBox(height: 15),
 
-                    const SizedBox(height: 15),
+                // Lista del carrito
+                _carrito.isEmpty
+                    ? const Center(child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text("Carrito vacío"),
+                      ))
+                    : ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _carrito.length,
+                          itemBuilder: (_, i) {
+                            final p = _carrito[i];
+                            final double precioUnit =
+                                (p['precioUnit'] as num).toDouble();
+                            final double costoUnit =
+                                (p['costoUnit'] as num).toDouble();
+                            final int cantidad =
+                                (p['cantidad'] as num).toInt();
+                            final double subtotal =
+                                (p['subtotal'] as num).toDouble();
+                            final bool conPerdida = precioUnit < costoUnit;
 
-                    // Lista del carrito
-                    Expanded(
-                      child: _carrito.isEmpty
-                          ? const Center(child: Text("Carrito vacío"))
-                          : ListView.builder(
-                              controller: scroll,
-                              itemCount: _carrito.length,
-                              itemBuilder: (_, i) {
-                                final p = _carrito[i];
-                                final double precioUnit =
-                                    (p['precioUnit'] as num).toDouble();
-                                final double costoUnit =
-                                    (p['costoUnit'] as num).toDouble();
-                                final int cantidad =
-                                    (p['cantidad'] as num).toInt();
-                                final double subtotal =
-                                    (p['subtotal'] as num).toDouble();
-                                final bool conPerdida = precioUnit < costoUnit;
+                            return Column(
+                              children: [
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title:
+                                      Text(
+                                        p['nombre']?.toString() ?? '',
+                                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                      ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if ((p['codigo']
+                                              ?.toString()
+                                              .isNotEmpty ??
+                                          false))
+                                        Text('Código: ${p['codigo']}', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                      Text(
+                                        "Precio: ${formatCurrency(precioUnit)}  |  Costo: ${formatCurrency(costoUnit)}",
+                                        style: TextStyle(
+                                          color: conPerdida
+                                              ? Colors.red
+                                              : (isDark ? Colors.white70 : Colors.black54),
+                                          fontWeight: conPerdida
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
 
-                                return Column(
-                                  children: [
-                                    ListTile(
-                                      title:
-                                          Text(p['nombre']?.toString() ?? ''),
-                                      subtitle: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                      // --- Cantidad editable ---
+                                      Row(
                                         children: [
-                                          if ((p['codigo']
-                                                  ?.toString()
-                                                  .isNotEmpty ??
-                                              false))
-                                            Text('Código: ${p['codigo']}'),
-                                          Text(
-                                            "Precio: ${formatCurrency(precioUnit)}  |  Costo: ${formatCurrency(costoUnit)}",
-                                            style: TextStyle(
-                                              color: conPerdida
-                                                  ? Colors.red
-                                                  : null,
-                                              fontWeight: conPerdida
-                                                  ? FontWeight.w600
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
+                                          Text('Cant:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                                          const SizedBox(width: 8),
+                                          SizedBox(
+                                            width: 70,
+                                            child: TextFormField(
+                                              initialValue:
+                                                  cantidad.toString(),
+                                              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              textAlign: TextAlign.center,
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter
+                                                    .digitsOnly,
+                                                _maxStockFormatter(
+                                                  () =>
+                                                      (p['stockDisponible']
+                                                              as int?) ??
+                                                          0,
+                                                  context,
+                                                )
+                                              ],
+                                              decoration:
+                                                  const InputDecoration(
+                                                      isDense: true),
+                                              onChanged: (value) async {
+                                                final cantidadAnterior =
+                                                    (p['cantidad'] as num)
+                                                        .toInt();
+                                                final nuevaCantidad =
+                                                    int.tryParse(value) ??
+                                                        0;
 
-                                          // --- Cantidad editable ---
-                                          Row(
-                                            children: [
-                                              const Text('Cant:'),
-                                              const SizedBox(width: 8),
-                                              SizedBox(
-                                                width: 70,
-                                                child: TextFormField(
-                                                  initialValue:
-                                                      cantidad.toString(),
-                                                  keyboardType:
-                                                      TextInputType.number,
-                                                  textInputAction:
-                                                      TextInputAction.done,
-                                                  textAlign: TextAlign.center,
-                                                  inputFormatters: [
-                                                    FilteringTextInputFormatter
-                                                        .digitsOnly,
-                                                    _maxStockFormatter(
-                                                      () =>
-                                                          (p['stockDisponible']
-                                                                  as int?) ??
-                                                              0,
-                                                      context,
-                                                    )
-                                                  ],
-                                                  decoration:
-                                                      const InputDecoration(
-                                                          isDense: true),
-                                                  onChanged: (value) async {
-                                                    final cantidadAnterior =
-                                                        (p['cantidad'] as num)
-                                                            .toInt();
-                                                    final nuevaCantidad =
-                                                        int.tryParse(value) ??
-                                                            0;
+                                                // Control de versión para evitar validaciones concurrentes
+                                                final currentVersion =
+                                                    (p['cantidadVersion'] ??
+                                                            0) +
+                                                        1;
+                                                p['cantidadVersion'] =
+                                                    currentVersion;
 
-                                                    // Control de versión para evitar validaciones concurrentes
-                                                    final currentVersion =
-                                                        (p['cantidadVersion'] ??
-                                                                0) +
-                                                            1;
-                                                    p['cantidadVersion'] =
-                                                        currentVersion;
-
-                                                    if (nuevaCantidad <= 0) {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                'Cantidad inválida')),
-                                                      );
-                                                      setLocalState(() {
-                                                        final precio =
-                                                            (p['precioUnit']
-                                                                    as num)
-                                                                .toDouble();
-                                                        p['cantidad'] =
+                                                if (nuevaCantidad <= 0) {
+                                                  ScaffoldMessenger.of(
+                                                          context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                        content: Text(
+                                                            'Cantidad inválida')),
+                                                  );
+                                                  setLocalState(() {
+                                                    final precio =
+                                                        (p['precioUnit']
+                                                                as num)
+                                                            .toDouble();
+                                                    p['cantidad'] =
+                                                        cantidadAnterior;
+                                                    p['subtotal'] =
+                                                        precio *
                                                             cantidadAnterior;
-                                                        p['subtotal'] =
-                                                            precio *
-                                                                cantidadAnterior;
-                                                      });
-                                                      return;
-                                                    }
+                                                  });
+                                                  return;
+                                                }
 
-                                                    final stock =
-                                                        await _stockDisponible(
-                                                            p['productoId']
-                                                                as int);
+                                                final stock =
+                                                    await _stockDisponible(
+                                                        p['productoId']
+                                                            as int);
+                                                p['stockDisponible'] =
+                                                    stock;
+
+                                                // Si hay una nueva edición, se descarta esta validación
+                                                if (p['cantidadVersion'] !=
+                                                    currentVersion) {
+                                                  return;
+                                                }
+
+                                                if (nuevaCantidad > stock) {
+                                                  ScaffoldMessenger.of(
+                                                          context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Solo hay $stock unidades disponibles')),
+                                                  );
+                                                  setLocalState(() {
+                                                    final precio =
+                                                        (p['precioUnit']
+                                                                as num)
+                                                            .toDouble();
+                                                    p['cantidad'] =
+                                                        cantidadAnterior;
+                                                    p['subtotal'] =
+                                                        precio *
+                                                            cantidadAnterior;
                                                     p['stockDisponible'] =
                                                         stock;
+                                                  });
+                                                  return;
+                                                }
 
-                                                    // Si hay una nueva edición, se descarta esta validación
-                                                    if (p['cantidadVersion'] !=
-                                                        currentVersion) {
-                                                      return;
-                                                    }
-
-                                                    if (nuevaCantidad > stock) {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        SnackBar(
-                                                            content: Text(
-                                                                'Solo hay $stock unidades disponibles')),
-                                                      );
-                                                      setLocalState(() {
-                                                        final precio =
-                                                            (p['precioUnit']
-                                                                    as num)
-                                                                .toDouble();
-                                                        p['cantidad'] =
-                                                            cantidadAnterior;
-                                                        p['subtotal'] =
-                                                            precio *
-                                                                cantidadAnterior;
-                                                        p['stockDisponible'] =
-                                                            stock;
-                                                      });
-                                                      return;
-                                                    }
-
-                                                    final precio =
-                                                        (p['precioUnit'] as num)
-                                                            .toDouble();
-                                                    setLocalState(() {
-                                                      p['cantidad'] =
-                                                          nuevaCantidad;
-                                                      p['subtotal'] = precio *
-                                                          nuevaCantidad;
-                                                      p['stockDisponible'] =
-                                                          stock;
-                                                    });
-                                                  },
-                                                ),
-                                              ),
-                                            ],
+                                                final precio =
+                                                    (p['precioUnit'] as num)
+                                                        .toDouble();
+                                                setLocalState(() {
+                                                  p['cantidad'] =
+                                                      nuevaCantidad;
+                                                  p['subtotal'] = precio *
+                                                      nuevaCantidad;
+                                                  p['stockDisponible'] =
+                                                      stock;
+                                                });
+                                              },
+                                            ),
                                           ),
-
-                                          Text("Subtotal: ${formatCurrency(subtotal)}"),
                                         ],
                                       ),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.delete,
-                                            color: Colors.red),
-                                        onPressed: () => setLocalState(
-                                            () => _carrito.removeAt(i)),
-                                      ),
-                                    ),
-                                    if (i < _carrito.length - 1)
-                                      const Padding(
-                                        padding:
-                                            EdgeInsets.symmetric(vertical: 4),
-                                        child: Divider(
-                                            thickness: 1, color: Colors.grey),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                    ),
 
-                    // TOTAL
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        "TOTAL: ${formatCurrency(totalCarrito)}",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal,
+                                      Text("Subtotal: ${formatCurrency(subtotal)}", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                                    ],
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.red),
+                                    onPressed: () => setLocalState(
+                                        () => _carrito.removeAt(i)),
+                                  ),
+                                ),
+                                if (i < _carrito.length - 1)
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(vertical: 4),
+                                    child: Divider(
+                                        thickness: 1, color: Colors.grey),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ),
-                    ),
 
-                    // Agregar producto
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text("Agregar Producto"),
-                      onPressed: () async {
-                        final producto = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ProductListScreen(selectMode: true),
-                          ),
-                        );
-                        if (producto != null) {
-                          await _agregarAlCarrito(producto);
-                          setLocalState(() {}); // refrescar sheet
-                        }
-                      },
+                // TOTAL
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    "TOTAL: ${formatCurrency(totalCarrito)}",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
                     ),
-
-                    const SizedBox(height: 10),
-
-                    // Confirmar venta
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green),
-                      icon: const Icon(Icons.check_circle),
-                      label: const Text("Confirmar Venta"),
-                      onPressed:
-                          hayStockSuficiente ? _confirmarVenta : null,
-                    ),
-                  ],
+                  ),
                 ),
-              );
-            },
+
+                // Agregar producto
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                    foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text("Agregar Producto"),
+                  onPressed: () async {
+                    final producto = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const ProductListScreen(selectMode: true),
+                      ),
+                    );
+                    if (producto != null) {
+                      await _agregarAlCarrito(producto);
+                      setLocalState(() {}); // refrescar sheet
+                    }
+                  },
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -1009,72 +1044,134 @@ class _SalesScreenState extends State<SalesScreen> {
 
   // --- UI de filtros y lista de ventas ---------------------------------------
 
-  Widget _buildFiltros() {
+  Widget _buildFiltros(bool isDark) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: DropdownButton<Cliente?>(
-                hint: const Text("Cliente (opcional)"),
-                value: _clienteSeleccionado,
-                items: [
-                  const DropdownMenuItem<Cliente?>(
-                      value: null, child: Text("Consumidor Final")),
-                  ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
-                      value: c, child: Text(c.nombre))),
-                ],
-                onChanged: (value) {
-                  setState(() => _clienteSeleccionado = value);
-                  _cargarVentasFiltradas();
-                },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<Cliente?>(
+                    hint: Text("Cliente (Todos)", style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87)),
+                    value: _clienteSeleccionado,
+                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    items: [
+                      const DropdownMenuItem<Cliente?>(
+                          value: null, child: Text("Todos los Clientes", style: TextStyle(fontSize: 13))),
+                      ..._clientes.map((c) => DropdownMenuItem<Cliente?>(
+                          value: c, child: Text(c.nombre, style: const TextStyle(fontSize: 13)))),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _clienteSeleccionado = value);
+                      _cargarVentasFiltradas();
+                    },
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
-              child: DropdownButton<String>(
-                hint: const Text("Método de Pago"),
-                value: metodoSeleccionado,
-                items: ["Efectivo", "Tarjeta", "Transferencia", "Fiado"]
-                    .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => metodoSeleccionado = value);
-                  _cargarVentasFiltradas();
-                },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    hint: Text("Método de Pago", style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87)),
+                    value: metodoSeleccionado,
+                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    items: ["Todos", "Efectivo", "Tarjeta", "Transferencia", "Fiado"]
+                        .map((m) => DropdownMenuItem<String>(
+                              value: m == "Todos" ? null : m,
+                              child: Text(m, style: const TextStyle(fontSize: 13)),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() => metodoSeleccionado = value);
+                      _cargarVentasFiltradas();
+                    },
+                  ),
+                ),
               ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                side: BorderSide(color: isDark ? Colors.white.withOpacity(0.15) : Colors.black12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+              icon: const Icon(Icons.calendar_today, size: 14),
+              label: Text(
+                desde != null && hasta != null
+                    ? "${DateFormat('dd/MM').format(desde!)} - ${DateFormat('dd/MM').format(hasta!)}"
+                    : "Fecha",
+                style: const TextStyle(fontSize: 12),
+              ),
+              onPressed: () async {
+                final rango = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime.now(),
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: isDark
+                            ? const ColorScheme.dark(
+                                primary: Color(0xFF22D3EE),
+                                onPrimary: Color(0xFF0F172A),
+                                surface: Color(0xFF1E293B),
+                                onSurface: Colors.white,
+                              )
+                            : const ColorScheme.light(
+                                primary: Color(0xFF0284C7),
+                                onPrimary: Colors.white,
+                                surface: Colors.white,
+                                onSurface: Color(0xFF0F172A),
+                              ),
+                      ),
+                      child: child!,
+                    );
+                  },
+                );
+                if (rango != null) {
+                  setState(() {
+                    desde = DateTime(rango.start.year, rango.start.month,
+                        rango.start.day, 0, 0, 0, 0);
+                    hasta = DateTime(rango.end.year, rango.end.month, rango.end.day,
+                        23, 59, 59, 999);
+                  });
+                  _cargarVentasFiltradas();
+                }
+              },
             ),
           ],
         ),
         const SizedBox(height: 10),
-        ElevatedButton(
-          onPressed: () async {
-            final rango = await showDateRangePicker(
-              context: context,
-              firstDate: DateTime(2022),
-              lastDate: DateTime.now(),
-            );
-            if (rango != null) {
-              setState(() {
-                desde = DateTime(rango.start.year, rango.start.month,
-                    rango.start.day, 0, 0, 0, 0);
-                hasta = DateTime(rango.end.year, rango.end.month, rango.end.day,
-                    23, 59, 59, 999);
-              });
-              _cargarVentasFiltradas();
-            }
-          },
-          child: const Text("Filtrar por Fecha"),
-        ),
-        const SizedBox(height: 10),
-
-        // 👇 Campo de búsqueda de productos
         TextField(
           controller: _productoCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Buscar producto por nombre o código',
-            prefixIcon: Icon(Icons.search),
-            border: OutlineInputBorder(),
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            labelText: 'Buscar producto por nombre o código...',
+            labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+            prefixIcon: Icon(Icons.search, color: isDark ? Colors.white60 : Colors.black54),
+            isDense: true,
           ),
           onChanged: (_) {
             _debounce?.cancel();
@@ -1088,65 +1185,213 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Ventas")),
-      body: Stack(
+  Widget _buildTableHeader(bool isDark) {
+    final textColor = isDark ? Colors.white60 : Colors.black54;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.03),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      child: Row(
         children: [
-          ArticBackground(
-            child: ArticContainer(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-              _buildFiltros(),
-              const SizedBox(height: 10),
-              Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _ventasFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    } else if (snapshot.hasError) {
-                      return Center(child: Text("Error: ${snapshot.error}"));
-                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(child: Text("No hay ventas"));
-                    }
-                    final ventas = snapshot.data!;
-                    return ListView.builder(
-                      itemCount: ventas.length,
-                      itemBuilder: (context, index) {
-                        final v = ventas[index];
-                        final cliente =
-                            (v['clienteNombre']?.toString().isNotEmpty ?? false)
-                                ? v['clienteNombre']
-                                : 'Consumidor Final';
-                        final vendedor =
-                            (v['usuarioNombre']?.toString().isNotEmpty ?? false)
-                                ? v['usuarioNombre']
-                                : '—';
+          Expanded(flex: 2, child: Text("Venta", style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 12))),
+          Expanded(flex: 3, child: Text("Cliente", style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 12))),
+          Expanded(flex: 2, child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 12))),
+          Expanded(flex: 3, child: Align(alignment: Alignment.centerRight, child: Text("Estado / Acciones", style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 12)))),
+        ],
+      ),
+    );
+  }
 
-                        return Card(
-                          child: ListTile(
-                              title: Text("Venta #${v['id']} - $cliente"),
-                              subtitle: Text(
-                                "Total: ${formatCurrency(v['total'])} · "
-                                "Método: ${v['metodoPago']} · "
-                                "Vendedor: $vendedor",
-                              ),
-                              trailing:
-                                  Text(v['fecha'].toString().split('T').first),
-                              onTap: () => _verDetalleVenta(v['id']) as int),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+  Widget _buildTableRow(Map<String, dynamic> v, bool isEven, bool isDark) {
+    final id = v['id'] as int;
+    final fechaRaw = v['fecha']?.toString().split('T').first ?? '';
+    final cliente = (v['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? v['clienteNombre']
+        : 'Consumidor Final';
+    final total = (v['total'] as num?)?.toDouble() ?? 0.0;
+    final metodo = v['metodoPago'] ?? 'Efectivo';
+    final isFiado = metodo == 'Fiado';
+
+    Color rowColor = Colors.transparent;
+    if (!isEven) {
+      rowColor = isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01);
+    }
+
+    final isPaid = !isFiado;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: rowColor,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
           ),
         ),
       ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "#$id",
+                  style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fechaRaw,
+                  style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 10,
+                  backgroundColor: isDark ? const Color(0xFF0284C7).withOpacity(0.2) : const Color(0xFF0284C7).withOpacity(0.1),
+                  child: Text(
+                    cliente[0].toUpperCase(),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    cliente,
+                    style: TextStyle(fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatCurrency(total),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  metodo,
+                  style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isPaid
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isPaid ? "Pago" : "Pendiente",
+                    style: TextStyle(
+                      color: isPaid ? Colors.green : Colors.amber,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(Icons.visibility, color: isDark ? Colors.white70 : Colors.black54, size: 16),
+                  onPressed: () => _verDetalleVenta(id),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  "Ventas y Facturación",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ArticContainer(
+                    maxWidth: 620,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildFiltros(isDark),
+                        const SizedBox(height: 16),
+                        _buildTableHeader(isDark),
+                        Expanded(
+                          child: FutureBuilder<List<Map<String, dynamic>>>(
+                            future: _ventasFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              } else if (snapshot.hasError) {
+                                return Center(child: Text("Error: ${snapshot.error}"));
+                              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                return const Center(child: Text("No hay ventas registradas"));
+                              }
+                              final ventas = snapshot.data!;
+                              return ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: ventas.length,
+                                itemBuilder: (context, index) {
+                                  final v = ventas[index];
+                                  return _buildTableRow(v, index % 2 == 0, isDark);
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(
@@ -1165,6 +1410,8 @@ class _SalesScreenState extends State<SalesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _abrirCarrito,
+        backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
         child: const Icon(Icons.add_shopping_cart),
       ),
     );
@@ -1175,28 +1422,24 @@ class _SalesScreenState extends State<SalesScreen> {
   Future<Cliente?> _showNuevoClienteDialog() async {
     final nombreCtrl = TextEditingController();
     final telefonoCtrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return showDialog<Cliente>(
+    return showArticDialog<Cliente>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text("Nuevo Cliente"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(labelText: "Nombre")),
-              TextField(
-                  controller: telefonoCtrl,
-                  decoration: const InputDecoration(labelText: "Teléfono")),
-            ],
-          ),
+        return ArticDialogCard(
+          title: "Nuevo Cliente",
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancelar")),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () async {
                 final nombre = nombreCtrl.text.trim();
                 if (nombre.isEmpty) return;
@@ -1213,30 +1456,68 @@ class _SalesScreenState extends State<SalesScreen> {
               child: const Text("Guardar"),
             ),
           ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nombreCtrl,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: "Nombre",
+                  labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: telefonoCtrl,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: "Teléfono",
+                  labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
   void _mostrarAlertaStockInsuficiente(List<String> productos) {
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showArticDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("⚠️ Stock insuficiente"),
-        content: Column(
+      builder: (_) => ArticDialogCard(
+        title: "⚠️ Stock insuficiente",
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Entendido"),
+          ),
+        ],
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-                "No se puede procesar la venta. Revisa estos productos:"),
+            Text(
+              "No se puede procesar la venta. Revisa estos productos:",
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+            ),
             const SizedBox(height: 10),
-            ...productos.map((p) => Text("• $p")),
+            ...productos.map((p) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2.0),
+              child: Text(
+                "• $p",
+                style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+              ),
+            )),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text("OK")),
-        ],
       ),
     );
   }

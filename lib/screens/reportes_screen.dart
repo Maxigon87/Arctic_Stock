@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:fl_chart/fl_chart.dart';
 import '../services/db_service.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
@@ -638,133 +639,447 @@ class _ReportesScreenState extends State<ReportesScreen> {
     await Share.shareXFiles([XFile(file.path)], text: "📄 Reporte de Ingresos");
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Reportes Mensuales")),
-      body: ArticBackground(
-        child: ArticContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildReportCard({
+    required String title,
+    required String description,
+    required IconData icon,
+    required List<Widget> actions,
+    required List<FlSpot> sparklineData,
+    required Color accentColor,
+    required bool isDark,
+  }) {
+    return Card(
+      elevation: 0,
+      color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.45),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+          width: 1.2,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 30,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(show: false),
+                  titlesData: FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  minX: 0,
+                  maxX: 5,
+                  minY: 0,
+                  maxY: 6,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: sparklineData,
+                      isCurved: true,
+                      color: accentColor,
+                      barWidth: 2,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: accentColor.withOpacity(0.08),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: actions,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    required bool isDark,
+  }) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withOpacity(0.4), width: 1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      icon: Icon(icon, size: 12),
+      label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      onPressed: onPressed,
+    );
+  }
+
+  Widget _buildTimeSelector(bool isDark) {
+    final activeColor = isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7);
+    final textStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: isDark ? Colors.white : const Color(0xFF0F172A),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.calendar_today, size: 18, color: activeColor),
+            const SizedBox(width: 8),
+            Text(
+              "Rango del Reporte:",
+              style: textStyle,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                desde != null && hasta != null
+                    ? "${DateFormat('dd/MM/yyyy').format(desde!)} – ${DateFormat('dd/MM/yyyy').format(hasta!)}"
+                    : "Selecciona un rango",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
             children: [
-              _buildFiltroMes(),
-              const SizedBox(height: 20),
-
-              // Botones existentes
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color.fromARGB(255, 229, 140, 140), // turquesa
-                  foregroundColor: Colors.black, // texto/ícono
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text("Generar PDF"),
-                onPressed: () => _generarReporteFiltrado(context),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color.fromARGB(255, 140, 229, 144), // turquesa
-                  foregroundColor: Colors.black, // texto/ícono
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.table_chart),
-                label: const Text("Exportar Excel"),
-                onPressed: () => _exportarExcelMensual(context),
-              ),
-
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color.fromARGB(255, 209, 154, 241), // turquesa
-                  foregroundColor: Colors.black, // texto/ícono
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.inventory),
-                label: const Text("Reporte de Productos"),
-                onPressed: () => _generarReporteProductos(context),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color.fromARGB(255, 173, 201, 255), // azul suave
-                  foregroundColor: Colors.black,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.receipt_long),
-                label: const Text("Reporte de Ingresos"),
-                onPressed: () => _generarReporteIngresos(context),
-              ),
-
-              const SizedBox(height: 24),
-              Text(
-                'Ingresos de stock',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-
-              // ====== LISTA SIMPLE DE INGRESOS ======
-              Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future:
-                      dbService.getIngresosStock(desde: desde, hasta: hasta),
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snap.hasError) {
-                      return Center(child: Text('Error: ${snap.error}'));
-                    }
-                    final ingresos = snap.data ?? const [];
-                    if (ingresos.isEmpty) {
-                      return const Center(
-                          child: Text('No hay ingresos en este período'));
-                    }
-                    return ListView.builder(
-                      itemCount: ingresos.length,
-                      itemBuilder: (_, i) {
-                        final r = ingresos[i];
-                        final nombre = (r['producto'] ?? '').toString();
-                        final cant = (r['cantidad'] as num?)?.toInt() ?? 0;
-                        final fecha =
-                            DateTime.tryParse((r['fecha'] ?? '').toString());
-
-                        return Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.add_shopping_cart),
-                            title: Text('$nombre (+$cant)'),
-                            subtitle: Text(
-                              fecha != null ? _fmt(fecha) : '-',
-                            ),
-                          ),
-                        );
-                      },
+              _buildTimeOption("Este Mes", () {
+                final hoy = DateTime.now();
+                _setMes(hoy);
+              }, isDark),
+              const SizedBox(width: 8),
+              _buildTimeOption("Último Trimestre", () {
+                final hoy = DateTime.now();
+                final tresMesesAtras = DateTime(hoy.year, hoy.month - 3, 1);
+                setState(() {
+                  _mesSeleccionado = hoy;
+                  desde = tresMesesAtras;
+                  hasta = DateTime(hoy.year, hoy.month + 1, 0, 23, 59, 59);
+                });
+              }, isDark),
+              const SizedBox(width: 8),
+              _buildTimeOption("Año Actual", () {
+                final hoy = DateTime.now();
+                setState(() {
+                  _mesSeleccionado = hoy;
+                  desde = DateTime(hoy.year, 1, 1);
+                  hasta = DateTime(hoy.year, 12, 31, 23, 59, 59);
+                });
+              }, isDark),
+              const SizedBox(width: 8),
+              _buildTimeOption("Personalizado 🗓️", () async {
+                final pick = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime.now(),
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: isDark
+                            ? const ColorScheme.dark(
+                                primary: Color(0xFF22D3EE),
+                                onPrimary: Color(0xFF0F172A),
+                                surface: Color(0xFF1E293B),
+                                onSurface: Colors.white,
+                              )
+                            : const ColorScheme.light(
+                                primary: Color(0xFF0284C7),
+                                onPrimary: Colors.white,
+                                surface: Colors.white,
+                                onSurface: Color(0xFF0F172A),
+                              ),
+                      ),
+                      child: child!,
                     );
                   },
-                ),
-              ),
+                );
+                if (pick != null) {
+                  setState(() {
+                    desde = pick.start;
+                    hasta = pick.end;
+                  });
+                }
+              }, isDark),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeOption(String label, VoidCallback onTap, bool isDark) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+        side: BorderSide(
+          color: isDark ? Colors.white.withOpacity(0.12) : Colors.black12,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      onPressed: onTap,
+      child: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Reportes y Exportaciones",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ArticContainer(
+                maxWidth: 1100,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTimeSelector(isDark),
+                    const SizedBox(height: 20),
+                    // Grid of cards
+                    SizedBox(
+                      height: 225,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildReportCard(
+                              title: "Reporte de Ventas",
+                              description: "Historial completo de ventas, ingresos, costos y ganancias del período.",
+                              icon: Icons.receipt_long,
+                              accentColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                              sparklineData: [
+                                FlSpot(0, 2),
+                                FlSpot(1, 4),
+                                FlSpot(2, 3),
+                                FlSpot(3, 5),
+                                FlSpot(4, 4),
+                                FlSpot(5, 6),
+                              ],
+                              actions: [
+                                _buildActionButton(
+                                  label: "PDF",
+                                  icon: Icons.picture_as_pdf,
+                                  onPressed: () => _generarReporteFiltrado(context),
+                                  color: Colors.redAccent,
+                                  isDark: isDark,
+                                ),
+                                _buildActionButton(
+                                  label: "Excel",
+                                  icon: Icons.table_chart,
+                                  onPressed: () => _exportarExcelMensual(context),
+                                  color: Colors.green,
+                                  isDark: isDark,
+                                ),
+                              ],
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildReportCard(
+                              title: "Reporte de Stock",
+                              description: "Listado agrupado por categorías de productos con sus cantidades y precios.",
+                              icon: Icons.inventory_2_outlined,
+                              accentColor: Colors.orangeAccent,
+                              sparklineData: [
+                                FlSpot(0, 3),
+                                FlSpot(1, 2),
+                                FlSpot(2, 4),
+                                FlSpot(3, 3),
+                                FlSpot(4, 5),
+                                FlSpot(5, 4),
+                              ],
+                              actions: [
+                                _buildActionButton(
+                                  label: "PDF",
+                                  icon: Icons.picture_as_pdf,
+                                  onPressed: () => _generarReporteProductos(context),
+                                  color: Colors.redAccent,
+                                  isDark: isDark,
+                                ),
+                              ],
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildReportCard(
+                              title: "Reporte de Ingresos",
+                              description: "Historial de adición de mercadería y movimientos internos en stock.",
+                              icon: Icons.add_business_outlined,
+                              accentColor: Colors.purpleAccent,
+                              sparklineData: [
+                                FlSpot(0, 1),
+                                FlSpot(1, 3),
+                                FlSpot(2, 2),
+                                FlSpot(3, 4),
+                                FlSpot(4, 3),
+                                FlSpot(5, 5),
+                              ],
+                              actions: [
+                                _buildActionButton(
+                                  label: "PDF",
+                                  icon: Icons.picture_as_pdf,
+                                  onPressed: () => _generarReporteIngresos(context),
+                                  color: Colors.redAccent,
+                                  isDark: isDark,
+                                ),
+                              ],
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Ingresos de stock recientes',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: dbService.getIngresosStock(desde: desde, hasta: hasta),
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (snap.hasError) {
+                            return Center(child: Text('Error: ${snap.error}'));
+                          }
+                          final ingresos = snap.data ?? const [];
+                          if (ingresos.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'No hay ingresos registrados en este período',
+                                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                              ),
+                            );
+                          }
+                          return ListView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: ingresos.length,
+                            itemBuilder: (_, i) {
+                              final r = ingresos[i];
+                              final nombre = (r['producto'] ?? '').toString();
+                              final cant = (r['cantidad'] as num?)?.toInt() ?? 0;
+                              final fecha = DateTime.tryParse((r['fecha'] ?? '').toString());
+
+                              return Card(
+                                elevation: 0,
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.02)
+                                    : Colors.white.withOpacity(0.45),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(Icons.add_shopping_cart, color: Colors.green, size: 18),
+                                  ),
+                                  title: Text(
+                                    '$nombre (+$cant)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    fecha != null ? _fmt(fecha) : '-',
+                                    style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

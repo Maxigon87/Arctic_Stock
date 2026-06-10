@@ -5,7 +5,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
+import '../widgets/artic_empty_state.dart';
 import '../services/file_helper.dart';
+import '../widgets/artic_dialog.dart';
 
 class HistorialArchivosScreen extends StatefulWidget {
   const HistorialArchivosScreen({super.key});
@@ -75,20 +77,28 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
   }
 
   void _borrarArchivo(File file) async {
-    final confirm = await showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirm = await showArticDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar archivo'),
-        content:
-            const Text('¿Estás seguro de que deseas eliminar este archivo?'),
+      builder: (_) => ArticDialogCard(
+        title: 'Eliminar archivo',
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
-          TextButton(
+              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Eliminar')),
         ],
+        child: Text(
+          '¿Estás seguro de que deseas eliminar este archivo?',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
       ),
     );
 
@@ -105,54 +115,72 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
       archivosProductos.isEmpty;
 
   List<Widget> _buildSection(
-      String titulo, List<FileSystemEntity> archivos) {
+      BuildContext context, String titulo, List<FileSystemEntity> archivos, bool isDark) {
     if (archivos.isEmpty) return [];
     return [
       Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
         child: Text(
           titulo,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+          ),
         ),
       ),
-      ...archivos.map((f) => _buildArchivoCard(f as File)).toList(),
+      ...archivos.map((f) => _buildArchivoCard(context, f as File, isDark)).toList(),
     ];
   }
 
-  Widget _buildArchivoCard(File file) {
+  Widget _buildArchivoCard(BuildContext context, File file, bool isDark) {
     final name = file.path.split('/').last;
     return Card(
-      elevation: 3,
+      elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
+      color: isDark
+          ? Colors.white.withOpacity(0.02)
+          : Colors.white.withOpacity(0.45),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+          width: 1,
+        ),
       ),
       child: ListTile(
         leading: Icon(
           name.endsWith('.pdf')
               ? Icons.picture_as_pdf
               : Icons.insert_drive_file,
-          color: Colors.cyanAccent,
+          color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
         ),
-        title:
-            Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          name,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
         subtitle: Text(
           file.path,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 12,
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 11,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         onTap: () => _abrirArchivo(file),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.share, color: Colors.blue),
+              icon: const Icon(Icons.share, color: Colors.blueAccent),
               onPressed: () => _compartirArchivo(file),
             ),
             IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
+              icon: const Icon(Icons.delete, color: Colors.redAccent),
               onPressed: () => _borrarArchivo(file),
             ),
           ],
@@ -163,22 +191,47 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Historial de Archivos')),
-      body: ArticBackground(
-        child: ArticContainer(
-          child: _todoVacio
-              ? const Center(child: Text('No hay archivos guardados'))
-              : ListView(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    ..._buildSection('Reportes del mes', archivosReportes),
-                    ..._buildSection('Catálogo', archivosCatalogo),
-                    ..._buildSection('Ventas', archivosVentas),
-                    ..._buildSection('Productos', archivosProductos),
-                  ],
-                ),
+      backgroundColor: Colors.transparent,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Historial de Archivos",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ArticContainer(
+                maxWidth: 1000,
+                child: _todoVacio
+                    ? ArticEmptyState(
+                        icon: Icons.folder_open_outlined,
+                        title: "Sin archivos",
+                        description: "Aún no se han generado facturas, catálogos o reportes PDF en el sistema.",
+                        buttonText: "Actualizar historial",
+                        onButtonPressed: _cargarArchivos,
+                      )
+                    : ListView(
+                        physics: const BouncingScrollPhysics(),
+                        children: [
+                          ..._buildSection(context, 'Reportes del mes', archivosReportes, isDark),
+                          ..._buildSection(context, 'Catálogo', archivosCatalogo, isDark),
+                          ..._buildSection(context, 'Ventas', archivosVentas, isDark),
+                          ..._buildSection(context, 'Productos', archivosProductos, isDark),
+                        ],
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

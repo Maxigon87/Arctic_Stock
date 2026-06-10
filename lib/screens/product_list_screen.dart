@@ -2,11 +2,13 @@ import 'package:artic_stock/widgets/artic_background.dart';
 import 'package:artic_stock/widgets/artic_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
 // En TODAS las pantallas, unifica así:
 import '../services/db_service.dart';
 import '../utils/currency_formatter.dart';
 
 import 'product_form.dart';
+import '../widgets/artic_dialog.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool selectMode;
@@ -50,25 +52,38 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Future<String?> _mostrarDialogoNuevaCategoria() async {
     final TextEditingController controller = TextEditingController();
-    return showDialog<String>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return showArticDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("Nueva Categoría"),
-          content: TextField(
-            controller: controller,
-            decoration:
-                const InputDecoration(labelText: "Nombre de la categoría"),
-          ),
+        return ArticDialogCard(
+          title: "Nueva Categoría",
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancelar")),
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Cancelar",
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+              ),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () => Navigator.pop(context, controller.text.trim()),
               child: const Text("Guardar"),
             ),
           ],
+          child: TextField(
+            controller: controller,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            decoration: InputDecoration(
+              labelText: "Nombre de la categoría",
+              labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+            ),
+          ),
         );
       },
     );
@@ -96,62 +111,100 @@ class _ProductListScreenState extends State<ProductListScreen> {
     _loadProductos();
   }
 
-  Widget _buildFiltros() {
+  Widget _buildFiltros(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 320,
-            child: TextField(
-              decoration: const InputDecoration(
-                labelText: "Buscar producto",
-                prefixIcon: Icon(Icons.search),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  decoration: InputDecoration(
+                    labelText: "Buscar producto...",
+                    labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.white60 : Colors.black54),
+                    isDense: true,
+                  ),
+                  onChanged: (val) {
+                    searchQuery = val;
+                    _loadProductos();
+                  },
+                ),
               ),
-              onChanged: (val) {
-                searchQuery = val;
-                _loadProductos();
-              },
-            ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: selectedCategoriaId,
+                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    hint: Text("Categoría", style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87)),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        value: null,
+                        child: Text("Todas las categorías", style: TextStyle(fontSize: 13)),
+                      ),
+                      ...categorias.map((c) => DropdownMenuItem<int>(
+                            value: c['id'] as int,
+                            child: Text(c['nombre'], style: const TextStyle(fontSize: 13)),
+                          )),
+                    ],
+                    onChanged: (value) {
+                      setState(() => selectedCategoriaId = value);
+                      _loadProductos();
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.add_circle_outline, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                tooltip: 'Nueva categoría',
+                onPressed: () async {
+                  final nuevoNombre = await _mostrarDialogoNuevaCategoria();
+                  if (nuevoNombre != null && nuevoNombre.trim().isNotEmpty) {
+                    final nuevaId = await db.insertCategoria(nuevoNombre.trim());
+                    await _loadCategorias();
+                    setState(() => selectedCategoriaId = nuevaId);
+                    _loadProductos();
+                  }
+                },
+              ),
+            ],
           ),
-          DropdownButton<int>(
-            value: selectedCategoriaId,
-            hint: const Text("Categoría"),
-            items: categorias
-                .map((c) => DropdownMenuItem<int>(
-                      value: c['id'] as int,
-                      child: Text(c['nombre']),
-                    ))
-                .toList(),
-            onChanged: (value) {
-              setState(() => selectedCategoriaId = value);
-              _loadProductos();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Nueva categoría',
-            onPressed: () async {
-              final nuevoNombre = await _mostrarDialogoNuevaCategoria();
-              if (nuevoNombre != null && nuevoNombre.trim().isNotEmpty) {
-                final nuevaId = await db.insertCategoria(nuevoNombre.trim());
-                await _loadCategorias();
-                setState(() => selectedCategoriaId = nuevaId);
-                _loadProductos();
-              }
-            },
-          ),
-          FilterChip(
-            label: const Text('Ver inactivos'),
-            selected: _mostrarInactivos,
-            onSelected: (v) {
-              setState(() => _mostrarInactivos = v);
-              _loadProductos();
-            },
-            avatar: const Icon(Icons.inventory_2_outlined),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilterChip(
+                label: const Text('Ver inactivos', style: TextStyle(fontSize: 12)),
+                selected: _mostrarInactivos,
+                onSelected: (v) {
+                  setState(() => _mostrarInactivos = v);
+                  _loadProductos();
+                },
+                avatar: const Icon(Icons.inventory_2_outlined, size: 14),
+              ),
+              const SizedBox(width: 10),
+              FilterChip(
+                label: const Text('Solo sin stock', style: TextStyle(fontSize: 12)),
+                selected: _mostrarSoloAgotados,
+                onSelected: (v) {
+                  setState(() => _mostrarSoloAgotados = v);
+                  _loadProductos();
+                },
+                avatar: const Icon(Icons.warning_amber_rounded, size: 14),
+              ),
+            ],
           ),
         ],
       ),
@@ -160,405 +213,377 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.selectMode ? 'Seleccionar Producto' : 'Productos'),
-        actions: [
-          IconButton(
-            tooltip: _mostrarSoloAgotados
-                ? 'Mostrar todos'
-                : 'Mostrar solo sin stock',
-            icon: Icon(
-              _mostrarSoloAgotados
-                  ? Icons.list_alt
-                  : Icons.warning_amber_rounded,
-              color: _mostrarSoloAgotados ? Colors.teal : Colors.redAccent,
+      backgroundColor: Colors.transparent,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.selectMode ? 'Seleccionar Producto' : 'Productos e Inventario',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                if (!widget.selectMode)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                      foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: _goToCreate,
+                    icon: const Icon(Icons.add),
+                    label: const Text("Nuevo Producto"),
+                  ),
+              ],
             ),
-            onPressed: () {
-              setState(() => _mostrarSoloAgotados = !_mostrarSoloAgotados);
-              _loadProductos();
-            },
-          ),
-        ],
-      ),
-      body: ArticBackground(
-        child: ArticContainer(
-          maxWidth: double.infinity,
-          child: Column(
-            children: [
-              _buildFiltros(),
-              Expanded(
-                child: productos.isEmpty
-                    ? const Center(child: Text('No hay productos'))
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          int crossAxisCount =
-                              (constraints.maxWidth / 400).floor();
-                          if (crossAxisCount < 1) crossAxisCount = 1;
-                          return GridView.builder(
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-
-                              // Reduce card height now that we show less content
-                              mainAxisExtent: 110,
-
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                            ),
-                            itemCount: productos.length,
-                            itemBuilder: (ctx, i) {
-                              final p = productos[i];
-                              final sinStock = (p['stock'] ?? 0) <= 0;
-                              final inactivo = (p['activo'] ?? 1) == 0;
-
-                              final precio =
-                                  (p['precio_venta'] as num?)?.toDouble() ??
-                                      0.0;
-                              final costo =
-                                  (p['costo_compra'] as num?)?.toDouble() ??
-                                      0.0;
-                              final utilidad = (precio - costo);
-
-                              return Opacity(
-                                opacity: (sinStock || inactivo) ? 0.55 : 1.0,
-                                child: Card(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: BorderSide(
-                                      color: inactivo
-                                          ? Colors.grey
-                                          : (sinStock
-                                              ? Colors.red
-                                              : Colors.transparent),
-                                      width: 2,
-                                    ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ArticContainer(
+                maxWidth: double.infinity,
+                child: Column(
+                  children: [
+                    _buildFiltros(isDark),
+                    Expanded(
+                      child: productos.isEmpty
+                          ? const Center(child: Text('No hay productos'))
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                int crossAxisCount = (constraints.maxWidth / 320).floor();
+                                if (crossAxisCount < 1) crossAxisCount = 1;
+                                return GridView.builder(
+                                  physics: const BouncingScrollPhysics(),
+                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    mainAxisExtent: 145,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
                                   ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: Stack(
-                                      children: [
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              p['nombre'] ?? '',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold),
-                                            ),
+                                  itemCount: productos.length,
+                                  itemBuilder: (ctx, i) {
+                                    final p = productos[i];
+                                    final id = p['id'] as int;
+                                    final sinStock = (p['stock'] ?? 0) <= 0;
+                                    final inactivo = (p['activo'] ?? 1) == 0;
 
-                                            subtitle: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Precio: ${formatCurrency(precio)}',
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold),
-                                                ),
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  child: Text(
-                                                    p['descripcion'] ?? '',
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
+                                    final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+                                    final costo = (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
+                                    final utilidad = (precio - costo);
+                                    final rentabilidad = costo > 0 ? (utilidad / costo) * 100 : 0.0;
+                                    final nombre = p['nombre'] ?? '';
+                                    final desc = p['descripcion'] ?? '';
+
+                                    Color stockBadgeColor = Colors.green;
+                                    if (sinStock) {
+                                      stockBadgeColor = Colors.red;
+                                    } else if ((p['stock'] ?? 0) <= 5) {
+                                      stockBadgeColor = Colors.amber;
+                                    }
+
+                                    return InkWell(
+                                      onTap: widget.selectMode
+                                          ? ((sinStock || inactivo) ? null : () => Navigator.pop(context, p))
+                                          : () => _mostrarDetallesProducto(p),
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Opacity(
+                                        opacity: inactivo ? 0.6 : 1.0,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.45),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: inactivo
+                                                  ? Colors.grey.withOpacity(0.2)
+                                                  : (sinStock
+                                                      ? Colors.red.withOpacity(0.3)
+                                                      : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06))),
+                                              width: 1.2,
                                             ),
-                                            onTap: widget.selectMode
-                                                ? ((sinStock || inactivo)
-                                                    ? null
-                                                    : () => Navigator.pop(
-                                                        context, p))
-                                                : () =>
-                                                    _mostrarDetallesProducto(p),
-                                        trailing: widget.selectMode
-                                            ? null
-                                            : PopupMenuButton<String>(
-                                                onSelected: (value) async {
-                                                  if (value == 'edit') {
-                                                    await _goToEdit(p);
-                                                  }
-                                                  if (value == 'delete') {
-                                                    await _deleteProducto(
-                                                        p['id'] as int);
-                                                  }
-                                                  if (value == 'restore') {
-                                                    await _restoreProducto(
-                                                        p['id'] as int);
-                                                  }
-                                                  if (value == 'addStock') {
-                                                    if (inactivo) {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                "No podés modificar stock de un producto inactivo.")),
-                                                      );
-                                                      return;
-                                                    }
-                                                    final cantidad =
-                                                        await _showAddStockDialog(
-                                                            context);
-                                                    if (cantidad != null &&
-                                                        cantidad > 0) {
-                                                      await DBService()
-                                                          .incrementarStock(
-                                                              p['id'] as int,
-                                                              cantidad);
-                                                      _loadProductos();
-                                                    }
-                                                  }
-                                                  if (value == 'removeStock') {
-                                                    if (inactivo) {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                "No podés modificar stock de un producto inactivo.")),
-                                                      );
-                                                      return;
-                                                    }
-                                                    final cantidad =
-                                                        await _showRemoveStockDialog(
-                                                            context,
-                                                            p['stock'] ?? 0);
-                                                    if (cantidad != null &&
-                                                        cantidad > 0) {
-                                                      if ((p['stock'] ?? 0) >=
-                                                          cantidad) {
-                                                        await DBService()
-                                                            .decrementarStock(
-                                                                p['id']
-                                                                    as int,
-                                                                cantidad);
-                                                        _loadProductos();
-                                                      } else {
-                                                        ScaffoldMessenger.of(
-                                                                context)
-                                                            .showSnackBar(
-                                                          const SnackBar(
-                                                              content: Text(
-                                                                  "No podés restar más de lo disponible")),
-                                                        );
-                                                      }
-                                                    }
-                                                  }
-                                                },
-                                                itemBuilder: (context) => [
-                                                  const PopupMenuItem(
-                                                      value: 'edit',
-                                                      child: Text('Editar')),
-                                                  if (inactivo)
-                                                    const PopupMenuItem(
-                                                        value: 'restore',
-                                                        child:
-                                                            Text('Restaurar'))
-                                                  else
-                                                    const PopupMenuItem(
-                                                        value: 'delete',
-                                                        child:
-                                                            Text('Eliminar')),
-                                                  const PopupMenuItem(
-                                                      value: 'addStock',
-                                                      child: Text(
-                                                          'Agregar Stock')),
-                                                  const PopupMenuItem(
-                                                      value: 'removeStock',
-                                                      child:
-                                                          Text('Restar Stock')),
-                                                ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(16),
+                                            child: BackdropFilter(
+                                              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(12.0),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                                                          child: Text(
+                                                            nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
+                                                            style: TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                              color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                                              fontSize: 12,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Text(
+                                                                nombre,
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                                style: TextStyle(
+                                                                  fontWeight: FontWeight.bold,
+                                                                  fontSize: 13,
+                                                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                desc.isNotEmpty ? desc : 'Sin descripción',
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                                style: TextStyle(
+                                                                  fontSize: 10,
+                                                                  color: isDark ? Colors.white60 : Colors.black54,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        if (!widget.selectMode)
+                                                          PopupMenuButton<String>(
+                                                            padding: EdgeInsets.zero,
+                                                            constraints: const BoxConstraints(),
+                                                            icon: Icon(Icons.more_vert, size: 16, color: isDark ? Colors.white70 : Colors.black54),
+                                                            onSelected: (value) async {
+                                                              if (value == 'edit') {
+                                                                await _goToEdit(p);
+                                                              }
+                                                              if (value == 'delete') {
+                                                                await _deleteProducto(id);
+                                                              }
+                                                              if (value == 'restore') {
+                                                                await _restoreProducto(id);
+                                                              }
+                                                            },
+                                                            itemBuilder: (context) => [
+                                                              const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                                                              if (inactivo)
+                                                                const PopupMenuItem(value: 'restore', child: Text('Restaurar'))
+                                                              else
+                                                                const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                                                            ],
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    const Spacer(),
+                                                    Row(
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text("Precio", style: TextStyle(fontSize: 9, color: isDark ? Colors.white60 : Colors.black45)),
+                                                            Text(
+                                                              formatCurrency(precio),
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.bold,
+                                                                fontSize: 12,
+                                                                color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                                          children: [
+                                                            Text("Margen/Rent.", style: TextStyle(fontSize: 9, color: isDark ? Colors.white60 : Colors.black45)),
+                                                            Text(
+                                                              "${formatCurrency(utilidad)} (${rentabilidad.toStringAsFixed(0)}%)",
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.w600,
+                                                                fontSize: 10,
+                                                                color: utilidad >= 0 ? Colors.green : Colors.red,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                          decoration: BoxDecoration(
+                                                            color: stockBadgeColor.withOpacity(0.12),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            sinStock
+                                                                ? "Agotado"
+                                                                : "Stock: ${p['stock']}",
+                                                            style: TextStyle(
+                                                              color: stockBadgeColor,
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        if (!widget.selectMode && !inactivo)
+                                                          Row(
+                                                            children: [
+                                                              IconButton(
+                                                                visualDensity: VisualDensity.compact,
+                                                                padding: EdgeInsets.zero,
+                                                                constraints: const BoxConstraints(),
+                                                                icon: const Icon(Icons.remove_circle_outline, size: 16, color: Colors.redAccent),
+                                                                onPressed: (p['stock'] ?? 0) > 0
+                                                                    ? () async {
+                                                                        await db.decrementarStock(id, 1);
+                                                                        _loadProductos();
+                                                                      }
+                                                                    : null,
+                                                              ),
+                                                              const SizedBox(width: 6),
+                                                              IconButton(
+                                                                visualDensity: VisualDensity.compact,
+                                                                padding: EdgeInsets.zero,
+                                                                constraints: const BoxConstraints(),
+                                                                icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.green),
+                                                                onPressed: () async {
+                                                                  await db.incrementarStock(id, 1);
+                                                                  _loadProductos();
+                                                                },
+                                                              ),
+                                                            ],
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                      ),
-                                        if (sinStock)
-                                          Positioned(
-                                            top: 0,
-                                            right: 0,
-                                            child: _chip('SIN STOCK',
-                                                Colors.red.shade700),
-                                          ),
-                                        if (inactivo)
-                                          Positioned(
-                                            top: 0,
-                                            left: 0,
-                                            child: _chip('INACTIVO',
-                                                Colors.grey.shade700),
-                                          ),
-                                        if (utilidad < 0 && !inactivo)
-                                          Positioned(
-                                            bottom: 0,
-                                            right: 0,
-                                            child: Row(
-                                              children: const [
-                                                Icon(
-                                                    Icons.warning_amber_rounded,
-                                                    size: 16,
-                                                    color: Colors.amber),
-                                                SizedBox(width: 4),
-                                                Text("Vendiendo con pérdida",
-                                                    style: TextStyle(
-                                                        fontSize: 12)),
-                                              ],
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: widget.selectMode
-          ? null
-          : FloatingActionButton(
-              onPressed: _goToCreate,
-              child: const Icon(Icons.add),
-            ),
     );
   }
 
   void _mostrarDetallesProducto(Map<String, dynamic> p) {
     final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final costo = (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          maxChildSize: 0.9,
-          minChildSize: 0.4,
-          builder: (_, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-                    Center(
-                      child: Text(
-                        p['nombre'] ?? '',
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Divider(),
-                    if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.qr_code),
-                        title: const Text('Código'),
-                        trailing: Text(p['codigo'].toString()),
-                      ),
-                      const Divider(),
-                    ],
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.attach_money),
-                      title: const Text('Precio'),
-                      trailing: Text(
-                        formatCurrency(precio),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.monetization_on_outlined),
-                      title: const Text('Costo'),
-                      trailing: Text(formatCurrency(costo)),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.inventory_2_outlined),
-                      title: const Text('Stock'),
-                      trailing: Text((p['stock'] ?? 0).toString()),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.category),
-                      title: const Text('Categoría'),
-                      trailing:
-                          Text(p['categoria_nombre'] ?? 'Sin categoría'),
-                    ),
-                    if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
-                      const Divider(),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.description),
-                        title: const Text('Descripción'),
-                        subtitle: Text(p['descripcion']),
-                      ),
-                    ],
-                  ],
+    showArticDialog(
+      context: context,
+      builder: (ctx) {
+        return ArticDialogCard(
+          title: p['nombre'] ?? '',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.qr_code, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                  title: Text('Código', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                  trailing: Text(p['codigo'].toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+                ),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+              ],
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.attach_money, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                title: Text('Precio', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                trailing: Text(
+                  formatCurrency(precio),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
                 ),
               ),
-            );
-          },
+              Divider(color: isDark ? Colors.white12 : Colors.black12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.monetization_on_outlined, color: Colors.green),
+                title: Text('Costo', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                trailing: Text(formatCurrency(costo), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              ),
+              Divider(color: isDark ? Colors.white12 : Colors.black12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.inventory_2_outlined, color: Colors.amber),
+                title: Text('Stock', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                trailing: Text((p['stock'] ?? 0).toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              ),
+              Divider(color: isDark ? Colors.white12 : Colors.black12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.category, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                title: Text('Categoría', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                trailing: Text(p['categoria_nombre'] ?? 'Sin categoría', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              ),
+              if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.description, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                  title: Text('Descripción', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                  subtitle: Text(p['descripcion'], style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                ),
+              ],
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _chip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
-        ],
-      ),
-      child: Text(text,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-    );
-  }
-
   Future<int?> _showAddStockDialog(BuildContext context) async {
     final TextEditingController cantidadController = TextEditingController();
-    return showDialog<int>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return showArticDialog<int>(
       context: context,
       builder: (dialogCtx) {
-        return AlertDialog(
-          title: const Text("Agregar Stock"),
-          content: TextField(
-            controller: cantidadController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(labelText: "Cantidad a agregar"),
-          ),
+        return ArticDialogCard(
+          title: "Agregar Stock",
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text("Cancelar")),
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(
+                "Cancelar",
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+              ),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () {
                 final cant = int.tryParse(cantidadController.text) ?? 0;
                 if (cant <= 0) {
@@ -571,6 +596,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: const Text("Agregar"),
             ),
           ],
+          child: TextField(
+            controller: cantidadController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            decoration: InputDecoration(
+              labelText: "Cantidad a agregar",
+              labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+            ),
+          ),
         );
       },
     );
@@ -579,30 +614,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<int?> _showRemoveStockDialog(
       BuildContext context, int stockActual) async {
     final TextEditingController cantidadController = TextEditingController();
-    return showDialog<int>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return showArticDialog<int>(
       context: context,
       builder: (dialogCtx) {
-        return AlertDialog(
-          title: const Text("Restar Stock"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Stock actual: $stockActual"),
-              const SizedBox(height: 8),
-              TextField(
-                controller: cantidadController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration:
-                    const InputDecoration(labelText: "Cantidad a restar"),
-              ),
-            ],
-          ),
+        return ArticDialogCard(
+          title: "Restar Stock",
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text("Cancelar")),
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(
+                "Cancelar",
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+              ),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () {
                 final cant = int.tryParse(cantidadController.text) ?? 0;
                 if (cant <= 0) {
@@ -615,6 +646,27 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: const Text("Restar"),
             ),
           ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                "Stock actual: $stockActual",
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cantidadController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: "Cantidad a restar",
+                  labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

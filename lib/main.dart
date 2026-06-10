@@ -19,6 +19,7 @@ import 'services/sync_service.dart';
 import 'widgets/artic_background.dart';
 import 'widgets/articlogo.dart';
 import 'widgets/artic_sidebar.dart';
+import 'widgets/artic_dialog.dart';
 
 import 'utils/theme_controller.dart';
 import 'screens/dashboard_screen.dart';
@@ -519,21 +520,30 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) {
-    return showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return showArticDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("¿Salir de Arctic Stock?"),
-        content: const Text("¿Estás seguro que querés cerrar la aplicación?"),
+      builder: (ctx) => ArticDialogCard(
+        title: "¿Salir de Arctic Stock?",
         actions: [
           TextButton(
-            child: const Text("Cancelar"),
+            child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
             onPressed: () => Navigator.of(ctx).pop(false),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             child: const Text("Salir"),
             onPressed: () => Navigator.of(ctx).pop(true),
           ),
         ],
+        child: Text(
+          "¿Estás seguro que querés cerrar la aplicación?",
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
       ),
     );
   }

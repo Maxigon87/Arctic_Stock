@@ -6,6 +6,7 @@ import '../services/db_service.dart'; // usuarios + setActiveUser
 import '../widgets/articlogo.dart';
 import '../services/auth_service.dart';
 import '../services/sync_service.dart';
+import '../widgets/artic_dialog.dart';
 
 class ArticLoginScreen extends StatefulWidget {
   const ArticLoginScreen({super.key});
@@ -147,19 +148,23 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   }
 
   Future<void> _logoutBusiness() async {
-    final ok = await showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ok = await showArticDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cerrar Sesión de Empresa'),
-        content: const Text('¿Estás seguro de que quieres cerrar la sesión de tu empresa? Se cerrará el acceso local en este dispositivo.'),
+      builder: (ctx) => ArticDialogCard(
+        title: 'Cerrar Sesión de Empresa',
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Salir', style: TextStyle(color: Colors.red))),
         ],
+        child: Text(
+          '¿Estás seguro de que quieres cerrar la sesión de tu empresa? Se cerrará el acceso local en este dispositivo.',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
       ),
     );
 
@@ -195,23 +200,32 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
   Future<void> _addUsuarioDialog() async {
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ok = await showArticDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nuevo usuario'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Nombre'),
-        ),
+      builder: (ctx) => ArticDialogCard(
+        title: 'Nuevo usuario',
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          FilledButton(
+              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+              ),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Guardar')),
         ],
+        child: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            labelText: 'Nombre',
+            labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+          ),
+        ),
       ),
     );
 
