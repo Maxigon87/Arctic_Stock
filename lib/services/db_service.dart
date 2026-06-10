@@ -875,7 +875,7 @@ class DBService {
 
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
-    final id = await db.insert('productos', {
+    final id = await db.insert('productos', _withSyncMeta({
       'codigo': data['codigo'],
       'nombre': data['nombre'],
       'descripcion': data['descripcion'] ?? '',
@@ -883,7 +883,7 @@ class DBService {
       'costo_compra': data['costo_compra'] ?? 0.0,
       'stock': data['stock'] ?? 0,
       'categoria_id': data['categoria_id']
-    });
+    }, forceDirty: false));
     final stockInicial = (data['stock'] as int?) ?? 0;
     if (stockInicial > 0) {
       await _logMovimientoStock(
@@ -901,7 +901,7 @@ class DBService {
     final db = await database;
     final count = await db.update(
       'productos',
-      {
+      _withSyncMeta({
         'codigo': data['codigo'],
         'nombre': data['nombre'],
         'descripcion': data['descripcion'] ?? '',
@@ -909,7 +909,7 @@ class DBService {
         'costo_compra': data['costo_compra'] ?? 0.0,
         'stock': data['stock'] ?? 0,
         'categoria_id': data['categoria_id']
-      },
+      }),
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -1143,8 +1143,8 @@ class DBService {
 
     // Restamos stock del producto
     await db.rawUpdate(
-      'UPDATE productos SET stock = stock - ? WHERE id = ?',
-      [cant, data['productoId']],
+      'UPDATE productos SET stock = stock - ?, synced = 0, last_updated = ? WHERE id = ?',
+      [cant, DateTime.now().toIso8601String(), data['productoId']],
     );
 
     // Registramos movimiento de stock (EGRESO por venta)
@@ -1178,7 +1178,7 @@ class DBService {
 
   Future<void> updateVentaTotal(int ventaId, double total) async {
     final db = await database;
-    await db.update('ventas', {'total': total},
+    await db.update('ventas', _withSyncMeta({'total': total}),
         where: 'id = ?', whereArgs: [ventaId]);
     notifyDbChange();
   }
@@ -1905,7 +1905,7 @@ class DBService {
 
   Future<int> deleteUsuario(int id) async {
     final db = await database;
-    await db.update('ventas', {'userId': null},
+    await db.update('ventas', _withSyncMeta({'userId': null}),
         where: 'userId = ?', whereArgs: [id]);
     // Registro de baja en deleted_records para sincronización
     final rec = await db.query('usuarios', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
@@ -2013,7 +2013,7 @@ class DBService {
     final nombre = p.isNotEmpty ? (p.first['nombre'] as String? ?? '') : '';
     final codigo = p.isNotEmpty ? (p.first['codigo'] as String? ?? '') : '';
 
-    await db.insert('movimientos_stock', {
+    await db.insert('movimientos_stock', _withSyncMeta({
       'fecha': DateTime.now().toIso8601String(),
       'productoId': productoId,
       'tipo': tipo,
@@ -2021,7 +2021,7 @@ class DBService {
       'nota': nota,
       'producto_nombre': nombre,
       'producto_codigo': codigo,
-    });
+    }, forceDirty: false));
     notifyDbChange();
   }
 
