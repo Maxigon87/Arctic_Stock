@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/cliente.dart';
 import '../services/db_service.dart';
 import '../widgets/artic_background.dart';
@@ -236,20 +237,32 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildShortcutButton(
-                        icon: Icons.phone,
-                        label: "Llamar",
-                        color: Colors.green,
-                        isDark: isDark,
-                        enabled: cliente.telefono != null && cliente.telefono!.isNotEmpty,
-                        onTap: () {},
-                      ),
-                      _buildShortcutButton(
                         icon: Icons.email,
                         label: "Email",
                         color: Colors.blueAccent,
                         isDark: isDark,
                         enabled: cliente.email != null && cliente.email!.isNotEmpty,
-                        onTap: () {},
+                        onTap: () async {
+                          final Uri emailUri = Uri(
+                            scheme: 'mailto',
+                            path: cliente.email!,
+                          );
+                          try {
+                            if (await canLaunchUrl(emailUri)) {
+                              await launchUrl(emailUri);
+                            } else {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("No se pudo abrir el cliente de correo")),
+                              );
+                            }
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e")),
+                            );
+                          }
+                        },
                       ),
                       _buildShortcutButton(
                         icon: Icons.location_on,
@@ -257,7 +270,26 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         color: Colors.orangeAccent,
                         isDark: isDark,
                         enabled: cliente.direccion != null && cliente.direccion!.isNotEmpty,
-                        onTap: () {},
+                        onTap: () async {
+                          final Uri mapsUri = Uri.parse(
+                            "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cliente.direccion!)}"
+                          );
+                          try {
+                            if (await canLaunchUrl(mapsUri)) {
+                              await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+                            } else {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("No se pudo abrir Google Maps")),
+                              );
+                            }
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e")),
+                            );
+                          }
+                        },
                       ),
                     ],
                   ),

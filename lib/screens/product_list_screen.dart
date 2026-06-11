@@ -215,25 +215,44 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
+    final Widget mainWidget = Scaffold(
       backgroundColor: Colors.transparent,
+      appBar: widget.selectMode
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                'Seleccionar Producto',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            )
+          : null,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.selectMode ? 'Seleccionar Producto' : 'Productos e Inventario',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+            if (!widget.selectMode) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Productos e Inventario',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                if (!widget.selectMode)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
@@ -244,9 +263,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text("Nuevo Producto"),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             Expanded(
               child: ArticContainer(
                 maxWidth: double.infinity,
@@ -437,9 +457,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                               color: stockBadgeColor,
                                                               fontSize: 10,
                                                               fontWeight: FontWeight.bold,
+                                                              ),
                                                             ),
                                                           ),
-                                                        ),
                                                         if (!widget.selectMode && !inactivo)
                                                           Row(
                                                             children: [
@@ -491,6 +511,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
       ),
     );
+
+    if (widget.selectMode) {
+      return ArticBackground(
+        child: mainWidget,
+      );
+    }
+    return mainWidget;
   }
 
   void _mostrarDetallesProducto(Map<String, dynamic> p) {

@@ -1026,7 +1026,6 @@ class _SalesScreenState extends State<SalesScreen> {
       setState(() {
         _carrito.clear();
       });
-      Navigator.pop(context); // cierra el bottom sheet
 
       // Refrescar listado con los filtros actuales
       await _cargarVentasFiltradas();
@@ -1487,7 +1486,7 @@ class _SalesScreenState extends State<SalesScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showArticDialog(
       context: context,
-      builder: (_) => ArticDialogCard(
+      builder: (ctx) => ArticDialogCard(
         title: "⚠️ Stock insuficiente",
         actions: [
           ElevatedButton(
@@ -1496,7 +1495,7 @@ class _SalesScreenState extends State<SalesScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text("Entendido"),
           ),
         ],
