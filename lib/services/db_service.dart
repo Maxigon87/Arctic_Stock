@@ -70,9 +70,15 @@ class DBService {
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
-          await db.execute("PRAGMA journal_mode = WAL;");
-          await db.execute("PRAGMA synchronous = NORMAL;");
-          await db.execute("PRAGMA temp_store = MEMORY;");
+          try {
+            await db.rawQuery("PRAGMA journal_mode = WAL;");
+          } catch (_) {}
+          try {
+            await db.rawQuery("PRAGMA synchronous = NORMAL;");
+          } catch (_) {}
+          try {
+            await db.rawQuery("PRAGMA temp_store = MEMORY;");
+          } catch (_) {}
 
           // Blindar base en caso de DB parcial/rota
           await _ensureBaseIntegrity(db);
@@ -90,6 +96,10 @@ class DBService {
               "CREATE INDEX IF NOT EXISTS idx_movs_fecha ON movimientos_stock(fecha);");
           await db.execute(
               "CREATE INDEX IF NOT EXISTS idx_movs_tipo ON movimientos_stock(tipo);");
+
+          if (!await _columnExists(db, 'usuarios', 'avatar')) {
+            await db.execute("ALTER TABLE usuarios ADD COLUMN avatar TEXT;");
+          }
         },
       ),
     );
@@ -1213,7 +1223,9 @@ class DBService {
 
   Future<int> insertCliente(Cliente cliente) async {
     final db = await database;
-    return await db.insert('clientes', _withSyncMeta(cliente.toMap(), forceDirty: false));
+    final id = await db.insert('clientes', _withSyncMeta(cliente.toMap(), forceDirty: false));
+    notifyDbChange();
+    return id;
   }
 
   Future<List<Cliente>> getClientes() async {
@@ -1793,6 +1805,27 @@ class DBService {
     notifyDbChange();
   }
 
+  Future<void> setStockConAjuste(int productoId, int nuevoStock, {String? nota}) async {
+    final db = await database;
+    final prod = await db.query('productos',
+        columns: ['stock'], where: 'id = ?', whereArgs: [productoId], limit: 1);
+    if (prod.isEmpty) throw Exception('Producto inexistente');
+    final stockActual = (prod.first['stock'] as num?)?.toInt() ?? 0;
+    final diferencia = nuevoStock - stockActual;
+    if (diferencia == 0) return;
+    await db.rawUpdate(
+      'UPDATE productos SET stock = ?, synced = 0, last_updated = ? WHERE id = ?',
+      [nuevoStock, DateTime.now().toIso8601String(), productoId],
+    );
+    await _logMovimientoStock(
+      productoId: productoId,
+      tipo: 'ajuste',
+      cantidad: diferencia.abs(),
+      nota: nota ?? (diferencia > 0 ? 'Ajuste positivo' : 'Ajuste negativo'),
+    );
+    notifyDbChange();
+  }
+
   Future<void> incrementarStock(int productoId, int cantidad,
       {String? nota}) async {
     if (cantidad <= 0) {
@@ -1869,13 +1902,14 @@ class DBService {
   }
 
   // ===== USUARIOS =====
-  Future<int> insertUsuario(String nombre, {String? color}) async {
+  Future<int> insertUsuario(String nombre, {String? color, String? avatar}) async {
     final db = await database;
     final id = await db.insert(
       'usuarios',
       _withSyncMeta({
         'nombre': nombre.trim(),
         'color': color,
+        'avatar': avatar,
       }, forceDirty: false),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
@@ -1888,13 +1922,14 @@ class DBService {
     return await db.query('usuarios', orderBy: 'nombre ASC');
   }
 
-  Future<int> updateUsuario(int id, String nuevoNombre, {String? color}) async {
+  Future<int> updateUsuario(int id, String nuevoNombre, {String? color, String? avatar}) async {
     final db = await database;
     final count = await db.update(
       'usuarios',
       _withSyncMeta({
         'nombre': nuevoNombre.trim(),
         'color': color,
+        if (avatar != null) 'avatar': avatar,
       }),
       where: 'id = ?',
       whereArgs: [id],
@@ -1921,18 +1956,38 @@ class DBService {
     return count;
   }
 
+  Future<int> updateUsuarioAvatar(int id, String? avatarBase64) async {
+    final db = await database;
+    final count = await db.update(
+      'usuarios',
+      _withSyncMeta({
+        'avatar': avatarBase64,
+      }),
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (id == _activeUserId) {
+      _activeUserAvatar = avatarBase64;
+    }
+    notifyDbChange();
+    return count;
+  }
+
   // ===== Usuario activo (en memoria) =====
   int? _activeUserId;
   String? _activeUserName;
+  String? _activeUserAvatar;
 
-  void setActiveUser({required int? id, String? nombre}) {
+  void setActiveUser({required int? id, String? nombre, String? avatar}) {
     _activeUserId = id;
     _activeUserName = nombre;
+    _activeUserAvatar = avatar;
     notifyDbChange();
   }
 
   int? get activeUserId => _activeUserId;
   String? get activeUserName => _activeUserName;
+  String? get activeUserAvatar => _activeUserAvatar;
 
   // Entrada "oficial" desde la UI: normaliza/valida y delega en insertVenta
   Future<int> insertVentaBase(Map<String, dynamic> data) async {

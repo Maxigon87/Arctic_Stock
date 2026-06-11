@@ -248,8 +248,11 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   Future<void> _acceder() async {
     if (_selectedUserId == null) return;
     final u = _usuarios.firstWhere((e) => e['id'] == _selectedUserId);
-    DBService()
-        .setActiveUser(id: _selectedUserId, nombre: u['nombre'] as String?);
+    DBService().setActiveUser(
+      id: _selectedUserId,
+      nombre: u['nombre'] as String?,
+      avatar: u['avatar'] as String?,
+    );
 
     if (!mounted) return;
     // Navega por ruta nombrada (definida en MaterialApp.routes)

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -31,6 +32,8 @@ import 'screens/clientes_screen.dart';
 import 'screens/historial_archivos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/artic_login_screen.dart';
+import 'features/auth/mobile_login_screen.dart';
+import 'features/home/mobile_home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -169,8 +172,10 @@ class _MyAppState extends State<MyApp> {
           routes: {
             '/login': (_) => const ArticLoginScreen(),
             '/home': (_) => const HomeScreen(),
+            '/mobile_login': (_) => const MobileLoginScreen(),
+            '/mobile_home': (_) => const MobileHomeScreen(),
           },
-          initialRoute: '/login',
+          initialRoute: (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) ? '/mobile_login' : '/login',
         );
       },
     );
@@ -285,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // dentro de _HomeScreenState
   void _goToLogin() {
-    DBService().setActiveUser(id: null, nombre: null);
+    DBService().setActiveUser(id: null, nombre: null, avatar: null);
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ArticLoginScreen()),
       (route) => false,
@@ -680,10 +685,22 @@ class _UserBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 14,
-              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
-            ),
+            (() {
+              final avatarBase64 = DBService().activeUserAvatar;
+              return CircleAvatar(
+                radius: 14,
+                backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                backgroundImage: (avatarBase64 != null && avatarBase64.isNotEmpty)
+                    ? MemoryImage(base64Decode(avatarBase64))
+                    : null,
+                child: (avatarBase64 == null || avatarBase64.isEmpty)
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(fontSize: 10),
+                      )
+                    : null,
+              );
+            })(),
             if (!isCompact) ...[
               const SizedBox(width: 8),
               ConstrainedBox(

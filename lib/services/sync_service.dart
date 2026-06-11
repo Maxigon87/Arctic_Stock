@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter/widgets.dart';
 import 'db_service.dart';
 import 'auth_service.dart';
 
-class SyncService extends ChangeNotifier {
+class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   static final SyncService _instance = SyncService._internal();
   factory SyncService() => _instance;
   SyncService._internal();
@@ -17,16 +17,10 @@ class SyncService extends ChangeNotifier {
   bool _isSyncing = false;
   bool get isSyncing => _isSyncing;
 
-  Timer? _syncTimer;
   StreamSubscription<void>? _dbListener;
 
-  // Iniciar la sincronización periódica (cada 2 minutos) y escuchar cambios locales
+  // Iniciar la sincronización basada en eventos y escuchar cambios locales/ciclo de vida
   void startPeriodicSync() {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(minutes: 2), (_) {
-      syncData();
-    });
-
     // Escuchar cambios en la base de datos local con un debounce de 3 segundos para evitar sobrecarga
     _dbListener?.cancel();
     Timer? debounceTimer;
@@ -39,12 +33,27 @@ class SyncService extends ChangeNotifier {
         }
       });
     });
+
+    // Registrar observer para sincronizar cuando la app vuelva a primer plano (resumed)
+    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.addObserver(this);
+
+    // Ejecutar sincronización inicial al arrancar el servicio
+    syncData();
   }
 
-  // Detener la sincronización periódica y el escucha
+  // Detener la sincronización y el observer de ciclo de vida
   void stopPeriodicSync() {
-    _syncTimer?.cancel();
     _dbListener?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint("App retomada en primer plano: Iniciando sincronización por ciclo de vida.");
+      syncData();
+    }
   }
 
   // Ejecutar sincronización bidireccional completa

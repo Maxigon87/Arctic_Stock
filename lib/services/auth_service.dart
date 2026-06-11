@@ -106,7 +106,7 @@ class AuthService extends ChangeNotifier {
       await _auth.signOut();
       
       // Limpiar el usuario activo local (empleado)
-      _dbService.setActiveUser(id: null, nombre: null);
+      _dbService.setActiveUser(id: null, nombre: null, avatar: null);
 
       // Limpiar configuración de sincronización local
       final db = await _dbService.database;

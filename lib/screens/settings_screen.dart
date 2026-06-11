@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -37,33 +40,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _addUser() async {
     final controller = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    String? avatarBase64;
+
     final ok = await showArticDialog<bool>(
       context: context,
-      builder: (ctx) => ArticDialogCard(
-        title: 'Nuevo usuario',
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => ArticDialogCard(
+          title: 'Nuevo usuario',
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                  foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Guardar')),
+          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  try {
+                    final result = await FilePicker.pickFiles(
+                      type: FileType.image,
+                      withData: true,
+                    );
+                    if (result == null) return;
+                    final file = result.files.first;
+                    Uint8List? bytes = file.bytes;
+                    if (bytes == null && file.path != null) {
+                      bytes = await File(file.path!).readAsBytes();
+                    }
+                    if (bytes == null) return;
+
+                    final ui.Codec codec = await ui.instantiateImageCodec(
+                      bytes,
+                      targetWidth: 180,
+                      targetHeight: 180,
+                    );
+                    final ui.FrameInfo fi = await codec.getNextFrame();
+                    final ui.Image image = fi.image;
+                    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                    if (byteData != null) {
+                      setDialogState(() {
+                        avatarBase64 = base64Encode(byteData.buffer.asUint8List());
+                      });
+                    }
+                  } catch (_) {}
+                },
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withOpacity(0.1),
+                  backgroundImage: (avatarBase64 != null && avatarBase64!.isNotEmpty)
+                      ? MemoryImage(base64Decode(avatarBase64!))
+                      : null,
+                  child: (avatarBase64 == null || avatarBase64!.isEmpty)
+                      ? Icon(Icons.camera_alt, size: 28, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
+                      : null,
+                ),
               ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Guardar')),
-        ],
-        child: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-          decoration: const InputDecoration(labelText: 'Nombre'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+            ],
+          ),
         ),
       ),
     );
+
     final name = controller.text.trim();
     if (ok == true && name.isNotEmpty) {
-      await DBService().insertUsuario(name);
+      await DBService().insertUsuario(name, avatar: avatarBase64);
       await _load();
       widget.onUsersChanged?.call();
     }
@@ -72,33 +127,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _renameUser(Map u) async {
     final controller = TextEditingController(text: u['nombre'] as String);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    String? avatarBase64 = u['avatar'] as String?;
+
     final ok = await showArticDialog<bool>(
       context: context,
-      builder: (ctx) => ArticDialogCard(
-        title: 'Renombrar usuario',
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => ArticDialogCard(
+          title: 'Editar usuario',
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54))),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                  foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Guardar')),
+          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  try {
+                    final result = await FilePicker.pickFiles(
+                      type: FileType.image,
+                      withData: true,
+                    );
+                    if (result == null) return;
+                    final file = result.files.first;
+                    Uint8List? bytes = file.bytes;
+                    if (bytes == null && file.path != null) {
+                      bytes = await File(file.path!).readAsBytes();
+                    }
+                    if (bytes == null) return;
+
+                    final ui.Codec codec = await ui.instantiateImageCodec(
+                      bytes,
+                      targetWidth: 180,
+                      targetHeight: 180,
+                    );
+                    final ui.FrameInfo fi = await codec.getNextFrame();
+                    final ui.Image image = fi.image;
+                    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                    if (byteData != null) {
+                      setDialogState(() {
+                        avatarBase64 = base64Encode(byteData.buffer.asUint8List());
+                      });
+                    }
+                  } catch (_) {}
+                },
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withOpacity(0.1),
+                  backgroundImage: (avatarBase64 != null && avatarBase64!.isNotEmpty)
+                      ? MemoryImage(base64Decode(avatarBase64!))
+                      : null,
+                  child: (avatarBase64 == null || avatarBase64!.isEmpty)
+                      ? Icon(Icons.camera_alt, size: 28, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
+                      : null,
+                ),
               ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Guardar')),
-        ],
-        child: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-          decoration: const InputDecoration(labelText: 'Nombre'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+            ],
+          ),
         ),
       ),
     );
+
     final name = controller.text.trim();
     if (ok == true && name.isNotEmpty) {
-      await DBService().updateUsuario(u['id'] as int, name);
+      await DBService().updateUsuario(u['id'] as int, name, avatar: avatarBase64);
       await _load();
       widget.onUsersChanged?.call();
     }
@@ -192,20 +299,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 InputChip(
                                   label: Text(u['nombre'] as String),
                                   labelStyle: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                                  avatar: Icon(Icons.person, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                                  avatar: (() {
+                                    final avatarBase64 = u['avatar'] as String?;
+                                    if (avatarBase64 != null && avatarBase64.isNotEmpty) {
+                                      return CircleAvatar(
+                                        backgroundImage: MemoryImage(base64Decode(avatarBase64)),
+                                      );
+                                    }
+                                    return Icon(Icons.person, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7));
+                                  })(),
                                   backgroundColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
                                   onPressed: () => _renameUser(u),
                                   onDeleted: () => _deleteUser(u['id'] as int),
                                   deleteIcon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
                                 ),
-                                ActionChip(
-                                  label: const Text('Agregar usuario'),
-                                  labelStyle: TextStyle(color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), fontWeight: FontWeight.bold),
-                                  avatar: Icon(Icons.person_add_alt_1, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                                  backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
-                                  side: BorderSide(color: isDark ? const Color(0xFF22D3EE).withOpacity(0.3) : const Color(0xFF0284C7).withOpacity(0.3)),
-                                  onPressed: _addUser,
-                                ),
+                              ActionChip(
+                                label: const Text('Agregar usuario'),
+                                labelStyle: TextStyle(color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), fontWeight: FontWeight.bold),
+                                avatar: Icon(Icons.person_add_alt_1, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                                backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                                side: BorderSide(color: isDark ? const Color(0xFF22D3EE).withOpacity(0.3) : const Color(0xFF0284C7).withOpacity(0.3)),
+                                onPressed: _addUser,
+                              ),
                             ],
                           ),
                         ],
