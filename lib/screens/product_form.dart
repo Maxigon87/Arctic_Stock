@@ -18,11 +18,12 @@ class _ProductFormState extends State<ProductForm> {
   final _formKey = GlobalKey<FormState>();
 
   final _codigoCtrl = TextEditingController();
+  final _barCodeCtrl = TextEditingController(); // 👈 NUEVO
   final _nombreCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _costoCtrl = TextEditingController();
   final _precioCtrl = TextEditingController();
-  final _stockCtrl = TextEditingController(); // 👈 NUEVO
+  final _stockCtrl = TextEditingController();
 
   int? _categoriaId;
   List<Map<String, dynamic>> _categorias = [];
@@ -37,11 +38,12 @@ class _ProductFormState extends State<ProductForm> {
     final i = widget.initial;
     if (i != null) {
       _codigoCtrl.text = (i['codigo'] ?? '').toString();
+      _barCodeCtrl.text = (i['codigoBarras'] ?? '').toString(); // 👈 NUEVO
       _nombreCtrl.text = (i['nombre'] ?? '').toString();
       _descCtrl.text = (i['descripcion'] ?? '').toString();
       _costoCtrl.text = _numToStr(i['costo_compra']);
       _precioCtrl.text = _numToStr(i['precio_venta']);
-      _stockCtrl.text = (i['stock'] ?? 0).toString(); // 👈 inicializa stock
+      _stockCtrl.text = (i['stock'] ?? 0).toString();
       _categoriaId = i['categoria_id'] as int?;
     }
   }
@@ -49,11 +51,12 @@ class _ProductFormState extends State<ProductForm> {
   @override
   void dispose() {
     _codigoCtrl.dispose();
+    _barCodeCtrl.dispose(); // 👈 NUEVO
     _nombreCtrl.dispose();
     _descCtrl.dispose();
     _costoCtrl.dispose();
     _precioCtrl.dispose();
-    _stockCtrl.dispose(); // 👈 libera
+    _stockCtrl.dispose();
     super.dispose();
   }
 
@@ -158,13 +161,15 @@ class _ProductFormState extends State<ProductForm> {
     final data = {
       'codigo':
           _codigoCtrl.text.trim().isEmpty ? null : _codigoCtrl.text.trim(),
+      'codigoBarras':
+          _barCodeCtrl.text.trim().isEmpty ? null : _barCodeCtrl.text.trim(),
       'nombre': _nombreCtrl.text.trim(),
       'descripcion':
           _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       'costo_compra': costo,
       'precio_venta': precio,
       'stock': int.tryParse(_stockCtrl.text) ??
-          (widget.initial?['stock'] ?? 0), // 👈 guarda stock
+          (widget.initial?['stock'] ?? 0),
       'categoria_id': _categoriaId,
     };
 
@@ -222,12 +227,29 @@ class _ProductFormState extends State<ProductForm> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextFormField(
-                controller: _codigoCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Código (único)',
-                  hintText: 'EJ: ABC-123',
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codigoCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Código interno (único)',
+                        hintText: 'EJ: ABC-123',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _barCodeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Código de Barras',
+                        hintText: 'Escanea o escribe el código',
+                        suffixIcon: Icon(Icons.qr_code_scanner),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               TextFormField(

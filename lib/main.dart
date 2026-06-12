@@ -110,6 +110,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     final lightTheme = ThemeData(
       brightness: Brightness.light,
+      iconTheme: const IconThemeData(size: 24),
       colorScheme: ColorScheme.fromSeed(
         seedColor: Colors.teal,
         brightness: Brightness.light,
@@ -130,6 +131,7 @@ class _MyAppState extends State<MyApp> {
 
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
+      iconTheme: const IconThemeData(size: 24),
       colorScheme: ColorScheme.fromSeed(
         seedColor: Colors.teal,
         brightness: Brightness.dark,
@@ -524,9 +526,9 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) {
+  Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return showArticDialog<bool>(
+    final ok = await showArticDialog<bool>(
       context: context,
       builder: (ctx) => ArticDialogCard(
         title: "¿Salir de Arctic Stock?",
@@ -551,6 +553,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+    return ok;
   }
 }
 
@@ -591,9 +594,24 @@ class _LogoView extends StatelessWidget {
         children: [
           const ArticLogo(size: 440),
           const SizedBox(height: 8),
+          // Date button with plus emoji
+          ElevatedButton.icon(
+            onPressed: () {
+              // Placeholder: could open new user creation
+            },
+            icon: const Text('📅'),
+            label: Text(
+              '${DateFormat('dd MMM').format(DateTime.now())} +',
+              style: const TextStyle(fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
             'Bienvenido',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 20),
             textAlign: TextAlign.center,
           ),
         ],
@@ -636,7 +654,11 @@ class _MyWindowListener extends WindowListener {
   @override
   Future<bool> onWindowClose() async {
     final shouldExit = await state._mostrarDialogoConfirmacion(state.context);
-    return shouldExit == true;
+    if (shouldExit == true) {
+      await windowManager.destroy();
+      return true;
+    }
+    return false;
   }
 
   @override

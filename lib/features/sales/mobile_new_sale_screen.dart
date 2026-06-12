@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../models/cliente.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../../widgets/artic_dialog.dart';
 
 class MobileNewSaleScreen extends StatefulWidget {
   const MobileNewSaleScreen({super.key});
@@ -14,6 +15,14 @@ class MobileNewSaleScreen extends StatefulWidget {
 
 class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
   final DBService _dbService = DBService();
+
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _backgroundColor => _isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+  Color get _cardColor => _isDark ? const Color(0xFF1E293B) : Colors.white;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _subtitleColor => _isDark ? Colors.white70 : const Color(0xFF64748B);
+  Color get _borderColor => _isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFF1F5F9);
+  Color get _inputFillColor => _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
 
   // Step state
   int _currentStep = 0; // 0: Cliente, 1: Productos, 2: Pago
@@ -199,13 +208,13 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
           'Nueva Venta',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 18, color: _textColor),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: _cardColor,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
@@ -232,7 +241,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
 
   Widget _buildStepProgress() {
     return Container(
-      color: Colors.white,
+      color: _cardColor,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -249,7 +258,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
 
   Widget _buildStepNode(int index, String label, bool active) {
     final color = active ? const Color(0xFF0EA5E9) : const Color(0xFFE2E8F0);
-    final textColor = active ? const Color(0xFF0F172A) : const Color(0xFF94A3B8);
+    final textColor = active ? _textColor : const Color(0xFF94A3B8);
     return Column(
       children: [
         Container(
@@ -292,121 +301,160 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     final emailCtrl = TextEditingController();
     final direccionCtrl = TextEditingController();
 
-    showDialog(
+    showArticDialog(
       context: context,
       builder: (ctx) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            'Nuevo Cliente',
-            style: GoogleFonts.manrope(
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+        final style = GoogleFonts.manrope(color: isDark ? Colors.white : const Color(0xFF0F172A));
+        final labelStyle = GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B));
+        
+        return ArticDialogCard(
+          title: 'Nuevo Cliente',
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
             ),
-          ),
-        content: SingleChildScrollView(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0EA5E9),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                final name = nombreCtrl.text.trim();
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('El nombre es obligatorio')),
+                  );
+                  return;
+                }
+                final c = Cliente(
+                  nombre: name,
+                  dni: dniCtrl.text.trim(),
+                  telefono: telefonoCtrl.text.trim(),
+                  email: emailCtrl.text.trim(),
+                  direccion: direccionCtrl.text.trim(),
+                );
+                try {
+                  final insertedId = await _dbService.insertCliente(c);
+                  await _loadInitialData();
+                  
+                  // Buscar el recién insertado para seleccionarlo
+                  final Map<String, dynamic>? newCli = _clientes.firstWhere(
+                    (item) => item['id'] == insertedId,
+                    orElse: () => <String, dynamic>{},
+                  );
+
+                  setState(() {
+                    if (newCli != null && newCli.isNotEmpty) {
+                      _selectedCliente = newCli;
+                    }
+                  });
+                  Navigator.pop(ctx);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al crear cliente: $e')),
+                  );
+                }
+              },
+              child: Text('Guardar', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+            ),
+          ],
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nombreCtrl,
+                style: style,
                 decoration: InputDecoration(
                   labelText: 'Nombre *',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: dniCtrl,
+                style: style,
                 decoration: InputDecoration(
                   labelText: 'DNI / CUIT',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: telefonoCtrl,
                 keyboardType: TextInputType.phone,
+                style: style,
                 decoration: InputDecoration(
                   labelText: 'Teléfono',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
+                style: style,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: direccionCtrl,
+                style: style,
                 decoration: InputDecoration(
                   labelText: 'Dirección',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancelar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
-            onPressed: () async {
-              final name = nombreCtrl.text.trim();
-              if (name.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('El nombre es obligatorio')),
-                );
-                return;
-              }
-              final c = Cliente(
-                nombre: name,
-                dni: dniCtrl.text.trim(),
-                telefono: telefonoCtrl.text.trim(),
-                email: emailCtrl.text.trim(),
-                direccion: direccionCtrl.text.trim(),
-              );
-              try {
-                final insertedId = await _dbService.insertCliente(c);
-                await _loadInitialData();
-                
-                // Buscar el recién insertado para seleccionarlo
-                final Map<String, dynamic>? newCli = _clientes.firstWhere(
-                  (item) => item['id'] == insertedId,
-                  orElse: () => <String, dynamic>{},
-                );
-
-                setState(() {
-                  if (newCli != null && newCli.isNotEmpty) {
-                    _selectedCliente = newCli;
-                  }
-                });
-                Navigator.pop(ctx);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error al crear cliente: $e')),
-                );
-              }
-            },
-            child: Text('Guardar', style: GoogleFonts.manrope()),
-          ),
-        ],
-      );
-    });
+        );
+      },
+    );
   }
 
   Widget _buildClienteStep() {
@@ -419,7 +467,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     return Column(
       children: [
         Container(
-          color: Colors.white,
+          color: _cardColor,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
@@ -430,11 +478,11 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                     hintText: 'Buscar cliente...',
                     prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
                     filled: true,
-                    fillColor: const Color(0xFFF1F5F9),
+                    fillColor: _inputFillColor,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                   ),
-                  style: GoogleFonts.manrope(fontSize: 14),
+                  style: GoogleFonts.manrope(fontSize: 14, color: _textColor),
                 ),
               ),
               const SizedBox(width: 8),
@@ -460,16 +508,16 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
-                    color: _selectedCliente == null ? const Color(0xFF0EA5E9) : const Color(0xFFF1F5F9),
+                    color: _selectedCliente == null ? const Color(0xFF0EA5E9) : _borderColor,
                     width: _selectedCliente == null ? 2 : 1,
                   ),
                 ),
-                tileColor: Colors.white,
+                tileColor: _cardColor,
                 leading: CircleAvatar(
-                  backgroundColor: const Color(0xFFF1F5F9),
+                  backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
                   child: Icon(Icons.person, color: const Color(0xFF64748B)),
                 ),
-                title: Text('Consumidor Final', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14)),
+                title: Text('Consumidor Final', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textColor)),
                 trailing: _selectedCliente == null ? const Icon(Icons.check_circle, color: Color(0xFF0EA5E9)) : null,
                 onTap: () {
                   setState(() {
@@ -482,7 +530,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               if (filtered.isNotEmpty) ...[
                 Text(
                   'Clientes Registrados',
-                  style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+                  style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: _subtitleColor),
                 ),
                 const SizedBox(height: 8),
                 ListView.separated(
@@ -498,11 +546,11 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: isSelected ? const Color(0xFF0EA5E9) : const Color(0xFFF1F5F9),
+                          color: isSelected ? const Color(0xFF0EA5E9) : _borderColor,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
-                      tileColor: Colors.white,
+                      tileColor: _cardColor,
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.08),
                         child: Text(
@@ -510,9 +558,9 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                           style: GoogleFonts.manrope(color: const Color(0xFF0EA5E9), fontWeight: FontWeight.bold),
                         ),
                       ),
-                      title: Text(c['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14)),
+                      title: Text(c['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textColor)),
                       subtitle: c['dni'] != null && c['dni'].toString().isNotEmpty
-                          ? Text('DNI: ${c['dni']}', style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF64748B)))
+                          ? Text('DNI: ${c['dni']}', style: GoogleFonts.manrope(fontSize: 12, color: _subtitleColor))
                           : null,
                       trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF0EA5E9)) : null,
                       onTap: () {
@@ -535,13 +583,15 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     final filtered = _productos.where((p) {
       final name = (p['nombre'] as String? ?? '').toLowerCase();
       final code = (p['codigo'] as String? ?? '').toLowerCase();
-      return name.contains(_productoSearch.toLowerCase()) || code.contains(_productoSearch.toLowerCase());
+      final barcode = (p['codigoBarras'] as String? ?? '').toLowerCase();
+      final search = _productoSearch.toLowerCase().trim();
+      return name.contains(search) || code.contains(search) || barcode.contains(search);
     }).toList();
 
     return Column(
       children: [
         Container(
-          color: Colors.white,
+          color: _cardColor,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: TextField(
             onChanged: (val) => setState(() => _productoSearch = val),
@@ -549,11 +599,11 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               hintText: 'Buscar producto...',
               prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
               filled: true,
-              fillColor: const Color(0xFFF1F5F9),
+              fillColor: _inputFillColor,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
-            style: GoogleFonts.manrope(fontSize: 14),
+            style: GoogleFonts.manrope(fontSize: 14, color: _textColor),
           ),
         ),
         Expanded(
@@ -573,9 +623,9 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: _cardColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                  border: Border.all(color: _borderColor),
                 ),
                 child: Row(
                   children: [
@@ -583,9 +633,9 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text(p['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textColor)),
                           const SizedBox(height: 2),
-                          Text('Stock: $stock | ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF64748B))),
+                          Text('Stock: $stock | ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 12, color: _subtitleColor)),
                         ],
                       ),
                     ),
@@ -596,7 +646,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                             icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF64748B)),
                             onPressed: () => _updateCartQuantity(cartIdx, cartQty - 1),
                           ),
-                          Text('$cartQty', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+                          Text('$cartQty', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: _textColor)),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, color: Color(0xFF0EA5E9)),
                             onPressed: () => _updateCartQuantity(cartIdx, cartQty + 1),
@@ -635,15 +685,15 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
         // Cart Summary Card
         Text(
           'Resumen de Compra',
-          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF1F5F9)),
+            border: Border.all(color: _borderColor),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -652,7 +702,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _cart.length,
-                separatorBuilder: (_, __) => const Divider(height: 20, color: Color(0xFFF1F5F9)),
+                separatorBuilder: (_, __) => Divider(height: 20, color: _borderColor),
                 itemBuilder: (context, idx) {
                   final item = _cart[idx];
                   final prod = item['product'];
@@ -665,22 +715,22 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(prod['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold)),
+                            Text(prod['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: _textColor)),
                             const SizedBox(height: 2),
-                            Text('$qty x ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF64748B))),
+                            Text('$qty x ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 11, color: _subtitleColor)),
                           ],
                         ),
                       ),
-                      Text(formatCurrency(price * qty), style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text(formatCurrency(price * qty), style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: _textColor)),
                     ],
                   );
                 },
               ),
-              const Divider(height: 24, thickness: 1, color: Color(0xFFE2E8F0)),
+              Divider(height: 24, thickness: 1, color: _borderColor),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Total', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A))),
+                  Text('Total', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w800, color: _textColor)),
                   Text(formatCurrency(_subtotal), style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF0EA5E9))),
                 ],
               ),
@@ -691,15 +741,15 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
         // Payment Method Card
         Text(
           'Método de Pago',
-          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF1F5F9)),
+            border: Border.all(color: _borderColor),
           ),
           child: Column(
             children: paymentMethods.map((method) {
@@ -715,7 +765,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                   style: GoogleFonts.manrope(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: isDisabled ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+                    color: isDisabled ? const Color(0xFF94A3B8) : _textColor,
                   ),
                 ),
                 trailing: isSelected
@@ -736,7 +786,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
           const SizedBox(height: 8),
           Text(
             '💡 Para habilitar "Fiado", debes seleccionar un cliente en el Paso 1.',
-            style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF64748B), fontStyle: FontStyle.italic),
+            style: GoogleFonts.manrope(fontSize: 11, color: _subtitleColor, fontStyle: FontStyle.italic),
           ),
         ],
       ],
@@ -748,7 +798,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -766,14 +816,14 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  side: BorderSide(color: _borderColor),
                 ),
                 onPressed: () {
                   setState(() {
                     _currentStep--;
                   });
                 },
-                child: Text('Atrás', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
+                child: Text('Atrás', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: _subtitleColor)),
               ),
               const SizedBox(width: 12),
             ],

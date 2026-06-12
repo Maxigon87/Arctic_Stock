@@ -180,6 +180,7 @@ class DBService {
       CREATE TABLE productos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         codigo TEXT UNIQUE,
+        codigoBarras TEXT,
         nombre TEXT NOT NULL,
         descripcion TEXT,
         precio_venta REAL NOT NULL CHECK(precio_venta >= 0),
@@ -193,6 +194,8 @@ class DBService {
 
     await db.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_codigoBarras ON productos(codigoBarras);");
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);");
     await db.execute(
@@ -388,6 +391,8 @@ class DBService {
 
     await _ensureColumnExists(db, 'productos', 'activo',
         "ALTER TABLE productos ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;");
+    await _ensureColumnExists(db, 'productos', 'codigoBarras',
+        "ALTER TABLE productos ADD COLUMN codigoBarras TEXT;");
     await _ensureColumnExists(db, 'ventas', 'userId',
         "ALTER TABLE ventas ADD COLUMN userId INTEGER;");
     await _ensureColumnExists(db, 'deudas', 'fechaPago',
@@ -398,6 +403,8 @@ class DBService {
     // índices idempotentes
     await db.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo);");
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_productos_codigoBarras ON productos(codigoBarras);");
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);");
     await db.execute(
@@ -885,8 +892,20 @@ class DBService {
 
   Future<int> insertProducto(Map<String, dynamic> data) async {
     final db = await database;
+    final String? inputCodigo = data['codigo']?.toString().trim().isEmpty == true ? null : data['codigo']?.toString().trim();
+    final String? inputBarcode = data['codigoBarras']?.toString().trim().isEmpty == true ? null : data['codigoBarras']?.toString().trim();
+
+    String? finalCodigo = inputCodigo;
+    String? finalBarcode = inputBarcode;
+    if (finalCodigo == null && finalBarcode != null) {
+      finalCodigo = finalBarcode;
+    } else if (finalCodigo != null && finalBarcode == null) {
+      finalBarcode = finalCodigo;
+    }
+
     final id = await db.insert('productos', _withSyncMeta({
-      'codigo': data['codigo'],
+      'codigo': finalCodigo,
+      'codigoBarras': finalBarcode,
       'nombre': data['nombre'],
       'descripcion': data['descripcion'] ?? '',
       'precio_venta': data['precio_venta'],
@@ -909,10 +928,22 @@ class DBService {
 
   Future<int> updateProducto(Map<String, dynamic> data, int id) async {
     final db = await database;
+    final String? inputCodigo = data['codigo']?.toString().trim().isEmpty == true ? null : data['codigo']?.toString().trim();
+    final String? inputBarcode = data['codigoBarras']?.toString().trim().isEmpty == true ? null : data['codigoBarras']?.toString().trim();
+
+    String? finalCodigo = inputCodigo;
+    String? finalBarcode = inputBarcode;
+    if (finalCodigo == null && finalBarcode != null) {
+      finalCodigo = finalBarcode;
+    } else if (finalCodigo != null && finalBarcode == null) {
+      finalBarcode = finalCodigo;
+    }
+
     final count = await db.update(
       'productos',
       _withSyncMeta({
-        'codigo': data['codigo'],
+        'codigo': finalCodigo,
+        'codigoBarras': finalBarcode,
         'nombre': data['nombre'],
         'descripcion': data['descripcion'] ?? '',
         'precio_venta': data['precio_venta'],
@@ -956,8 +987,14 @@ class DBService {
     return id;
   }
 
-  Future<List<Map<String, dynamic>>> getVentas() async {
+  Future<List<Map<String, dynamic>>> getVentas({String? orderBy}) async {
     final db = await database;
+    String orderClause = "v.fecha DESC";
+    if (orderBy == 'fecha_asc') orderClause = "v.fecha ASC";
+    if (orderBy == 'fecha_desc') orderClause = "v.fecha DESC";
+    if (orderBy == 'total_asc') orderClause = "v.total ASC";
+    if (orderBy == 'total_desc') orderClause = "v.total DESC";
+
     return await db.rawQuery('''
       SELECT v.id, v.fecha, v.metodoPago, v.total,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
@@ -965,7 +1002,7 @@ class DBService {
       FROM ventas v
       LEFT JOIN clientes c ON v.clienteId = c.id
       LEFT JOIN usuarios u ON v.userId = u.id
-      ORDER BY v.fecha DESC
+      ORDER BY $orderClause
     ''');
   }
 
@@ -1314,6 +1351,7 @@ class DBService {
     DateTime? desde,
     DateTime? hasta,
     String? productoQuery,
+    String? orderBy,
   }) async {
     final db = await database;
 
@@ -1358,6 +1396,12 @@ class DBService {
       args.addAll([q, q, q]);
     }
 
+    String orderClause = "v.fecha DESC";
+    if (orderBy == 'fecha_asc') orderClause = "v.fecha ASC";
+    if (orderBy == 'fecha_desc') orderClause = "v.fecha DESC";
+    if (orderBy == 'total_asc') orderClause = "v.total ASC";
+    if (orderBy == 'total_desc') orderClause = "v.total DESC";
+
     return await db.rawQuery('''
     SELECT 
       v.*,
@@ -1369,7 +1413,7 @@ class DBService {
     $extraJoins
     WHERE $where
     GROUP BY v.id                 -- evita duplicar ventas con varios ítems
-    ORDER BY v.fecha DESC
+    ORDER BY $orderClause
   ''', args);
   }
 
@@ -1649,11 +1693,24 @@ class DBService {
     return await db.insert('categorias', _withSyncMeta({'nombre': nombre}, forceDirty: false));
   }
 
+  String _normalizeString(String str) {
+    return str
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ñ', 'n')
+        .replaceAll('ü', 'u');
+  }
+
   Future<List<Map<String, dynamic>>> getProductos({
     String? search,
     int? categoriaId,
     bool soloAgotados = false,
     bool incluirInactivos = false,
+    String? orderBy,
   }) async {
     final db = await database;
 
@@ -1663,11 +1720,6 @@ class DBService {
     if (!incluirInactivos) {
       where += " AND p.activo = 1";
     }
-    if (search != null && search.isNotEmpty) {
-      where += " AND (p.nombre LIKE ? OR p.descripcion LIKE ?)";
-      args.add('%$search%');
-      args.add('%$search%');
-    }
     if (categoriaId != null) {
       where += " AND p.categoria_id = ?";
       args.add(categoriaId);
@@ -1676,15 +1728,45 @@ class DBService {
       where += " AND p.stock <= 0";
     }
 
-    return await db.rawQuery('''
-      SELECT p.id, p.codigo, p.nombre, p.descripcion, p.precio_venta,
+    String orderClause = "p.nombre ASC";
+    if (orderBy == 'precio_asc') orderClause = "p.precio_venta ASC";
+    if (orderBy == 'precio_desc') orderClause = "p.precio_venta DESC";
+    if (orderBy == 'stock_asc') orderClause = "p.stock ASC";
+    if (orderBy == 'stock_desc') orderClause = "p.stock DESC";
+    if (orderBy == 'popularidad') orderClause = "vendidos_count DESC";
+    if (orderBy == 'nombre_asc') orderClause = "p.nombre ASC";
+
+    final results = await db.rawQuery('''
+      SELECT p.id, p.codigo, p.codigoBarras, p.nombre, p.descripcion, p.precio_venta,
              p.costo_compra, p.stock, p.categoria_id, p.activo,
-             c.nombre AS categoria_nombre
+             c.nombre AS categoria_nombre,
+             COALESCE(v_pop.vendidos_count, 0) AS vendidos_count
       FROM productos p
       LEFT JOIN categorias c ON p.categoria_id = c.id
+      LEFT JOIN (
+        SELECT productoId, SUM(cantidad) AS vendidos_count
+        FROM items_venta
+        GROUP BY productoId
+      ) v_pop ON p.id = v_pop.productoId
       WHERE $where
-      ORDER BY p.nombre ASC
+      ORDER BY $orderClause
     ''', args);
+
+    if (search != null && search.trim().isNotEmpty) {
+      final normalizedSearch = _normalizeString(search.trim());
+      return results.where((p) {
+        final nombre = _normalizeString(p['nombre'] as String? ?? '');
+        final desc = _normalizeString(p['descripcion'] as String? ?? '');
+        final codigo = _normalizeString(p['codigo'] as String? ?? '');
+        final barcode = _normalizeString(p['codigoBarras'] as String? ?? '');
+        return nombre.contains(normalizedSearch) ||
+            desc.contains(normalizedSearch) ||
+            codigo.contains(normalizedSearch) ||
+            barcode.contains(normalizedSearch);
+      }).toList();
+    }
+
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> getAllCategorias() async {
@@ -1898,6 +1980,19 @@ class DBService {
       WHERE p.codigo = ?
       LIMIT 1
     ''', [codigo]);
+    return res.isNotEmpty ? res.first : null;
+  }
+
+  Future<Map<String, dynamic>?> getProductoByCodigoOrBarcode(String query) async {
+    final db = await database;
+    final res = await db.rawQuery('''
+      SELECT p.id, p.codigo, p.codigoBarras, p.nombre, p.descripcion, p.precio_venta, p.costo_compra, p.stock, p.categoria_id, 
+             c.nombre AS categoria_nombre
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      WHERE (p.codigo = ? OR p.codigoBarras = ?) AND p.activo = 1
+      LIMIT 1
+    ''', [query, query]);
     return res.isNotEmpty ? res.first : null;
   }
 

@@ -10,6 +10,8 @@ import '../../../services/db_service.dart';
 import '../../../services/sync_service.dart';
 import '../../../utils/theme_controller.dart';
 import '../debts/mobile_debts_screen.dart';
+import '../../screens/quick_inquiry_screen.dart';
+import '../../widgets/artic_image_cropper.dart';
 
 class MobileMoreScreen extends StatefulWidget {
   const MobileMoreScreen({super.key});
@@ -142,25 +144,15 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
       }
       if (bytes == null) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Procesando y comprimiendo imagen...')),
-        );
-      }
-
-      // Compress and resize using Flutter's built-in image codec (to target 180x180 px for avatar)
-      final ui.Codec codec = await ui.instantiateImageCodec(
-        bytes,
-        targetWidth: 180,
-        targetHeight: 180,
+      if (!mounted) return;
+      final croppedBytes = await showDialog<Uint8List>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => ArticImageCropperDialog(imageBytes: bytes!),
       );
-      final ui.FrameInfo fi = await codec.getNextFrame();
-      final ui.Image image = fi.image;
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
+      if (croppedBytes == null) return;
 
-      final compressedBytes = byteData.buffer.asUint8List();
-      final base64String = base64Encode(compressedBytes);
+      final base64String = base64Encode(croppedBytes);
 
       // Save to active user
       final activeId = _dbService.activeUserId;
@@ -311,6 +303,24 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const MobileDebtsScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildMenuCard(
+            context,
+            icon: Icons.qr_code_scanner,
+            color: const Color(0xFF0EA5E9),
+            title: 'Consulta Rápida / Escanear',
+            subtitle: 'Buscar precios y stock con código de barras',
+            textColor: textColor,
+            subtitleColor: subtitleColor,
+            cardColor: cardColor,
+            borderColor: borderColor,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QuickInquiryScreen()),
               );
             },
           ),

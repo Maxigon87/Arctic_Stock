@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert'; // 👈 NUEVO
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -102,20 +103,28 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           if (_dbService.activeUserName != null)
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
-              child: Chip(
-                avatar: CircleAvatar(
-                  backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
-                  child: Text(
-                    _dbService.activeUserName!.isNotEmpty ? _dbService.activeUserName![0].toUpperCase() : 'U',
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9), fontSize: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                    backgroundImage: (_dbService.activeUserAvatar != null && _dbService.activeUserAvatar!.isNotEmpty)
+                        ? MemoryImage(base64Decode(_dbService.activeUserAvatar!))
+                        : null,
+                    child: (_dbService.activeUserAvatar == null || _dbService.activeUserAvatar!.isEmpty)
+                        ? Text(
+                            _dbService.activeUserName!.isNotEmpty ? _dbService.activeUserName![0].toUpperCase() : 'U',
+                            style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9), fontSize: 14),
+                          )
+                        : null,
                   ),
-                ),
-                label: Text(
-                  _dbService.activeUserName!,
-                  style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                side: BorderSide.none,
+                  const SizedBox(width: 8),
+                  Text(
+                    _dbService.activeUserName!,
+                    style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                  ),
+                ],
               ),
             ),
         ],
@@ -275,12 +284,12 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               Text(
                 title,
                 style: GoogleFonts.manrope(
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: subtitleColor,
                 ),
               ),
-              Icon(icon, color: color, size: 18),
+              Icon(icon, color: color, size: 22),
             ],
           ),
           const SizedBox(height: 8),
@@ -289,7 +298,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             child: Text(
               value,
               style: GoogleFonts.manrope(
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: FontWeight.w800,
                 color: textColor,
               ),

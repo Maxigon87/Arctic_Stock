@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../../widgets/artic_dialog.dart';
 
 class MobileProductsScreen extends StatefulWidget {
   const MobileProductsScreen({super.key});
@@ -18,6 +19,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   List<Map<String, dynamic>> _productos = [];
   String _searchQuery = '';
   bool _loading = true;
+  String _sortBy = 'nombre_asc'; // 👈 NUEVO
 
   @override
   void initState() {
@@ -34,7 +36,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
 
   Future<void> _loadProductos() async {
     try {
-      final list = await _dbService.getProductos();
+      final list = await _dbService.getProductos(orderBy: _sortBy); // 👈
       // Filter out inactive products if necessary, or just keep active ones
       final active = list.where((p) => p['activo'] == 1).toList();
       if (mounted) {
@@ -85,25 +87,64 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                 Container(
                   color: searchBgColor,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: TextField(
-                    onChanged: (val) {
-                      setState(() {
-                        _searchQuery = val;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Buscar producto...',
-                      hintStyle: GoogleFonts.manrope(color: const Color(0xFF94A3B8)),
-                      prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
-                      filled: true,
-                      fillColor: fieldFillColor,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          onChanged: (val) {
+                            setState(() {
+                              _searchQuery = val;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Buscar producto...',
+                            hintStyle: GoogleFonts.manrope(color: const Color(0xFF94A3B8)),
+                            prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
+                            filled: true,
+                            fillColor: fieldFillColor,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                          ),
+                          style: GoogleFonts.manrope(fontSize: 14, color: textColor),
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                    ),
-                    style: GoogleFonts.manrope(fontSize: 14, color: textColor),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: fieldFillColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _sortBy,
+                            dropdownColor: searchBgColor,
+                            icon: const Icon(Icons.sort, color: Color(0xFF64748B), size: 18),
+                            style: GoogleFonts.manrope(fontSize: 12, color: textColor, fontWeight: FontWeight.bold),
+                            items: const [
+                              DropdownMenuItem(value: 'nombre_asc', child: Text("A-Z")),
+                              DropdownMenuItem(value: 'precio_asc', child: Text("Precio \$")),
+                              DropdownMenuItem(value: 'precio_desc', child: Text("Precio \$\$\$")),
+                              DropdownMenuItem(value: 'stock_asc', child: Text("Stock 📉")),
+                              DropdownMenuItem(value: 'stock_desc', child: Text("Stock 📈")),
+                              DropdownMenuItem(value: 'popularidad', child: Text("Popular")),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _sortBy = val;
+                                  _loading = true;
+                                });
+                                _loadProductos();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -156,71 +197,26 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
     final precioCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
 
-    showDialog(
+    showArticDialog(
       context: context,
       builder: (ctx) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            'Nuevo Producto',
-            style: GoogleFonts.manrope(
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Nombre *',
-                    labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: codigoCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Código',
-                    labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: precioCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: 'Precio de Venta *',
-                    labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: stockCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Stock Inicial',
-                    labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        final style = GoogleFonts.manrope(color: isDark ? Colors.white : const Color(0xFF0F172A));
+        final labelStyle = GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B));
+        
+        return ArticDialogCard(
+          title: 'Nuevo Producto',
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancelar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
+              child: Text('Cancelar', style: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0EA5E9),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               onPressed: () async {
                 final name = nombreCtrl.text.trim();
                 final precioVal = double.tryParse(precioCtrl.text.trim());
@@ -256,9 +252,83 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                   );
                 }
               },
-              child: Text('Guardar', style: GoogleFonts.manrope()),
+              child: Text('Guardar', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
             ),
           ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nombreCtrl,
+                style: style,
+                decoration: InputDecoration(
+                  labelText: 'Nombre *',
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: codigoCtrl,
+                style: style,
+                decoration: InputDecoration(
+                  labelText: 'Código / Cód. Barras',
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: precioCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: style,
+                decoration: InputDecoration(
+                  labelText: 'Precio de Venta *',
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: stockCtrl,
+                keyboardType: TextInputType.number,
+                style: style,
+                decoration: InputDecoration(
+                  labelText: 'Stock Inicial',
+                  labelStyle: labelStyle,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -306,30 +376,81 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
     final int productId = prod['id'] as int;
     final String name = prod['nombre'] as String? ?? 'Producto';
     final int currentStock = (prod['stock'] as num?)?.toInt() ?? 0;
+    final String code = prod['codigo'] as String? ?? '';
+    final String barcode = prod['codigoBarras'] as String? ?? '';
     
     int tempStock = currentStock;
     final controller = TextEditingController(text: currentStock.toString());
     
-    showDialog(
+    showArticDialog(
       context: context,
       builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              backgroundColor: Colors.white,
-              title: Text(
-                'Ajustar Stock',
-                style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF0F172A)),
-              ),
-              content: Column(
+            return ArticDialogCard(
+              title: 'Ajustar Stock',
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancelar',
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.w600, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0EA5E9),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    try {
+                      await _dbService.setStockConAjuste(productId, tempStock);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Stock actualizado correctamente', style: GoogleFonts.manrope()),
+                          backgroundColor: const Color(0xFF22C55E),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al actualizar stock: $e', style: GoogleFonts.manrope()),
+                          backgroundColor: const Color(0xFFEF4444),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(
+                    'Guardar',
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
                     name,
-                    style: GoogleFonts.manrope(fontSize: 14, color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+                    style: GoogleFonts.manrope(fontSize: 15, color: isDark ? Colors.white70 : const Color(0xFF64748B), fontWeight: FontWeight.bold),
                   ),
+                  if (code.isNotEmpty || barcode.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    if (code.isNotEmpty)
+                      Text(
+                        'Cód. Interno: $code',
+                        style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)),
+                      ),
+                    if (barcode.isNotEmpty)
+                      Text(
+                        'Cód. Barras: $barcode',
+                        style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)),
+                      ),
+                  ],
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -343,7 +464,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                             });
                           }
                         },
-                        icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF64748B), size: 32),
+                        icon: Icon(Icons.remove_circle_outline, color: isDark ? Colors.white60 : const Color(0xFF64748B), size: 32),
                       ),
                       const SizedBox(width: 16),
                       SizedBox(
@@ -352,7 +473,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                           controller: controller,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 22, color: const Color(0xFF0F172A)),
+                          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 22, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                           decoration: const InputDecoration(
                             border: InputBorder.none,
                           ),
@@ -378,46 +499,6 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                   ),
                 ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'Cancelar',
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0EA5E9),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    try {
-                      await _dbService.setStockConAjuste(productId, tempStock);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Stock actualizado correctamente', style: GoogleFonts.manrope()),
-                          backgroundColor: const Color(0xFF22C55E),
-                        ),
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error al actualizar stock: $e', style: GoogleFonts.manrope()),
-                          backgroundColor: const Color(0xFFEF4444),
-                        ),
-                      );
-                    }
-                  },
-                  child: Text(
-                    'Guardar',
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ),
-              ],
             );
           },
         );
@@ -428,6 +509,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   Widget _buildProductCard(Map<String, dynamic> prod) {
     final name = prod['nombre'] as String? ?? 'Producto sin nombre';
     final code = prod['codigo'] as String? ?? '';
+    final barcode = prod['codigoBarras'] as String? ?? '';
     final price = (prod['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final stock = (prod['stock'] as num?)?.toInt() ?? 0;
 
@@ -491,9 +573,11 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  if (code.isNotEmpty) ...[
+                  if (code.isNotEmpty || barcode.isNotEmpty) ...[
                     Text(
-                      'Cód: $code',
+                      code == barcode
+                          ? 'Cód: $code'
+                          : 'Cód: $code | Barras: $barcode',
                       style: GoogleFonts.manrope(
                         fontSize: 11,
                         color: const Color(0xFF94A3B8),

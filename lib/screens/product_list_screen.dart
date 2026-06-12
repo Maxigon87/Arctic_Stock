@@ -26,7 +26,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
   int? selectedCategoriaId;
   String searchQuery = "";
   bool _mostrarSoloAgotados = false;
-  bool _mostrarInactivos = false; // ⬅️ NUEVO
+  bool _mostrarInactivos = false;
+  String _sortBy = 'nombre_asc';
 
   @override
   void initState() {
@@ -45,7 +46,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
       search: searchQuery,
       categoriaId: selectedCategoriaId,
       soloAgotados: _mostrarSoloAgotados,
-      incluirInactivos: _mostrarInactivos, // ⬅️ NUEVO
+      incluirInactivos: _mostrarInactivos,
+      orderBy: _sortBy,
     );
     setState(() => productos = data);
   }
@@ -203,6 +205,38 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   _loadProductos();
                 },
                 avatar: const Icon(Icons.warning_amber_rounded, size: 14),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _sortBy,
+                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 12),
+                    items: const [
+                      DropdownMenuItem(value: 'nombre_asc', child: Text("Nombre: A-Z", style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'precio_asc', child: Text("Precio: Menor a Mayor", style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'precio_desc', child: Text("Precio: Mayor a Menor", style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'stock_asc', child: Text("Stock: Menor a Mayor", style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'stock_desc', child: Text("Stock: Mayor a Menor", style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'popularidad', child: Text("Popularidad (Más vendidos)", style: TextStyle(fontSize: 12))),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _sortBy = value);
+                        _loadProductos();
+                      }
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -537,9 +571,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
               if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.qr_code, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                  title: Text('Código', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                  leading: Icon(Icons.tag, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                  title: Text('Código Interno', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
                   trailing: Text(p['codigo'].toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+                ),
+                Divider(color: isDark ? Colors.white12 : Colors.black12),
+              ],
+              if ((p['codigoBarras'] ?? '').toString().isNotEmpty) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.qr_code, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                  title: Text('Código de Barras', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                  trailing: Text(p['codigoBarras'].toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
                 ),
                 Divider(color: isDark ? Colors.white12 : Colors.black12),
               ],

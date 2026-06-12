@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart'; // 👈 NUEVO
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import 'mobile_new_sale_screen.dart';
@@ -174,101 +175,306 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
     if (method == 'Fiado') methodColor = const Color(0xFFEF4444);
     if (method == 'Debito' || method == 'Credito' || method == 'Transferencia') methodColor = const Color(0xFF0EA5E9);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: innerBgColor,
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: () => _showSaleDetails(sale),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.01),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-            child: const Icon(Icons.receipt_outlined, color: Color(0xFF0EA5E9), size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: innerBgColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.receipt_outlined, color: Color(0xFF0EA5E9), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Venta #$id',
+                    style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$clientName • $formattedDate',
+                    style: GoogleFonts.manrope(
+                      fontSize: 11,
+                      color: subtitleColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (user.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Por: $user',
+                      style: GoogleFonts.manrope(
+                        fontSize: 10,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Venta #$id',
+                  formatCurrency(total),
                   style: GoogleFonts.manrope(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
                     color: textColor,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '$clientName • $formattedDate',
-                  style: GoogleFonts.manrope(
-                    fontSize: 11,
-                    color: subtitleColor,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: methodColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (user.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Por: $user',
+                  child: Text(
+                    method,
                     style: GoogleFonts.manrope(
                       fontSize: 10,
-                      color: const Color(0xFF94A3B8),
+                      fontWeight: FontWeight.bold,
+                      color: methodColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSaleDetails(Map<String, dynamic> sale) async {
+    final id = sale['id'] as int;
+    final total = (sale['total'] as num?)?.toDouble() ?? 0.0;
+    final method = sale['metodoPago'] as String? ?? '—';
+    final clientName = sale['clienteNombre'] as String? ?? 'Consumidor Final';
+    final rawFecha = sale['fecha'] as String?;
+    String formattedDate = '';
+    if (rawFecha != null) {
+      try {
+        final parsed = DateTime.parse(rawFecha);
+        formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        formattedDate = rawFecha;
+      }
+    }
+
+    final items = await _dbService.getItemsByVenta(id);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final bottomSheetDark = Theme.of(ctx).brightness == Brightness.dark;
+        final sheetBg = bottomSheetDark ? const Color(0xFF0F172A) : Colors.white;
+        final textC = bottomSheetDark ? Colors.white : const Color(0xFF0F172A);
+        final subC = bottomSheetDark ? Colors.white70 : Colors.black87;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: bottomSheetDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Comprobante Venta #$id',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.manrope(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textC,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: bottomSheetDark ? Colors.white12 : Colors.black12),
+              const SizedBox(height: 8),
+              _buildDetailRow('Cliente', clientName, subC),
+              _buildDetailRow('Fecha', formattedDate, subC),
+              _buildDetailRow('Método de Pago', method, subC),
+              const SizedBox(height: 12),
+              Text(
+                'Productos',
+                style: GoogleFonts.manrope(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: textC,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 250),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  itemBuilder: (c, idx) {
+                    final item = items[idx];
+                    final name = item['producto'] ?? '';
+                    final cant = item['cantidad'] ?? 0;
+                    final sub = (item['subtotal'] as num?)?.toDouble() ?? 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$cant x $name',
+                              style: GoogleFonts.manrope(fontSize: 13, color: subC),
+                            ),
+                          ),
+                          Text(
+                            formatCurrency(sub),
+                            style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textC),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: bottomSheetDark ? Colors.white12 : Colors.black12),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'TOTAL',
+                    style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: textC),
+                  ),
+                  Text(
+                    formatCurrency(total),
+                    style: GoogleFonts.manrope(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: bottomSheetDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
                     ),
                   ),
                 ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                formatCurrency(total),
-                style: GoogleFonts.manrope(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: textColor,
-                ),
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: methodColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA5E9),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: Text(
-                  method,
-                  style: GoogleFonts.manrope(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: methodColor,
-                  ),
-                ),
+                icon: const Icon(Icons.share_outlined),
+                label: Text('Compartir Ticket', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  _shareSaleTicket(sale, items);
+                },
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey)),
+          Text(value, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
         ],
       ),
     );
+  }
+
+  void _shareSaleTicket(Map<String, dynamic> sale, List<Map<String, dynamic>> items) {
+    final id = sale['id'];
+    final total = (sale['total'] as num?)?.toDouble() ?? 0.0;
+    final clientName = sale['clienteNombre'] as String? ?? 'Consumidor Final';
+    final method = sale['metodoPago'] as String? ?? '—';
+    final rawFecha = sale['fecha'] as String?;
+    String formattedDate = '';
+    if (rawFecha != null) {
+      try {
+        final parsed = DateTime.parse(rawFecha);
+        formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {}
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('❄️ Arctic Stock ❄️');
+    buffer.writeln('=================================');
+    buffer.writeln('Ticket de Venta #$id');
+    buffer.writeln('Fecha: $formattedDate');
+    buffer.writeln('Cliente: $clientName');
+    buffer.writeln('Metodo: $method');
+    buffer.writeln('=================================');
+    buffer.writeln('Productos:');
+    for (var item in items) {
+      final name = item['producto'] ?? '';
+      final cant = item['cantidad'] ?? 0;
+      final sub = (item['subtotal'] as num?)?.toDouble() ?? 0.0;
+      buffer.writeln('- $cant x $name: ${formatCurrency(sub)}');
+    }
+    buffer.writeln('=================================');
+    buffer.writeln('TOTAL: ${formatCurrency(total)}');
+    buffer.writeln('=================================');
+    buffer.writeln('¡Gracias por su compra!');
+
+    Share.share(buffer.toString(), subject: 'Ticket de Venta #$id');
   }
 }

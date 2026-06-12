@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -15,6 +16,7 @@ import '../services/db_service.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../screens/product_list_screen.dart';
+import '../screens/quick_inquiry_screen.dart';
 import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
@@ -40,6 +42,7 @@ class _SalesScreenState extends State<SalesScreen> {
   DateTime? desde;
   DateTime? hasta;
   List<Cliente> _clientes = [];
+  String _sortBy = 'fecha_desc';
 
   final _productoCtrl = TextEditingController();
 
@@ -61,7 +64,7 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   void initState() {
     super.initState();
-    _ventasFuture = dbService.getVentas();
+    _ventasFuture = dbService.getVentas(orderBy: _sortBy);
     _cargarClientes();
     _confettiController =
         ConfettiController(duration: const Duration(milliseconds: 500));
@@ -412,6 +415,7 @@ class _SalesScreenState extends State<SalesScreen> {
         desde: desde,
         hasta: hasta,
         productoQuery: q.isEmpty ? null : q,
+        orderBy: _sortBy,
       );
     });
   }
@@ -1163,22 +1167,58 @@ class _SalesScreenState extends State<SalesScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        TextField(
-          controller: _productoCtrl,
-          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-          decoration: InputDecoration(
-            labelText: 'Buscar producto por nombre o código...',
-            labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
-            prefixIcon: Icon(Icons.search, color: isDark ? Colors.white60 : Colors.black54),
-            isDense: true,
-          ),
-          onChanged: (_) {
-            _debounce?.cancel();
-            _debounce = dart_async.Timer(
-              const Duration(milliseconds: 350),
-              _cargarVentasFiltradas,
-            );
-          },
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _productoCtrl,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Buscar producto por nombre o código...',
+                  labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                  prefixIcon: Icon(Icons.search, color: isDark ? Colors.white60 : Colors.black54),
+                  isDense: true,
+                ),
+                onChanged: (_) {
+                  _debounce?.cancel();
+                  _debounce = dart_async.Timer(
+                    const Duration(milliseconds: 350),
+                    _cargarVentasFiltradas,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _sortBy,
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13),
+                  items: const [
+                    DropdownMenuItem(value: 'fecha_desc', child: Text("Fecha: Más Recientes", style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 'fecha_asc', child: Text("Fecha: Más Antiguas", style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 'total_desc', child: Text("Total: Mayor a Menor", style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 'total_asc', child: Text("Total: Menor a Mayor", style: TextStyle(fontSize: 13))),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _sortBy = value);
+                      _cargarVentasFiltradas();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1343,13 +1383,43 @@ class _SalesScreenState extends State<SalesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  "Ventas y Facturación",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Ventas y Facturación",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      icon: const Icon(Icons.qr_code_scanner, size: 18),
+                      label: Text(
+                        "Consulta Rápida / Escanear",
+                        style: GoogleFonts.manrope(fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () async {
+                        final product = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const QuickInquiryScreen(selectMode: true),
+                          ),
+                        );
+                        if (product != null) {
+                          await _agregarAlCarrito(product);
+                          _abrirCarrito();
+                        }
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Expanded(

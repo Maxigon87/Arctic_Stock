@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../../widgets/artic_dialog.dart';
 
 class MobileDebtsScreen extends StatefulWidget {
   const MobileDebtsScreen({super.key});
@@ -50,23 +51,30 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
   }
 
   Future<void> _registrarPago(int id, double monto, String clienteNombre) async {
-    final confirm = await showDialog<bool>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirm = await showArticDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Registrar Pago', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
-        content: Text('¿Confirmas que deseas registrar el pago de ${formatCurrency(monto)} del cliente $clienteNombre?'),
+      builder: (c) => ArticDialogCard(
+        title: 'Registrar Pago',
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text('Cancelar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
+            child: Text('Cancelar', style: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF22C55E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () => Navigator.pop(c, true),
-            child: Text('Confirmar', style: GoogleFonts.manrope()),
+            child: Text('Confirmar', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
           ),
         ],
+        child: Text(
+          '¿Confirmas que deseas registrar el pago de ${formatCurrency(monto)} del cliente $clienteNombre?',
+          style: GoogleFonts.manrope(color: isDark ? Colors.white70 : Colors.black87),
+        ),
       ),
     );
 
@@ -94,16 +102,22 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final appBarBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(
           'Deudas Pendientes',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 18, color: const Color(0xFF0F172A)),
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 18, color: textColor),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: appBarBg,
         elevation: 0,
         scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: textColor),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0EA5E9)))
@@ -142,6 +156,10 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF475569);
+    final descColor = isDark ? Colors.white60 : const Color(0xFF64748B);
+
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       child: Container(
@@ -158,7 +176,7 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
               style: GoogleFonts.manrope(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF475569),
+                color: titleColor,
               ),
               textAlign: TextAlign.center,
             ),
@@ -167,7 +185,7 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
               'No hay deudas pendientes registradas en el sistema.',
               style: GoogleFonts.manrope(
                 fontSize: 14,
-                color: const Color(0xFF64748B),
+                color: descColor,
               ),
               textAlign: TextAlign.center,
             ),
@@ -184,12 +202,19 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
     final desc = debt['descripcion'] as String? ?? '';
     final clienteNombre = debt['clienteNombre'] as String? ?? 'Cliente';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final descColor = isDark ? Colors.white54 : const Color(0xFF94A3B8);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.01),
@@ -219,7 +244,7 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
                   style: GoogleFonts.manrope(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: const Color(0xFF0F172A),
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -227,7 +252,7 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
                   'Deuda #$id • ${fecha.split('T').first}',
                   style: GoogleFonts.manrope(
                     fontSize: 11,
-                    color: const Color(0xFF64748B),
+                    color: subtitleColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -237,7 +262,7 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
                     desc,
                     style: GoogleFonts.manrope(
                       fontSize: 11,
-                      color: const Color(0xFF94A3B8),
+                      color: descColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
