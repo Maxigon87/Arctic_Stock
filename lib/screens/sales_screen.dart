@@ -29,10 +29,10 @@ class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key, this.startNewSale = false});
 
   @override
-  State<SalesScreen> createState() => _SalesScreenState();
+  State<SalesScreen> createState() => SalesScreenState();
 }
 
-class _SalesScreenState extends State<SalesScreen> {
+class SalesScreenState extends State<SalesScreen> {
   final dbService = DBService();
   dart_async.Timer? _debounce;
 
@@ -45,11 +45,15 @@ class _SalesScreenState extends State<SalesScreen> {
   String _sortBy = 'fecha_desc';
 
   final _productoCtrl = TextEditingController();
+  bool _aplicarDescuento = false;
+  String _tipoDescuento = 'percentage'; // 'percentage' o 'fixed'
+  final TextEditingController _descuentoCtrl = TextEditingController(text: '0');
 
   @override
   void dispose() {
     _debounce?.cancel();
     _productoCtrl.dispose();
+    _descuentoCtrl.dispose();
     _confettiController.dispose();
     super.dispose();
   }
@@ -70,7 +74,7 @@ class _SalesScreenState extends State<SalesScreen> {
         ConfettiController(duration: const Duration(milliseconds: 500));
     if (widget.startNewSale) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _abrirCarrito();
+        abrirCarrito();
       });
     }
   }
@@ -115,6 +119,8 @@ class _SalesScreenState extends State<SalesScreen> {
                   ? header!['usuarioNombre']
                   : '—';
           final total = (header?['total'] as num?)?.toDouble() ?? 0.0;
+          final subtotal = (header?['subtotal'] as num?)?.toDouble() ?? total;
+          final descuento = (header?['descuento'] as num?)?.toDouble() ?? 0.0;
           final fecha =
               (header?['fecha']?.toString().split('T').first) ?? '';
           final metodo = header?['metodoPago'] ?? '—';
@@ -166,6 +172,10 @@ class _SalesScreenState extends State<SalesScreen> {
                     _buildDetailBadge("Cliente: $cliente", isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), isDark),
                     _buildDetailBadge("Vendedor: $vendedor", Colors.purpleAccent, isDark),
                     _buildDetailBadge("Método: $metodo", metodo == "Fiado" ? Colors.amber : Colors.green, isDark),
+                    if (descuento > 0) ...[
+                      _buildDetailBadge("Subtotal: ${formatCurrency(subtotal)}", Colors.grey, isDark),
+                      _buildDetailBadge("Descuento: -${formatCurrency(descuento)}", Colors.redAccent, isDark),
+                    ],
                     _buildDetailBadge("Total: ${formatCurrency(total)}", isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), isDark),
                   ],
                 ),
@@ -300,6 +310,8 @@ class _SalesScreenState extends State<SalesScreen> {
         : '—';
     final metodo = header['metodoPago'] ?? '—';
     final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
 
     final linesOut = <String>[];
     _addCentered(linesOut, 'Venta #$ventaId');
@@ -324,6 +336,10 @@ class _SalesScreenState extends State<SalesScreen> {
     }
 
     linesOut.add(_repeat('-', lineWidth));
+    if (descuento > 0) {
+      _addTwoCols(linesOut, 'SUBTOTAL', formatCurrency(subtotal));
+      _addTwoCols(linesOut, 'DESCUENTO', '-${formatCurrency(descuento)}');
+    }
     _addTwoCols(linesOut, 'TOTAL', formatCurrency(total));
     linesOut.add(_repeat('-', lineWidth));
 
@@ -470,7 +486,7 @@ class _SalesScreenState extends State<SalesScreen> {
     return ok == true;
   }
 
-  Future<void> _agregarAlCarrito(Map<String, dynamic> producto) async {
+  Future<void> agregarAlCarrito(Map<String, dynamic> producto) async {
     final int id = producto['id'] as int;
     final int stock = await _stockDisponible(id);
     if (stock <= 0) {
@@ -574,18 +590,58 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   // --- BottomSheet carrito ----------------------------------------------------
-  void _abrirCarrito() {
+  void abrirCarrito() {
     bool clienteConDeudas = false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    _aplicarDescuento = false;
+    _tipoDescuento = 'percentage';
+    _descuentoCtrl.text = '0';
 
     showArticDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setLocalState) {
-          final double totalCarrito = _carrito.fold<double>(
+          final double subtotalCarrito = _carrito.fold<double>(
             0.0,
             (sum, p) => sum + (p['subtotal'] as num).toDouble(),
           );
+
+          final double valDesc = double.tryParse(_descuentoCtrl.text) ?? 0.0;
+          bool hasDiscountError = false;
+          String discountErrorMsg = '';
+
+          if (_aplicarDescuento) {
+            if (valDesc < 0) {
+              hasDiscountError = true;
+              discountErrorMsg = 'El descuento no puede ser negativo';
+            } else if (_tipoDescuento == 'percentage' && valDesc > 100) {
+              hasDiscountError = true;
+              discountErrorMsg = 'El porcentaje no puede superar el 100%';
+            } else {
+              double calcDiscount = 0.0;
+              if (_tipoDescuento == 'percentage') {
+                calcDiscount = subtotalCarrito * (valDesc / 100.0);
+              } else {
+                calcDiscount = valDesc;
+              }
+              if (calcDiscount > subtotalCarrito) {
+                hasDiscountError = true;
+                discountErrorMsg = 'El descuento no puede superar el subtotal';
+              }
+            }
+          }
+
+          double descuentoMonto = 0.0;
+          if (_aplicarDescuento && !hasDiscountError) {
+            if (_tipoDescuento == 'percentage') {
+              descuentoMonto = subtotalCarrito * (valDesc / 100.0);
+            } else {
+              descuentoMonto = valDesc;
+            }
+          }
+          final double totalCarrito = subtotalCarrito - descuentoMonto;
+
           final bool hayStockSuficiente = _carrito.isNotEmpty &&
               _carrito.every((p) =>
                   (p['cantidad'] as int) <=
@@ -609,7 +665,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 ),
                 icon: const Icon(Icons.check_circle, size: 18),
                 label: const Text("Confirmar Venta"),
-                onPressed: hayStockSuficiente
+                onPressed: (hayStockSuficiente && !hasDiscountError)
                     ? () {
                         // Close the dialog first
                         Navigator.pop(ctx);
@@ -907,18 +963,129 @@ class _SalesScreenState extends State<SalesScreen> {
                           },
                         ),
                       ),
+                // Descuento UI
+                CheckboxListTile(
+                  title: const Text("Aplicar descuento"),
+                  value: _aplicarDescuento,
+                  activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (val) {
+                    setLocalState(() {
+                      _aplicarDescuento = val ?? false;
+                      if (!_aplicarDescuento) {
+                        _descuentoCtrl.text = '0';
+                      }
+                    });
+                  },
+                ),
+                if (_aplicarDescuento) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    "Tipo de Descuento",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Radio<String>(
+                        value: 'percentage',
+                        groupValue: _tipoDescuento,
+                        activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setLocalState(() {
+                              _tipoDescuento = val;
+                              _descuentoCtrl.text = '0';
+                            });
+                          }
+                        },
+                      ),
+                      Text("Porcentaje", style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                      const SizedBox(width: 20),
+                      Radio<String>(
+                        value: 'fixed',
+                        groupValue: _tipoDescuento,
+                        activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setLocalState(() {
+                              _tipoDescuento = val;
+                              _descuentoCtrl.text = '0';
+                            });
+                          }
+                        },
+                      ),
+                      Text("Monto Fijo", style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Valor",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: _descuentoCtrl,
+                    decoration: InputDecoration(
+                      prefixText: _tipoDescuento == 'fixed' ? "\$ " : null,
+                      suffixText: _tipoDescuento == 'percentage' ? " %" : null,
+                      isDense: true,
+                    ),
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (val) {
+                      setLocalState(() {});
+                    },
+                  ),
+                  if (hasDiscountError) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      discountErrorMsg,
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                ],
 
                 // TOTAL
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    "TOTAL: ${formatCurrency(totalCarrito)}",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        "Subtotal: ${formatCurrency(subtotalCarrito)}",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                      if (_aplicarDescuento && descuentoMonto > 0)
+                        Text(
+                          "Descuento: -${formatCurrency(descuentoMonto)}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      Text(
+                        "TOTAL: ${formatCurrency(totalCarrito)}",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -940,7 +1107,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       ),
                     );
                     if (producto != null) {
-                      await _agregarAlCarrito(producto);
+                      await agregarAlCarrito(producto);
                       setLocalState(() {}); // refrescar sheet
                     }
                   },
@@ -991,14 +1158,40 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    final double total =
+    final double subtotal =
         _carrito.fold(0.0, (sum, i) => sum + (i['subtotal'] as num).toDouble());
+
+    double valDesc = 0.0;
+    String? discountType;
+    double discountAmount = 0.0;
+
+    if (_aplicarDescuento) {
+      valDesc = double.tryParse(_descuentoCtrl.text) ?? 0.0;
+      discountType = _tipoDescuento; // 'percentage' o 'fixed'
+      if (_tipoDescuento == 'percentage') {
+        discountAmount = subtotal * (valDesc / 100.0);
+      } else {
+        discountAmount = valDesc;
+      }
+      if (discountAmount > subtotal) {
+        discountAmount = subtotal;
+      }
+      if (discountAmount < 0) {
+        discountAmount = 0;
+      }
+    }
+    final double total = subtotal - discountAmount;
 
     try {
       final ventaId = await dbService.insertVentaBase({
         'clienteId': _clienteSeleccionado?.id,
         'fecha': DateTime.now().toIso8601String(),
         'metodoPago': metodoSeleccionado ?? 'Efectivo',
+        'subtotal': subtotal,
+        'discountType': discountType,
+        'discountValue': valDesc,
+        'discountAmount': discountAmount,
+        'descuento': discountAmount,
         'total': total,
       });
 
@@ -1394,31 +1587,6 @@ class _SalesScreenState extends State<SalesScreen> {
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
                       ),
                     ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      icon: const Icon(Icons.qr_code_scanner, size: 18),
-                      label: Text(
-                        "Consulta Rápida / Escanear",
-                        style: GoogleFonts.manrope(fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () async {
-                        final product = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const QuickInquiryScreen(selectMode: true),
-                          ),
-                        );
-                        if (product != null) {
-                          await _agregarAlCarrito(product);
-                          _abrirCarrito();
-                        }
-                      },
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -1478,7 +1646,7 @@ class _SalesScreenState extends State<SalesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _abrirCarrito,
+        onPressed: abrirCarrito,
         backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
         foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
         child: const Icon(Icons.add_shopping_cart),

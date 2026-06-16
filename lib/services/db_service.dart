@@ -52,7 +52,7 @@ class DBService {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 14,
+        version: 16,
         onCreate: _createTables,
         onUpgrade: (db, oldV, newV) async {
           if (oldV < 2) await _migrateToV2(db);
@@ -67,6 +67,8 @@ class DBService {
           if (oldV < 12) await _migrateDeudasVentaIdV12(db);
           if (oldV < 13) await _migrateClientesDniV13(db);
           if (oldV < 14) await _migrateToHybridV14(db);
+          if (oldV < 15) await _migrateToV15(db);
+          if (oldV < 16) await _migrateToV16(db);
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
@@ -229,6 +231,11 @@ class DBService {
         fecha TEXT NOT NULL,
         metodoPago TEXT NOT NULL,
         total REAL NOT NULL,
+        subtotal REAL,
+        descuento REAL,
+        discountType TEXT,
+        discountValue REAL,
+        discountAmount REAL,
         userId INTEGER,
         FOREIGN KEY (clienteId) REFERENCES clientes(id),
         FOREIGN KEY (userId) REFERENCES usuarios(id)
@@ -336,6 +343,8 @@ class DBService {
         fecha TEXT NOT NULL,
         metodoPago TEXT NOT NULL,
         total REAL NOT NULL,
+        subtotal REAL,
+        descuento REAL,
         userId INTEGER
       )
     ''');
@@ -395,6 +404,10 @@ class DBService {
         "ALTER TABLE productos ADD COLUMN codigoBarras TEXT;");
     await _ensureColumnExists(db, 'ventas', 'userId',
         "ALTER TABLE ventas ADD COLUMN userId INTEGER;");
+    await _ensureColumnExists(db, 'ventas', 'subtotal',
+        "ALTER TABLE ventas ADD COLUMN subtotal REAL;");
+    await _ensureColumnExists(db, 'ventas', 'descuento',
+        "ALTER TABLE ventas ADD COLUMN descuento REAL;");
     await _ensureColumnExists(db, 'deudas', 'fechaPago',
         "ALTER TABLE deudas ADD COLUMN fechaPago TEXT;");
     await _ensureColumnExists(db, 'deudas', 'ventaId',
@@ -981,6 +994,11 @@ class DBService {
       'fecha': data['fecha'],
       'metodoPago': data['metodoPago'],
       'total': data['total'],
+      'subtotal': data['subtotal'] ?? data['total'],
+      'descuento': data['descuento'] ?? 0.0,
+      'discountType': data['discountType'],
+      'discountValue': data['discountValue'] ?? 0.0,
+      'discountAmount': data['discountAmount'] ?? data['descuento'] ?? 0.0,
       'userId': data['userId'] ?? _activeUserId,
     }, forceDirty: false));
     notifyDbChange();
@@ -996,7 +1014,7 @@ class DBService {
     if (orderBy == 'total_desc') orderClause = "v.total DESC";
 
     return await db.rawQuery('''
-      SELECT v.id, v.fecha, v.metodoPago, v.total,
+      SELECT v.id, v.fecha, v.metodoPago, v.total, v.subtotal, v.descuento,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              u.nombre AS usuarioNombre
       FROM ventas v
@@ -1298,7 +1316,7 @@ class DBService {
   Future<Map<String, dynamic>?> getVentaById(int ventaId) async {
     final db = await database;
     final res = await db.rawQuery('''
-      SELECT v.id, v.fecha, v.metodoPago, v.total,
+      SELECT v.id, v.fecha, v.metodoPago, v.total, v.subtotal, v.descuento,
              COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
              u.nombre AS usuarioNombre
       FROM ventas v
@@ -2098,6 +2116,11 @@ class DBService {
       'fecha': fechaIso,
       'metodoPago': (data['metodoPago'] ?? 'Efectivo').toString(),
       'total': (data['total'] as num?)?.toDouble() ?? 0.0,
+      'subtotal': (data['subtotal'] as num?)?.toDouble() ?? (data['total'] as num?)?.toDouble() ?? 0.0,
+      'descuento': (data['descuento'] as num?)?.toDouble() ?? 0.0,
+      'discountType': data['discountType'],
+      'discountValue': (data['discountValue'] as num?)?.toDouble() ?? 0.0,
+      'discountAmount': (data['discountAmount'] as num?)?.toDouble() ?? 0.0,
       // si no viene, se completa con el usuario activo
       'userId': data['userId'] ?? _activeUserId,
     };
@@ -2250,5 +2273,26 @@ class DBService {
         last_sync_timestamp TEXT
       )
     ''');
+  }
+
+  Future<void> _migrateToV15(Database db) async {
+    if (!await _columnExists(db, 'ventas', 'subtotal')) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN subtotal REAL;');
+    }
+    if (!await _columnExists(db, 'ventas', 'descuento')) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN descuento REAL;');
+    }
+  }
+
+  Future<void> _migrateToV16(Database db) async {
+    if (!await _columnExists(db, 'ventas', 'discountType')) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN discountType TEXT;');
+    }
+    if (!await _columnExists(db, 'ventas', 'discountValue')) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN discountValue REAL;');
+    }
+    if (!await _columnExists(db, 'ventas', 'discountAmount')) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN discountAmount REAL;');
+    }
   }
 }

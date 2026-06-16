@@ -197,15 +197,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
               0,
               (acc, it) => acc + ((it['cantidad'] as num?)?.toInt() ?? 0),
             );
-            final precioTotal = items.fold<double>(
-              0.0,
-              (acc, it) {
-                final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
-                final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
-                final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
-                return acc + sub;
-              },
-            );
+            final totalVenta = (venta['total'] as num?)?.toDouble() ?? 0.0;
+            final subtotalVenta = (venta['subtotal'] as num?)?.toDouble() ?? totalVenta;
+            final descuentoVenta = (venta['descuento'] as num?)?.toDouble() ?? 0.0;
 
             // Cabecera compra
             widgets.add(
@@ -295,9 +289,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       'Cantidad de productos: ${numberFmt.format(totalUnidades)}',
                       style: const pw.TextStyle(fontSize: 11),
                     ),
+                    if (descuentoVenta > 0) ...[
+                      pw.Text(
+                        'Subtotal: ${formatCurrency(subtotalVenta)}',
+                        style: const pw.TextStyle(fontSize: 11),
+                      ),
+                      pw.Text(
+                        'Descuento: -${formatCurrency(descuentoVenta)}',
+                        style: const pw.TextStyle(fontSize: 11),
+                      ),
+                    ],
                     pw.Text(
-                      'Total de la compra: ${formatCurrency(precioTotal)}',
-                      style: const pw.TextStyle(fontSize: 11),
+                      'Total de la compra: ${formatCurrency(totalVenta)}',
+                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
                     ),
                   ],
                 ),
@@ -358,7 +362,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
       'Cliente',
       'Método',
       'Fecha',
-      'Ingreso',
+      'Subtotal',
+      'Descuento',
+      'Total final',
       'Costo',
       'Ganancia',
       'Total Unidades'
@@ -375,14 +381,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
       'Ganancia'
     ].map(_toCell).toList());
 
-    double totalIngresoGlobal = 0,
+    double totalSubtotalGlobal = 0,
+        totalDescuentoGlobal = 0,
+        totalIngresoGlobal = 0,
         totalCostoGlobal = 0,
         totalGananciaGlobal = 0;
 
     for (final v in ventas) {
       final items = await dbService.getItemsByVenta(v['id'] as int);
 
-      double ingresoVenta = 0, costoVenta = 0, gananciaVenta = 0;
+      double totalVenta = (v['total'] as num?)?.toDouble() ?? 0.0;
+      double subtotalVenta = (v['subtotal'] as num?)?.toDouble() ?? totalVenta;
+      double descuentoVenta = (v['descuento'] as num?)?.toDouble() ?? 0.0;
+      double costoVenta = 0;
       int totalUnidades = 0;
 
       for (final it in items) {
@@ -392,9 +403,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
         final gan = (pu - cu) * cant;
 
-        ingresoVenta += sub;
         costoVenta += cu * cant;
-        gananciaVenta += gan;
         totalUnidades += cant;
 
         shItems.appendRow([
@@ -410,7 +419,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ].map(_toCell).toList());
       }
 
-      totalIngresoGlobal += ingresoVenta;
+      double gananciaVenta = totalVenta - costoVenta;
+
+      totalSubtotalGlobal += subtotalVenta;
+      totalDescuentoGlobal += descuentoVenta;
+      totalIngresoGlobal += totalVenta;
       totalCostoGlobal += costoVenta;
       totalGananciaGlobal += gananciaVenta;
 
@@ -419,7 +432,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
         v['clienteNombre'] ?? 'Consumidor Final',
         v['metodoPago'],
         v['fecha'],
-        ingresoVenta,
+        subtotalVenta,
+        descuentoVenta,
+        totalVenta,
         costoVenta,
         gananciaVenta,
         totalUnidades,
@@ -433,10 +448,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
       '',
       '',
       'TOTALES',
+      totalSubtotalGlobal,
+      totalDescuentoGlobal,
       totalIngresoGlobal,
       totalCostoGlobal,
       totalGananciaGlobal,
-      '', // total unidades globales opcional: podés sumar si querés
+      '',
     ].map(_toCell).toList());
 
     final dir = await FileHelper.getReportesDir();

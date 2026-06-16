@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../widgets/artic_dialog.dart';
+import '../../../widgets/artic_barcode_scanner.dart';
 
 class MobileProductsScreen extends StatefulWidget {
   const MobileProductsScreen({super.key});
@@ -15,6 +16,7 @@ class MobileProductsScreen extends StatefulWidget {
 class _MobileProductsScreenState extends State<MobileProductsScreen> {
   final DBService _dbService = DBService();
   late StreamSubscription _dbSub;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _productos = [];
   String _searchQuery = '';
@@ -31,6 +33,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   @override
   void dispose() {
     _dbSub.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -74,6 +77,29 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
           'Productos',
           style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 20, color: textColor),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
+            tooltip: 'Escanear código',
+            onPressed: () async {
+              final scannedCode = await Navigator.push<String>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ArticBarcodeScanner(
+                    title: 'Buscar por Código de Barras',
+                  ),
+                ),
+              );
+              if (scannedCode != null && scannedCode.isNotEmpty) {
+                setState(() {
+                  _searchCtrl.text = scannedCode;
+                  _searchQuery = scannedCode;
+                });
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -91,6 +117,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                     children: [
                       Expanded(
                         child: TextField(
+                          controller: _searchCtrl,
                           onChanged: (val) {
                             setState(() {
                               _searchQuery = val;

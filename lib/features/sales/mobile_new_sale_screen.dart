@@ -5,6 +5,7 @@ import '../../../models/cliente.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../widgets/artic_dialog.dart';
+import '../../../widgets/artic_barcode_scanner.dart';
 
 class MobileNewSaleScreen extends StatefulWidget {
   const MobileNewSaleScreen({super.key});
@@ -32,12 +33,25 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
   final List<Map<String, dynamic>> _cart = []; // Map keys: 'product', 'quantity', 'price'
   String _metodoPago = 'Efectivo'; // 'Efectivo', 'Debito', 'Credito', 'Transferencia', 'Fiado'
 
+  // Discount Data
+  bool _aplicarDescuento = false;
+  String _tipoDescuento = 'percentage'; // 'percentage' or 'fixed'
+  final TextEditingController _descuentoCtrl = TextEditingController(text: '0');
+
   // DB Lists
   List<Map<String, dynamic>> _clientes = [];
   List<Map<String, dynamic>> _productos = [];
   String _clienteSearch = '';
   String _productoSearch = '';
+  final TextEditingController _productoSearchCtrl = TextEditingController();
   bool _loading = true;
+
+  @override
+  void dispose() {
+    _descuentoCtrl.dispose();
+    _productoSearchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -71,6 +85,41 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
       final qty = (item['quantity'] as num?)?.toInt() ?? 0;
       return sum + (price * qty);
     });
+  }
+
+  double get _descuentoMonto {
+    if (!_aplicarDescuento) return 0.0;
+    final valDesc = double.tryParse(_descuentoCtrl.text) ?? 0.0;
+    if (valDesc < 0) return 0.0;
+    if (_tipoDescuento == 'percentage') {
+      if (valDesc > 100) return 0.0;
+      return _subtotal * (valDesc / 100.0);
+    } else {
+      if (valDesc > _subtotal) return 0.0;
+      return valDesc;
+    }
+  }
+
+  double get _total {
+    return _subtotal - _descuentoMonto;
+  }
+
+  String? _getDiscountError() {
+    if (!_aplicarDescuento) return null;
+    final valDesc = double.tryParse(_descuentoCtrl.text);
+    if (valDesc == null) {
+      return 'Por favor ingresa un número válido';
+    }
+    if (valDesc < 0) {
+      return 'El descuento no puede ser negativo';
+    }
+    if (_tipoDescuento == 'percentage' && valDesc > 100) {
+      return 'El porcentaje no puede superar el 100%';
+    }
+    if (_tipoDescuento == 'fixed' && valDesc > _subtotal) {
+      return 'El descuento no puede superar el subtotal';
+    }
+    return null;
   }
 
   void _addToCart(Map<String, dynamic> prod) {
@@ -143,13 +192,18 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     setState(() => _loading = true);
 
     try {
-      final total = _subtotal;
+      final total = _total;
       
       // 1. Insert Sale
       final ventaId = await _dbService.insertVenta({
         'clienteId': _selectedCliente?['id'],
         'fecha': DateTime.now().toIso8601String(),
         'metodoPago': _metodoPago,
+        'subtotal': _subtotal,
+        'discountType': _aplicarDescuento ? _tipoDescuento : null,
+        'discountValue': _aplicarDescuento ? (double.tryParse(_descuentoCtrl.text) ?? 0.0) : 0.0,
+        'discountAmount': _descuentoMonto,
+        'descuento': _descuentoMonto,
         'total': total,
       });
 
@@ -593,17 +647,49 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
         Container(
           color: _cardColor,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: TextField(
-            onChanged: (val) => setState(() => _productoSearch = val),
-            decoration: InputDecoration(
-              hintText: 'Buscar producto...',
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
-              filled: true,
-              fillColor: _inputFillColor,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-            ),
-            style: GoogleFonts.manrope(fontSize: 14, color: _textColor),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _productoSearchCtrl,
+                  onChanged: (val) => setState(() => _productoSearch = val),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar producto...',
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: _inputFillColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                  style: GoogleFonts.manrope(fontSize: 14, color: _textColor),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.all(12),
+                ),
+                icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9), size: 20),
+                onPressed: () async {
+                  final scannedCode = await Navigator.push<String>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ArticBarcodeScanner(
+                        title: 'Buscar Producto por Código',
+                      ),
+                    ),
+                  );
+                  if (scannedCode != null && scannedCode.isNotEmpty) {
+                    setState(() {
+                      _productoSearchCtrl.text = scannedCode;
+                      _productoSearch = scannedCode;
+                    });
+                  }
+                },
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -730,10 +816,133 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Total', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w800, color: _textColor)),
-                  Text(formatCurrency(_subtotal), style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF0EA5E9))),
+                  Text('Subtotal', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _subtitleColor)),
+                  Text(formatCurrency(_subtotal), style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor)),
                 ],
               ),
+              if (_aplicarDescuento && _descuentoMonto > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Descuento', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                    Text('-${formatCurrency(_descuentoMonto)}', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                  ],
+                ),
+              ],
+              Divider(height: 24, thickness: 1, color: _borderColor),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w800, color: _textColor)),
+                  Text(formatCurrency(_total), style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF0EA5E9))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        // Discount Card
+        Text(
+          'Descuento Manual',
+          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CheckboxListTile(
+                title: Text('Aplicar descuento', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textColor)),
+                value: _aplicarDescuento,
+                activeColor: const Color(0xFF0EA5E9),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (val) {
+                  setState(() {
+                    _aplicarDescuento = val ?? false;
+                    if (!_aplicarDescuento) {
+                      _descuentoCtrl.text = '0';
+                    }
+                  });
+                },
+              ),
+              if (_aplicarDescuento) ...[
+                const Divider(height: 16),
+                Text(
+                  'Tipo de Descuento',
+                  style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: _subtitleColor),
+                ),
+                Row(
+                  children: [
+                    Radio<String>(
+                      value: 'percentage',
+                      groupValue: _tipoDescuento,
+                      activeColor: const Color(0xFF0EA5E9),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _tipoDescuento = val;
+                            _descuentoCtrl.text = '0';
+                          });
+                        }
+                      },
+                    ),
+                    Text('Porcentaje (%)', style: GoogleFonts.manrope(fontSize: 14, color: _textColor)),
+                    const SizedBox(width: 16),
+                    Radio<String>(
+                      value: 'fixed',
+                      groupValue: _tipoDescuento,
+                      activeColor: const Color(0xFF0EA5E9),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _tipoDescuento = val;
+                            _descuentoCtrl.text = '0';
+                          });
+                        }
+                      },
+                    ),
+                    Text('Monto Fijo (\$)', style: GoogleFonts.manrope(fontSize: 14, color: _textColor)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Valor del Descuento',
+                  style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: _subtitleColor),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _descuentoCtrl,
+                  decoration: InputDecoration(
+                    prefixText: _tipoDescuento == 'fixed' ? '\$ ' : null,
+                    suffixText: _tipoDescuento == 'percentage' ? ' %' : null,
+                    filled: true,
+                    fillColor: _inputFillColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    isDense: true,
+                  ),
+                  style: GoogleFonts.manrope(fontSize: 14, color: _textColor),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (val) {
+                    setState(() {});
+                  },
+                ),
+                if (_getDiscountError() != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _getDiscountError()!,
+                    style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFFEF4444), fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ],
             ],
           ),
         ),
@@ -757,7 +966,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               
               // Prevent selecting "Fiado" if no client is selected
               final isDisabled = method == 'Fiado' && _selectedCliente == null;
-
+ 
               return ListTile(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 title: Text(
@@ -844,6 +1053,10 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                       _currentStep++;
                     });
                   } else {
+                    if (_getDiscountError() != null) {
+                      _showSnackbar('⚠️ Por favor, corrija el error en el descuento');
+                      return;
+                    }
                     _finalizeSale();
                   }
                 },

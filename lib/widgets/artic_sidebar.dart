@@ -8,6 +8,7 @@ class ArticSidebar extends StatelessWidget {
   final int productosSinStock;
   final bool isCompact;
   final VoidCallback? onNewSale;
+  final VoidCallback? onQuickInquiry;
 
   const ArticSidebar({
     super.key,
@@ -16,6 +17,7 @@ class ArticSidebar extends StatelessWidget {
     required this.productosSinStock,
     this.isCompact = false,
     this.onNewSale,
+    this.onQuickInquiry,
   });
 
   @override
@@ -46,6 +48,9 @@ class ArticSidebar extends StatelessWidget {
 
               // Botón Destacado: Nueva Venta
               _buildActionButton(context, accentColor),
+
+              // Botón Destacado: Consulta Rápida
+              _buildQuickInquiryButton(context, accentColor),
 
               // Elementos del Menú categorizados
               Expanded(
@@ -281,6 +286,103 @@ class ArticSidebar extends StatelessWidget {
                   SizedBox(width: 8),
                   Text(
                     "Nueva Venta",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickInquiryButton(BuildContext context, Color accentColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final buttonColors = isDark
+        ? [accentColor, accentColor.withOpacity(0.8)]
+        : [const Color(0xFF0EA5E9), const Color(0xFF0284C7)];
+
+    if (isCompact) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Center(
+          child: Tooltip(
+            message: "Consulta Rápida",
+            child: InkWell(
+              onTap: onQuickInquiry,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: buttonColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.qr_code_scanner,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: buttonColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onQuickInquiry,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11.0, horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(
+                    Icons.qr_code_scanner,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    "Consulta Rápida",
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

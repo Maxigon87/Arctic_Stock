@@ -309,24 +309,6 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
           const SizedBox(height: 12),
           _buildMenuCard(
             context,
-            icon: Icons.qr_code_scanner,
-            color: const Color(0xFF0EA5E9),
-            title: 'Consulta Rápida / Escanear',
-            subtitle: 'Buscar precios y stock con código de barras',
-            textColor: textColor,
-            subtitleColor: subtitleColor,
-            cardColor: cardColor,
-            borderColor: borderColor,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QuickInquiryScreen()),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildMenuCard(
-            context,
             icon: Icons.palette_outlined,
             color: const Color(0xFFF59E0B),
             title: 'Tema Visual',

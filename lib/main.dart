@@ -26,6 +26,7 @@ import 'utils/theme_controller.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/sales_screen.dart';
+import 'screens/quick_inquiry_screen.dart';
 import 'screens/debt_screen.dart';
 import 'screens/reportes_screen.dart';
 import 'screens/clientes_screen.dart';
@@ -201,6 +202,7 @@ enum NavItem {
   clientes,
   historial,
   configuracion,
+  quickInquiry,
 }
 
 class _HomeScreenState extends State<HomeScreen>
@@ -217,6 +219,7 @@ class _HomeScreenState extends State<HomeScreen>
   NavItem _selected = NavItem.none;
   bool _startNewSaleInVentas = false;
   bool _isWindowMaximized = false;
+  final GlobalKey<SalesScreenState> _salesScreenKey = GlobalKey<SalesScreenState>();
 
   int _selectedIndex() => _items.indexWhere((e) => e.id == _selected);
 
@@ -456,6 +459,11 @@ class _HomeScreenState extends State<HomeScreen>
                                   _selected = NavItem.ventas;
                                 });
                               },
+                              onQuickInquiry: () {
+                                setState(() {
+                                  _selected = NavItem.quickInquiry;
+                                });
+                              },
                             ),
 
                             // ==== LADO DERECHO: CONTENIDO ====
@@ -494,7 +502,10 @@ class _HomeScreenState extends State<HomeScreen>
         _startNewSaleInVentas = false; // reset
         return _PageWrap(
           keyName: 'ventas',
-          child: SalesScreen(startNewSale: startNew),
+          child: SalesScreen(
+            key: _salesScreenKey,
+            startNewSale: startNew,
+          ),
         );
 
       case NavItem.productos:
@@ -522,6 +533,12 @@ class _HomeScreenState extends State<HomeScreen>
         return const _PageWrap(
           keyName: 'config',
           child: SettingsScreen(),
+        );
+
+      case NavItem.quickInquiry:
+        return const _PageWrap(
+          keyName: 'quickInquiry',
+          child: QuickInquiryScreen(),
         );
     }
   }

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../models/cliente.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../../widgets/artic_dialog.dart';
 
 class MobileClientsScreen extends StatefulWidget {
   const MobileClientsScreen({super.key});
@@ -77,71 +78,19 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
     final emailCtrl = TextEditingController();
     final direccionCtrl = TextEditingController();
 
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final dialogSubtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final dialogFillColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+
+    showArticDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Nuevo Cliente',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nombreCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Nombre *',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: dniCtrl,
-                decoration: InputDecoration(
-                  labelText: 'DNI / CUIT',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: telefonoCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Teléfono',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: direccionCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Dirección',
-                  labelStyle: GoogleFonts.manrope(color: const Color(0xFF64748B)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (ctx) => ArticDialogCard(
+        title: 'Nuevo Cliente',
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancelar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
+            child: Text('Cancelar', style: GoogleFonts.manrope(color: dialogSubtitleColor)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
@@ -164,9 +113,75 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
               Navigator.pop(ctx);
               _loadClientes();
             },
-            child: Text('Guardar', style: GoogleFonts.manrope()),
+            child: Text('Guardar', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nombreCtrl,
+              style: GoogleFonts.manrope(color: dialogTextColor),
+              decoration: InputDecoration(
+                labelText: 'Nombre *',
+                labelStyle: GoogleFonts.manrope(color: dialogSubtitleColor),
+                filled: true,
+                fillColor: dialogFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: dniCtrl,
+              style: GoogleFonts.manrope(color: dialogTextColor),
+              decoration: InputDecoration(
+                labelText: 'DNI / CUIT',
+                labelStyle: GoogleFonts.manrope(color: dialogSubtitleColor),
+                filled: true,
+                fillColor: dialogFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: telefonoCtrl,
+              keyboardType: TextInputType.phone,
+              style: GoogleFonts.manrope(color: dialogTextColor),
+              decoration: InputDecoration(
+                labelText: 'Teléfono',
+                labelStyle: GoogleFonts.manrope(color: dialogSubtitleColor),
+                filled: true,
+                fillColor: dialogFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: GoogleFonts.manrope(color: dialogTextColor),
+              decoration: InputDecoration(
+                labelText: 'Email',
+                labelStyle: GoogleFonts.manrope(color: dialogSubtitleColor),
+                filled: true,
+                fillColor: dialogFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: direccionCtrl,
+              style: GoogleFonts.manrope(color: dialogTextColor),
+              decoration: InputDecoration(
+                labelText: 'Dirección',
+                labelStyle: GoogleFonts.manrope(color: dialogSubtitleColor),
+                filled: true,
+                fillColor: dialogFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -179,6 +194,14 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
     final email = c['email'] as String? ?? '';
     final direccion = c['direccion'] as String? ?? '';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final handleColor = isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFE2E8F0);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -188,9 +211,9 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
         minChildSize: 0.5,
         maxChildSize: 0.95,
         builder: (_, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: sheetBgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -200,7 +223,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
+                  color: handleColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -213,9 +236,9 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Column(
                         children: [
@@ -237,7 +260,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                             style: GoogleFonts.manrope(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF0F172A),
+                              color: textColor,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -245,7 +268,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                             const SizedBox(height: 4),
                             Text(
                               'DNI: $dni',
-                              style: GoogleFonts.manrope(fontSize: 13, color: const Color(0xFF64748B)),
+                              style: GoogleFonts.manrope(fontSize: 13, color: subtitleColor),
                             ),
                           ],
                         ],
@@ -304,22 +327,22 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                     // Contact Info Details
                     Text(
                       'Contacto',
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Column(
                         children: [
                           _buildInfoRow(Icons.phone_outlined, 'Teléfono', telefono.isNotEmpty ? telefono : 'No registrado'),
-                          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                          Divider(height: 24, color: borderColor),
                           _buildInfoRow(Icons.email_outlined, 'Email', email.isNotEmpty ? email : 'No registrado'),
-                          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                          Divider(height: 24, color: borderColor),
                           _buildInfoRow(Icons.location_on_outlined, 'Dirección', direccion.isNotEmpty ? direccion : 'No registrada'),
                         ],
                       ),
@@ -328,7 +351,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                     // Debt / History
                     Text(
                       'Deudas Activas',
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
                     ),
                     const SizedBox(height: 8),
                     _buildClientDebtsWidget(id),
@@ -349,16 +372,20 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
     required bool enabled,
     required VoidCallback onTap,
   }) {
-    final activeColor = enabled ? color : const Color(0xFF94A3B8);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderCol = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final activeColor = enabled ? color : (isDark ? Colors.white38 : const Color(0xFF94A3B8));
+
     return InkWell(
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBgColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(color: borderCol),
         ),
         child: Column(
           children: [
@@ -375,9 +402,14 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final valueColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final labelColor = isDark ? Colors.white60 : const Color(0xFF94A3B8);
+    final iconColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF64748B), size: 20),
+        Icon(icon, color: iconColor, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -385,12 +417,12 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF94A3B8)),
+                style: GoogleFonts.manrope(fontSize: 11, color: labelColor),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF0F172A)),
+                style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w500, color: valueColor),
               ),
             ],
           ),
@@ -400,6 +432,13 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
   }
 
   Widget _buildClientDebtsWidget(int clienteId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderCol = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextCol = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final dateTextCol = isDark ? Colors.white54 : const Color(0xFF94A3B8);
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _dbService.getDeudasByCliente(clienteId),
       builder: (context, snapshot) {
@@ -416,14 +455,14 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardBgColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
+              border: Border.all(color: borderCol),
             ),
             child: Center(
               child: Text(
                 'Sin deudas pendientes',
-                style: GoogleFonts.manrope(color: const Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                style: GoogleFonts.manrope(color: subTextCol, fontSize: 13, fontWeight: FontWeight.w500),
               ),
             ),
           );
@@ -444,9 +483,9 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
             return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardBgColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFF1F5F9)),
+                border: Border.all(color: borderCol),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -457,13 +496,13 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                       children: [
                         Text(
                           'Deuda #$id',
-                          style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                          style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textCol),
                         ),
                         if (desc.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(
                             desc,
-                            style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF64748B)),
+                            style: GoogleFonts.manrope(fontSize: 12, color: subTextCol),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -471,7 +510,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                         const SizedBox(height: 4),
                         Text(
                           fechaStr.split('T').first,
-                          style: GoogleFonts.manrope(fontSize: 11, color: const Color(0xFF94A3B8)),
+                          style: GoogleFonts.manrope(fontSize: 11, color: dateTextCol),
                         ),
                       ],
                     ),
@@ -486,22 +525,25 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                       const SizedBox(height: 6),
                       GestureDetector(
                         onTap: () async {
-                          final confirm = await showDialog<bool>(
+                          final confirm = await showArticDialog<bool>(
                             context: context,
-                            builder: (c) => AlertDialog(
-                              title: Text('Saldar Deuda', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
-                              content: Text('¿Confirmas que deseas registrar el pago de esta deuda por ${formatCurrency(monto)}?'),
+                            builder: (c) => ArticDialogCard(
+                              title: 'Saldar Deuda',
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(c, false),
-                                  child: const Text('Cancelar'),
+                                  child: Text('Cancelar', style: GoogleFonts.manrope(color: subTextCol)),
                                 ),
                                 FilledButton(
                                   style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
                                   onPressed: () => Navigator.pop(c, true),
-                                  child: const Text('Confirmar Pago'),
+                                  child: Text('Confirmar Pago', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ),
                               ],
+                              child: Text(
+                                '¿Confirmas que deseas registrar el pago de esta deuda por ${formatCurrency(monto)}?',
+                                style: GoogleFonts.manrope(color: textCol),
+                              ),
                             ),
                           );
 
