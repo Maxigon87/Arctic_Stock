@@ -18,9 +18,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   bool get isSyncing => _isSyncing;
 
   StreamSubscription<void>? _dbListener;
+  List<StreamSubscription<QuerySnapshot>> _firestoreListeners = [];
 
   // Iniciar la sincronización basada en eventos y escuchar cambios locales/ciclo de vida
-  void startPeriodicSync() {
+  void startPeriodicSync() async {
     // Escuchar cambios en la base de datos local con un debounce de 3 segundos para evitar sobrecarga
     _dbListener?.cancel();
     Timer? debounceTimer;
@@ -39,12 +40,58 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     // Ejecutar sincronización inicial al arrancar el servicio
-    syncData();
+    await syncData();
+
+    // Iniciar listeners de Firestore para sincronización en tiempo real desde la nube
+    _startFirestoreListeners();
+  }
+
+  Future<void> _startFirestoreListeners() async {
+    final negocioId = _authService.negocioId ?? await _authService.getLocalNegocioId();
+    if (negocioId == null) return;
+
+    for (var listener in _firestoreListeners) {
+      listener.cancel();
+    }
+    _firestoreListeners.clear();
+
+    final tablesToPull = [
+      'categorias',
+      'usuarios',
+      'clientes',
+      'productos',
+      'ventas',
+      'deudas',
+      'movimientos_stock'
+    ];
+
+    for (final table in tablesToPull) {
+      final listener = _firestore
+          .collection('negocios')
+          .doc(negocioId)
+          .collection(table)
+          .snapshots()
+          .listen((snapshot) {
+        // En lugar de procesar aquí y potencialmente causar problemas de concurrencia,
+        // simplemente disparamos el syncData si hay cambios, que tiene su propio control de concurrencia.
+        if (snapshot.docChanges.isNotEmpty) {
+           // Pequeño debounce para no saturar si entran muchos eventos juntos
+           Timer(const Duration(milliseconds: 500), () {
+              syncData();
+           });
+        }
+      });
+      _firestoreListeners.add(listener);
+    }
   }
 
   // Detener la sincronización y el observer de ciclo de vida
   void stopPeriodicSync() {
     _dbListener?.cancel();
+    for (var listener in _firestoreListeners) {
+      listener.cancel();
+    }
+    _firestoreListeners.clear();
     WidgetsBinding.instance.removeObserver(this);
   }
 

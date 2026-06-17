@@ -1398,20 +1398,17 @@ class DBService {
     }
 
     // 🔎 Filtro por producto (busca en snapshot de items_venta y, si existe, en productos)
+    // Here we perform the query without filtering by `productoQuery` because
+    // we want to filter with accent-insensitivity and checking barcode as well in memory,
+    // just like we do for products.
     if (productoQuery != null && productoQuery.trim().isNotEmpty) {
-      final q = '%${productoQuery.trim()}%';
       extraJoins += '''
       LEFT JOIN items_venta iv ON iv.ventaId = v.id
       LEFT JOIN productos p ON iv.productoId = p.id
     ''';
-      where += '''
-      AND (
-        COALESCE(iv.producto_nombre, p.nombre, '') LIKE ?
-        OR COALESCE(iv.producto_descripcion, p.descripcion, '') LIKE ?
-        OR COALESCE(iv.producto_codigo, p.codigo, '') LIKE ?
-      )
-    ''';
-      args.addAll([q, q, q]);
+      // To get the actual product data to filter in memory:
+      // We will select the relevant fields. Since we GROUP BY v.id later,
+      // GROUP_CONCAT is needed to get all items data per sale.
     }
 
     String orderClause = "v.fecha DESC";
@@ -1420,19 +1417,37 @@ class DBService {
     if (orderBy == 'total_asc') orderClause = "v.total ASC";
     if (orderBy == 'total_desc') orderClause = "v.total DESC";
 
-    return await db.rawQuery('''
+    final results = await db.rawQuery('''
     SELECT 
       v.*,
       COALESCE(c.nombre, 'Consumidor Final') AS clienteNombre,
       u.nombre AS usuarioNombre
+      ${productoQuery != null && productoQuery.trim().isNotEmpty ? ", GROUP_CONCAT(COALESCE(iv.producto_nombre, p.nombre, '')) as all_nombres, GROUP_CONCAT(COALESCE(iv.producto_descripcion, p.descripcion, '')) as all_descripciones, GROUP_CONCAT(COALESCE(iv.producto_codigo, p.codigo, '')) as all_codigos, GROUP_CONCAT(p.codigoBarras) as all_codigoBarras" : ""}
     FROM ventas v
     LEFT JOIN clientes c ON v.clienteId = c.id
     LEFT JOIN usuarios u ON v.userId = u.id
     $extraJoins
     WHERE $where
-    GROUP BY v.id                 -- evita duplicar ventas con varios ítems
+    GROUP BY v.id
     ORDER BY $orderClause
   ''', args);
+
+    if (productoQuery != null && productoQuery.trim().isNotEmpty) {
+      final normalizedSearch = _normalizeString(productoQuery.trim());
+      return results.where((v) {
+        final nombres = _normalizeString(v['all_nombres'] as String? ?? '');
+        final desc = _normalizeString(v['all_descripciones'] as String? ?? '');
+        final codigos = _normalizeString(v['all_codigos'] as String? ?? '');
+        final codigoBarras = _normalizeString(v['all_codigoBarras'] as String? ?? '');
+
+        return nombres.contains(normalizedSearch) ||
+            desc.contains(normalizedSearch) ||
+            codigos.contains(normalizedSearch) ||
+            codigoBarras.contains(normalizedSearch);
+      }).toList();
+    }
+
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> buscarDeudas({
