@@ -176,6 +176,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   void _showClienteInfo(Cliente cliente) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
     
     showArticDialog(
       context: context,
@@ -193,16 +197,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Large Avatar & Name
                   Center(
                     child: Column(
                       children: [
                         CircleAvatar(
-                          radius: 32,
+                          radius: 40,
                           backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.15) : const Color(0xFF0284C7).withOpacity(0.1),
                           child: Text(
                             cliente.nombre.isNotEmpty ? cliente.nombre[0].toUpperCase() : 'C',
                             style: TextStyle(
-                              fontSize: 26,
+                              fontSize: 30,
                               fontWeight: FontWeight.bold,
                               color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
                             ),
@@ -214,17 +219,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: textColor,
                           ),
                           textAlign: TextAlign.center,
                         ),
                         if (cliente.dni != null && cliente.dni!.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
-                            'DNI: ${cliente.dni}',
+                            'DNI/CUIT: ${cliente.dni}',
                             style: TextStyle(
                               fontSize: 13,
-                              color: isDark ? Colors.white60 : Colors.black54,
+                              color: subtitleColor,
                             ),
                           ),
                         ],
@@ -233,357 +238,422 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   ),
                   const SizedBox(height: 20),
                   
+                  // KPI Cards Row
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildShortcutButton(
-                        icon: Icons.email,
-                        label: "Email",
-                        color: Colors.blueAccent,
-                        isDark: isDark,
-                        enabled: cliente.email != null && cliente.email!.isNotEmpty,
-                        onTap: () async {
-                          final Uri emailUri = Uri(
-                            scheme: 'mailto',
-                            path: cliente.email!,
-                          );
-                          try {
-                            if (await canLaunchUrl(emailUri)) {
-                              await launchUrl(emailUri);
-                            } else {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("No se pudo abrir el cliente de correo")),
-                              );
-                            }
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Error: $e")),
-                            );
-                          }
-                        },
-                      ),
-                      _buildShortcutButton(
-                        icon: Icons.location_on,
-                        label: "Dirección",
-                        color: Colors.orangeAccent,
-                        isDark: isDark,
-                        enabled: cliente.direccion != null && cliente.direccion!.isNotEmpty,
-                        onTap: () async {
-                          final Uri mapsUri = Uri.parse(
-                            "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cliente.direccion!)}"
-                          );
-                          try {
-                            if (await canLaunchUrl(mapsUri)) {
-                              await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                            } else {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("No se pudo abrir Google Maps")),
-                              );
-                            }
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Error: $e")),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              "Deuda Activa",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark ? Colors.white60 : Colors.black54,
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.01),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              formatCurrency(totalDeuda),
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: totalDeuda > 0 ? Colors.redAccent : Colors.green,
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Deuda Activa",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: subtitleColor,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: isDark ? Colors.white12 : Colors.black12,
-                        ),
-                        Column(
-                          children: [
-                            Text(
-                              "Pendientes",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark ? Colors.white60 : Colors.black54,
+                              const SizedBox(height: 4),
+                              Text(
+                                formatCurrency(totalDeuda),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: totalDeuda > 0 ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "${deudasPendientes.length}",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: deudasPendientes.isNotEmpty ? Colors.amber : Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Text(
-                    "Información de Contacto",
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildDetailRow(Icons.phone_outlined, "Teléfono", cliente.telefono ?? "No especificado", isDark),
-                  _buildDetailRow(Icons.mail_outline_outlined, "Email", cliente.email ?? "No especificado", isDark),
-                  _buildDetailRow(Icons.location_on_outlined, "Dirección", cliente.direccion ?? "No especificada", isDark),
-                  
-                  const SizedBox(height: 20),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Historial de Cuentas / Deudas",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                      Text(
-                        "${deudas.length} total",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.white60 : Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (deudas.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                        child: Text(
-                          "Este cliente no tiene deudas registradas.",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? Colors.white60 : Colors.black54,
-                            fontStyle: FontStyle.italic,
+                            ],
                           ),
                         ),
                       ),
-                    )
-                  else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: deudas.length,
-                        itemBuilder: (context, idx) {
-                          final d = deudas[idx];
-                          final idDeuda = d['id'] as int;
-                          final m = (d['monto'] as num?)?.toDouble() ?? 0.0;
-                          final est = d['estado'] ?? 'Pendiente';
-                          final f = d['fecha']?.toString().split('T').first ?? '';
-                          final desc = d['descripcion'] ?? '';
-                          final isPaid = est == 'Pagada';
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.01),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Pendientes",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: subtitleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${deudasPendientes.length}",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: deudasPendientes.isNotEmpty ? const Color(0xFFF59E0B) : const Color(0xFF22C55E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                  // Contact Card Section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Información de Contacto",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildDetailRow(Icons.phone_outlined, "Teléfono", cliente.telefono ?? "No especificado", isDark),
+                        Divider(height: 20, color: borderColor),
+                        _buildDetailRow(Icons.mail_outline_outlined, "Email", cliente.email ?? "No especificado", isDark),
+                        Divider(height: 20, color: borderColor),
+                        _buildDetailRow(Icons.location_on_outlined, "Dirección", cliente.direccion ?? "No especificada", isDark),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Shortcuts Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: _buildShortcutButton(
+                          icon: Icons.email,
+                          label: "Email",
+                          color: const Color(0xFF0EA5E9),
+                          isDark: isDark,
+                          enabled: cliente.email != null && cliente.email!.isNotEmpty,
+                          onTap: () async {
+                            final Uri emailUri = Uri(
+                              scheme: 'mailto',
+                              path: cliente.email!,
+                            );
+                            try {
+                              if (await canLaunchUrl(emailUri)) {
+                                await launchUrl(emailUri);
+                              } else {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("No se pudo abrir el cliente de correo")),
+                                );
+                              }
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error: $e")),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildShortcutButton(
+                          icon: Icons.location_on,
+                          label: "Dirección",
+                          color: const Color(0xFFF59E0B),
+                          isDark: isDark,
+                          enabled: cliente.direccion != null && cliente.direccion!.isNotEmpty,
+                          onTap: () async {
+                            final Uri mapsUri = Uri.parse(
+                              "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cliente.direccion!)}"
+                            );
+                            try {
+                              if (await canLaunchUrl(mapsUri)) {
+                                await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+                              } else {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("No se pudo abrir Google Maps")),
+                                );
+                              }
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error: $e")),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Debt/Account History Card Section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Historial de Cuentas / Deudas",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Deuda #$idDeuda",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : Colors.black87,
-                                        fontSize: 13,
-                                      ),
+                            Text(
+                              "${deudas.length} total",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: subtitleColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (deudas.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            child: Center(
+                              child: Text(
+                                "Este cliente no tiene deudas registradas.",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: subtitleColor,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 200),
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: deudas.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              itemBuilder: (context, idx) {
+                                final d = deudas[idx];
+                                final idDeuda = d['id'] as int;
+                                final m = (d['monto'] as num?)?.toDouble() ?? 0.0;
+                                final est = d['estado'] ?? 'Pendiente';
+                                final f = d['fecha']?.toString().split('T').first ?? '';
+                                final desc = d['descripcion'] ?? '';
+                                final isPaid = est == 'Pagada';
+
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      f,
-                                      style: TextStyle(
-                                        color: isDark ? Colors.white60 : Colors.black54,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    if (desc.toString().isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        desc,
-                                        style: TextStyle(
-                                          color: isDark ? Colors.white60 : Colors.black54,
-                                          fontSize: 11,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  "Deuda #$idDeuda",
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: textColor,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: isPaid
+                                                        ? Colors.green.withOpacity(0.12)
+                                                        : Colors.amber.withOpacity(0.12),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(
+                                                      color: isPaid
+                                                          ? Colors.green.withOpacity(0.25)
+                                                          : Colors.amber.withOpacity(0.25),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    isPaid ? "Pagada" : "Pendiente",
+                                                    style: TextStyle(
+                                                      color: isPaid ? Colors.green : Colors.amber,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 9,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              f,
+                                              style: TextStyle(
+                                                color: subtitleColor,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            if (desc.toString().isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                desc,
+                                                style: TextStyle(
+                                                  color: subtitleColor,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ]
+                                          ],
                                         ),
                                       ),
-                                    ]
-                                  ],
-                                ),
-                                const Spacer(),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      formatCurrency(m),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isPaid ? Colors.green : Colors.redAccent,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: isPaid
-                                                ? Colors.green.withOpacity(0.1)
-                                                : Colors.amber.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            isPaid ? "Pagada" : "Pendiente",
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            formatCurrency(m),
                                             style: TextStyle(
-                                              color: isPaid ? Colors.green : Colors.amber,
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 9,
+                                              color: isPaid ? Colors.green : const Color(0xFFEF4444),
+                                              fontSize: 13,
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          icon: Icon(
-                                            isPaid ? Icons.undo : Icons.check_circle_outline,
-                                            color: isPaid ? Colors.orange : Colors.green,
-                                            size: 18,
+                                          const SizedBox(height: 4),
+                                          IconButton(
+                                            icon: Icon(
+                                              isPaid ? Icons.undo : Icons.check_circle_outline,
+                                              color: isPaid ? Colors.orange : Colors.green,
+                                              size: 18,
+                                            ),
+                                            tooltip: isPaid ? "Volver a Deuda" : "Saldar Deuda",
+                                            onPressed: () async {
+                                              if (isPaid) {
+                                                // Confirmación para volver a deuda
+                                                final conf = await showArticDialog<bool>(
+                                                  context: context,
+                                                  builder: (c) => ArticDialogCard(
+                                                    title: "Volver a Deuda",
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () => Navigator.pop(c, false),
+                                                        child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                                      ),
+                                                      ElevatedButton(
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.orange,
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                        ),
+                                                        onPressed: () => Navigator.pop(c, true),
+                                                        child: const Text("Sí, reactivar"),
+                                                      ),
+                                                    ],
+                                                    child: Text(
+                                                      "¿Seguro que desea reactivar esta deuda?",
+                                                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                                                    ),
+                                                  ),
+                                                );
+                                                if (conf == true) {
+                                                  await DBService().revertirDeudaAPendiente(idDeuda);
+                                                  Navigator.pop(ctx);
+                                                  _showClienteInfo(cliente);
+                                                }
+                                              } else {
+                                                // Saldar deuda
+                                                final conf = await showArticDialog<bool>(
+                                                  context: context,
+                                                  builder: (c) => ArticDialogCard(
+                                                    title: "Saldar Deuda",
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () => Navigator.pop(c, false),
+                                                        child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                                      ),
+                                                      ElevatedButton(
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.green,
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                        ),
+                                                        onPressed: () => Navigator.pop(c, true),
+                                                        child: const Text("Sí, pagar"),
+                                                      ),
+                                                    ],
+                                                    child: Text(
+                                                      "¿Seguro que desea marcar esta deuda como Pagada?",
+                                                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                                                    ),
+                                                  ),
+                                                );
+                                                if (conf == true) {
+                                                  await DBService().markDeudaAsPagada(idDeuda, m);
+                                                  Navigator.pop(ctx);
+                                                  _showClienteInfo(cliente);
+                                                }
+                                              }
+                                            },
                                           ),
-                                          tooltip: isPaid ? "Volver a Deuda" : "Saldar Deuda",
-                                          onPressed: () async {
-                                            if (isPaid) {
-                                              // Confirmación para volver a deuda
-                                              final conf = await showArticDialog<bool>(
-                                                context: context,
-                                                builder: (c) => ArticDialogCard(
-                                                  title: "Volver a Deuda",
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(c, false),
-                                                      child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
-                                                    ),
-                                                    ElevatedButton(
-                                                      style: ElevatedButton.styleFrom(
-                                                        backgroundColor: Colors.orange,
-                                                        foregroundColor: Colors.white,
-                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                                      ),
-                                                      onPressed: () => Navigator.pop(c, true),
-                                                      child: const Text("Sí, reactivar"),
-                                                    ),
-                                                  ],
-                                                  child: Text(
-                                                    "¿Seguro que desea reactivar esta deuda?",
-                                                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-                                                  ),
-                                                ),
-                                              );
-                                              if (conf == true) {
-                                                await DBService().revertirDeudaAPendiente(idDeuda);
-                                                Navigator.pop(ctx);
-                                                _showClienteInfo(cliente);
-                                              }
-                                            } else {
-                                              // Saldar deuda
-                                              final conf = await showArticDialog<bool>(
-                                                context: context,
-                                                builder: (c) => ArticDialogCard(
-                                                  title: "Saldar Deuda",
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(c, false),
-                                                      child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
-                                                    ),
-                                                    ElevatedButton(
-                                                      style: ElevatedButton.styleFrom(
-                                                        backgroundColor: Colors.green,
-                                                        foregroundColor: Colors.white,
-                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                                      ),
-                                                      onPressed: () => Navigator.pop(c, true),
-                                                      child: const Text("Sí, pagar"),
-                                                    ),
-                                                  ],
-                                                  child: Text(
-                                                    "¿Seguro que desea marcar esta deuda como Pagada?",
-                                                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-                                                  ),
-                                                ),
-                                              );
-                                              if (conf == true) {
-                                                await DBService().markDeudaAsPagada(idDeuda, m);
-                                                Navigator.pop(ctx);
-                                                _showClienteInfo(cliente);
-                                              }
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               );
             },

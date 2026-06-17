@@ -256,136 +256,278 @@ class _DebtScreenState extends State<DebtScreen> {
         final int? ventaId = deuda['ventaId'] as int?;
         final isPagada = estado == 'Pagada';
 
+        final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+        final textC = isDark ? Colors.white : const Color(0xFF0F172A);
+        final subC = isDark ? Colors.white70 : const Color(0xFF64748B);
+
+        Color statusColor = isPagada ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+
         return ArticDialogCard(
-          title: 'Deuda #$id',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                fecha,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: isDark ? Colors.white60 : Colors.black54,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildDetailBadge("Cliente: $cliente", isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), isDark),
-                  _buildDetailBadge("Estado: $estado", isPagada ? Colors.green : Colors.orange, isDark),
-                  _buildDetailBadge("Monto: $monto", isPagada ? Colors.green : Colors.redAccent, isDark),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (descripcion.toString().isNotEmpty) ...[
-                Text(
-                  'Descripción',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white70 : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  descripcion,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (ventaId != null) ...[
-                Text(
-                  'Productos',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white70 : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: dbService.getItemsByVenta(ventaId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final items = snapshot.data ?? [];
-                    if (items.isEmpty) {
-                      return const Text('Sin productos');
-                    }
-                    return ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 180),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: items.length,
-                        itemBuilder: (_, index) {
-                          final it = items[index];
-                          final cantidad = it['cantidad'];
-                          final producto = it['producto'] ?? '';
-                          final subtotal = _fmtMoneda(it['subtotal']);
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              '$cantidad x $producto',
-                              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          title: 'Detalle de Deuda',
+          child: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // KPI Metric Cards Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.01),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            trailing: Text(
-                              subtotal,
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Monto Deuda",
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                fontSize: 11,
+                                color: subC,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                          );
-                        },
+                            const SizedBox(height: 6),
+                            Text(
+                              monto,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: isPagada ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.01),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Estado",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: subC,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: statusColor.withOpacity(0.25), width: 1),
+                              ),
+                              child: Text(
+                                estado,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // Resumen Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Información General",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textC,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDialogDetailRow('Número de Deuda', '#$id', subC),
+                      Divider(height: 20, color: borderColor),
+                      _buildDialogDetailRow('Cliente', cliente, subC),
+                      Divider(height: 20, color: borderColor),
+                      _buildDialogDetailRow('Fecha Registro', fecha, subC),
+                      Divider(height: 20, color: borderColor),
+                      _buildDialogDetailRow('Descripción', descripcion.isNotEmpty ? descripcion : 'Sin descripción', subC),
+                    ],
+                  ),
+                ),
+
+                if (ventaId != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Productos en la Venta',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: textC,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: dbService.getItemsByVenta(ventaId),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            final items = snapshot.data ?? [];
+                            if (items.isEmpty) {
+                              return const Text('Sin productos');
+                            }
+                            return ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 180),
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: items.length,
+                                separatorBuilder: (_, __) => Divider(height: 16, color: borderColor),
+                                itemBuilder: (_, index) {
+                                  final it = items[index];
+                                  final cantidad = it['cantidad'];
+                                  final producto = it['producto'] ?? '';
+                                  final subtotal = _fmtMoneda(it['subtotal']);
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '$cantidad x $producto',
+                                          style: TextStyle(color: textC, fontSize: 13),
+                                        ),
+                                      ),
+                                      Text(
+                                        subtotal,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: textC,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+
+                if (!isPagada)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF22C55E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.check_circle_outline),
+                    onPressed: () async {
+                      await dbService.markDeudaAsPagada(
+                          id, (deuda['monto'] as num).toDouble());
+                      if (!mounted) return;
+                      Navigator.pop(ctx);
+                      _loadDeudas();
+                    },
+                    label: const Text('Saldar deuda', style: TextStyle(fontWeight: FontWeight.bold)),
+                  )
+                else
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF59E0B),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.restart_alt),
+                    onPressed: () async {
+                      await dbService.revertirDeudaAPendiente(id);
+                      if (!mounted) return;
+                      Navigator.pop(ctx);
+                      _loadDeudas();
+                    },
+                    label: const Text('Volver a deuda', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
               ],
-              const SizedBox(height: 12),
-              if (!isPagada)
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () async {
-                    await dbService.markDeudaAsPagada(
-                        id, (deuda['monto'] as num).toDouble());
-                    if (!mounted) return;
-                    Navigator.pop(ctx);
-                    _loadDeudas();
-                  },
-                  child: const Text('Saldar deuda'),
-                )
-              else
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () async {
-                    await dbService.revertirDeudaAPendiente(id);
-                    if (!mounted) return;
-                    Navigator.pop(ctx);
-                    _loadDeudas();
-                  },
-                  child: const Text('Volver a deuda'),
-                ),
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDialogDetailRow(String label, String value, Color valueColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: valueColor),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 

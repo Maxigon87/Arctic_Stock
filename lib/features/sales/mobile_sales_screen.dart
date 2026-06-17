@@ -301,9 +301,18 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final bottomSheetDark = Theme.of(ctx).brightness == Brightness.dark;
-        final sheetBg = bottomSheetDark ? const Color(0xFF0F172A) : Colors.white;
+        final sheetBg = bottomSheetDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+        final cardColor = bottomSheetDark ? const Color(0xFF1E293B) : Colors.white;
+        final borderColor = bottomSheetDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
         final textC = bottomSheetDark ? Colors.white : const Color(0xFF0F172A);
-        final subC = bottomSheetDark ? Colors.white70 : Colors.black87;
+        final subC = bottomSheetDark ? Colors.white70 : const Color(0xFF64748B);
+
+        Color methodColor = const Color(0xFF0EA5E9);
+        if (method.toLowerCase().contains('efectivo')) {
+          methodColor = const Color(0xFF22C55E);
+        } else if (method.toLowerCase().contains('tarjeta') || method.toLowerCase().contains('débito') || method.toLowerCase().contains('crédito')) {
+          methodColor = const Color(0xFFF59E0B);
+        }
 
         return Container(
           decoration: BoxDecoration(
@@ -332,88 +341,202 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Comprobante Venta #$id',
+                'Comprobante de Venta',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.manrope(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                   color: textC,
                 ),
               ),
-              const SizedBox(height: 12),
-              Divider(color: bottomSheetDark ? Colors.white12 : Colors.black12),
-              const SizedBox(height: 8),
-              _buildDetailRow('Cliente', clientName, subC),
-              _buildDetailRow('Fecha', formattedDate, subC),
-              _buildDetailRow('Método de Pago', method, subC),
-              const SizedBox(height: 12),
-              Text(
-                'Productos',
-                style: GoogleFonts.manrope(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: textC,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 250),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  itemBuilder: (c, idx) {
-                    final item = items[idx];
-                    final name = item['producto'] ?? '';
-                    final cant = item['cantidad'] ?? 0;
-                    final sub = (item['subtotal'] as num?)?.toDouble() ?? 0.0;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '$cant x $name',
-                              style: GoogleFonts.manrope(fontSize: 13, color: subC),
-                            ),
-                          ),
-                          Text(
-                            formatCurrency(sub),
-                            style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textC),
+              const SizedBox(height: 20),
+
+              // KPI Metric Cards Row
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.01),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(color: bottomSheetDark ? Colors.white12 : Colors.black12),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'TOTAL',
-                    style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: textC),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Total Cobrado",
+                            style: GoogleFonts.manrope(
+                              fontSize: 11,
+                              color: subC,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            formatCurrency(total),
+                            style: GoogleFonts.manrope(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF22C55E),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  Text(
-                    formatCurrency(total),
-                    style: GoogleFonts.manrope(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: bottomSheetDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.01),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Método de Pago",
+                            style: GoogleFonts.manrope(
+                              fontSize: 11,
+                              color: subC,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: methodColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: methodColor.withOpacity(0.25), width: 1),
+                            ),
+                            child: Text(
+                              method,
+                              style: GoogleFonts.manrope(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: methodColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+
+              // Transaction Metadata Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Resumen de Transacción",
+                      style: GoogleFonts.manrope(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: textC,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow('Número de Venta', '#$id', subC),
+                    Divider(height: 20, color: borderColor),
+                    _buildDetailRow('Cliente', clientName, subC),
+                    Divider(height: 20, color: borderColor),
+                    _buildDetailRow('Fecha y Hora', formattedDate, subC),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Products Section Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Detalle de Productos',
+                      style: GoogleFonts.manrope(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: textC,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => Divider(height: 16, color: borderColor),
+                        itemBuilder: (c, idx) {
+                          final item = items[idx];
+                          final name = item['producto'] ?? '';
+                          final cant = item['cantidad'] ?? 0;
+                          final sub = (item['subtotal'] as num?)?.toDouble() ?? 0.0;
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '$cant x $name',
+                                  style: GoogleFonts.manrope(fontSize: 13, color: subC),
+                                ),
+                              ),
+                              Text(
+                                formatCurrency(sub),
+                                style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textC),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
+
+              // Action button
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0EA5E9),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
                 icon: const Icon(Icons.share_outlined),
                 label: Text('Compartir Ticket', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
@@ -429,15 +552,12 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
   }
 
   Widget _buildDetailRow(String label, String value, Color textColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey)),
-          Text(value, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey)),
+        Text(value, style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
+      ],
     );
   }
 

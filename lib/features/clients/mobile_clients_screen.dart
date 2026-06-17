@@ -210,156 +210,256 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
         initialChildSize: 0.8,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (_, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: sheetBgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Pull Handle
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: handleColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        builder: (_, scrollController) => FutureBuilder<List<Map<String, dynamic>>>(
+          future: _dbService.getDeudasByCliente(id),
+          builder: (context, snapshot) {
+            final deudas = snapshot.data ?? [];
+            final deudasPendientes = deudas.where((d) => d['estado'] == 'Pendiente').toList();
+            final totalDeuda = deudasPendientes.fold<double>(0.0, (sum, d) => sum + ((d['monto'] as num?)?.toDouble() ?? 0.0));
+
+            return Container(
+              decoration: BoxDecoration(
+                color: sheetBgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    // Header card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
-                            child: Text(
-                              nombre.isNotEmpty ? nombre[0].toUpperCase() : 'C',
-                              style: GoogleFonts.manrope(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF0EA5E9),
+              child: Column(
+                children: [
+                  // Pull Handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: handleColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        // Large Avatar & Name
+                        Center(
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 10),
+                              CircleAvatar(
+                                radius: 44,
+                                backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                                child: Text(
+                                  nombre.isNotEmpty ? nombre[0].toUpperCase() : 'C',
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0EA5E9),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                nombre,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (dni.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'DNI/CUIT: $dni',
+                                  style: GoogleFonts.manrope(fontSize: 13, color: subtitleColor),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // KPI Cards
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: borderColor),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.01),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Deuda Total',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 12,
+                                        color: subtitleColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      formatCurrency(totalDeuda),
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: totalDeuda > 0 ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            nombre,
-                            style: GoogleFonts.manrope(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          if (dni.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'DNI: $dni',
-                              style: GoogleFonts.manrope(fontSize: 13, color: subtitleColor),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: borderColor),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.01),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Deudas Pendientes',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 12,
+                                        color: subtitleColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${deudasPendientes.length}',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: deudasPendientes.isNotEmpty ? const Color(0xFFF59E0B) : const Color(0xFF22C55E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Action Buttons (Email, Dirección)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildActionButton(
-                            icon: Icons.email_outlined,
-                            label: 'Enviar Email',
-                            color: const Color(0xFF0EA5E9),
-                            enabled: email.isNotEmpty,
-                            onTap: () async {
-                              final uri = Uri(scheme: 'mailto', path: email);
-                              try {
-                                await launchUrl(uri);
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('No se pudo abrir el cliente de email')),
-                                  );
-                                }
-                              }
-                            },
+                        ),
+                        const SizedBox(height: 24),
+                        // Contact Info Section (independent card)
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.contact_mail_outlined, color: Color(0xFF0EA5E9), size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Información de contacto',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildInfoRow(Icons.phone_outlined, 'Teléfono', telefono.isNotEmpty ? telefono : 'No registrado'),
+                              Divider(height: 24, color: borderColor),
+                              _buildInfoRow(Icons.email_outlined, 'Email', email.isNotEmpty ? email : 'No registrado'),
+                              Divider(height: 24, color: borderColor),
+                              _buildInfoRow(Icons.location_on_outlined, 'Dirección', direccion.isNotEmpty ? direccion : 'No registrada'),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildActionButton(
-                            icon: Icons.map_outlined,
-                            label: 'Ver Mapa',
-                            color: const Color(0xFFF59E0B),
-                            enabled: direccion.isNotEmpty,
-                            onTap: () async {
-                              final uri = Uri.parse(
-                                "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(direccion)}"
-                              );
-                              try {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('No se pudo abrir Google Maps')),
+                        const SizedBox(height: 16),
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildActionButton(
+                                icon: Icons.email_outlined,
+                                label: 'Enviar Email',
+                                color: const Color(0xFF0EA5E9),
+                                enabled: email.isNotEmpty,
+                                onTap: () async {
+                                  final uri = Uri(scheme: 'mailto', path: email);
+                                  try {
+                                    await launchUrl(uri);
+                                  } catch (_) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('No se pudo abrir el cliente de email')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildActionButton(
+                                icon: Icons.map_outlined,
+                                label: 'Ver Mapa',
+                                color: const Color(0xFFF59E0B),
+                                enabled: direccion.isNotEmpty,
+                                onTap: () async {
+                                  final uri = Uri.parse(
+                                    "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(direccion)}"
                                   );
-                                }
-                              }
-                            },
-                          ),
+                                  try {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  } catch (_) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('No se pudo abrir Google Maps')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 24),
+                        // Debt / History
+                        Text(
+                          'Deudas Activas',
+                          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildClientDebtsWidget(id),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    // Contact Info Details
-                    Text(
-                      'Contacto',
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildInfoRow(Icons.phone_outlined, 'Teléfono', telefono.isNotEmpty ? telefono : 'No registrado'),
-                          Divider(height: 24, color: borderColor),
-                          _buildInfoRow(Icons.email_outlined, 'Email', email.isNotEmpty ? email : 'No registrado'),
-                          Divider(height: 24, color: borderColor),
-                          _buildInfoRow(Icons.location_on_outlined, 'Dirección', direccion.isNotEmpty ? direccion : 'No registrada'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Debt / History
-                    Text(
-                      'Deudas Activas',
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildClientDebtsWidget(id),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          }
         ),
       ),
     );
@@ -486,6 +586,13 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                 color: cardBgColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: borderCol),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.01),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -494,12 +601,40 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Deuda #$id',
-                          style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textCol),
+                        Row(
+                          children: [
+                            Text(
+                              'Deuda #$id',
+                              style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: textCol),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.2), width: 1),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.hourglass_empty, size: 10, color: Color(0xFFF59E0B)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Pendiente',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFF59E0B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         if (desc.isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 6),
                           Text(
                             desc,
                             style: GoogleFonts.manrope(fontSize: 12, color: subTextCol),
@@ -507,7 +642,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           fechaStr.split('T').first,
                           style: GoogleFonts.manrope(fontSize: 11, color: dateTextCol),
@@ -523,8 +658,17 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                         style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444)),
                       ),
                       const SizedBox(height: 6),
-                      GestureDetector(
-                        onTap: () async {
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF22C55E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () async {
                           final confirm = await showArticDialog<bool>(
                             context: context,
                             builder: (c) => ArticDialogCard(
@@ -553,16 +697,9 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                             _loadClientes();
                           }
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Pagar',
-                            style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF22C55E)),
-                          ),
+                        child: Text(
+                          'Pagar',
+                          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],

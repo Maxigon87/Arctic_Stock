@@ -557,78 +557,289 @@ class _ProductListScreenState extends State<ProductListScreen> {
   void _mostrarDetallesProducto(Map<String, dynamic> p) {
     final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final costo = (p['costo_compra'] as num?)?.toDouble() ?? 0.0;
+    final stock = (p['stock'] as num?)?.toInt() ?? 0;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+
+    final profit = precio - costo;
+    final margin = costo > 0 ? (profit / costo) * 100 : 0.0;
+
+    Color stockColor = const Color(0xFF22C55E);
+    if (stock == 0) {
+      stockColor = const Color(0xFFEF4444);
+    } else if (stock <= 5) {
+      stockColor = const Color(0xFFF59E0B);
+    }
 
     showArticDialog(
       context: context,
       builder: (ctx) {
         return ArticDialogCard(
-          title: p['nombre'] ?? '',
+          title: "Detalles del Producto",
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if ((p['codigo'] ?? '').toString().isNotEmpty) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.tag, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                  title: Text('Código Interno', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                  trailing: Text(p['codigo'].toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              // Product Name and Category Badge
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 32),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      p['nombre'] ?? '',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        p['categoria_nombre'] ?? 'Sin categoría',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: subtitleColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                Divider(color: isDark ? Colors.white12 : Colors.black12),
-              ],
-              if ((p['codigoBarras'] ?? '').toString().isNotEmpty) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.qr_code, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                  title: Text('Código de Barras', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                  trailing: Text(p['codigoBarras'].toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 20),
+
+              // Metric Cards Row
+              Row(
+                children: [
+                  // Stock Card
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.01),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Stock Actual",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtitleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "$stock",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: stockColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Price Card
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.01),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Precio Venta",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtitleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            formatCurrency(precio),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0EA5E9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Margin Card
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.01),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Margen / Rent.",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtitleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "${margin.toStringAsFixed(0)}%",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: profit >= 0 ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Product Info Cards Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
                 ),
-                Divider(color: isDark ? Colors.white12 : Colors.black12),
-              ],
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.attach_money, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                title: Text('Precio', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                trailing: Text(
-                  formatCurrency(precio),
-                  style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Especificaciones",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoItem(Icons.tag, "Código Interno", (p['codigo'] ?? '').toString().isNotEmpty ? p['codigo'].toString() : "No registrado", isDark),
+                    Divider(height: 20, color: borderColor),
+                    _buildInfoItem(Icons.qr_code, "Código de Barras", (p['codigoBarras'] ?? '').toString().isNotEmpty ? p['codigoBarras'].toString() : "No registrado", isDark),
+                    Divider(height: 20, color: borderColor),
+                    _buildInfoItem(Icons.monetization_on_outlined, "Costo de Compra", formatCurrency(costo), isDark),
+                  ],
                 ),
               ),
-              Divider(color: isDark ? Colors.white12 : Colors.black12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.monetization_on_outlined, color: Colors.green),
-                title: Text('Costo', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                trailing: Text(formatCurrency(costo), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
-              ),
-              Divider(color: isDark ? Colors.white12 : Colors.black12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.inventory_2_outlined, color: Colors.amber),
-                title: Text('Stock', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                trailing: Text((p['stock'] ?? 0).toString(), style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
-              ),
-              Divider(color: isDark ? Colors.white12 : Colors.black12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.category, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                title: Text('Categoría', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                trailing: Text(p['categoria_nombre'] ?? 'Sin categoría', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
-              ),
+              
               if ((p['descripcion'] ?? '').toString().isNotEmpty) ...[
-                Divider(color: isDark ? Colors.white12 : Colors.black12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.description, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                  title: Text('Descripción', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
-                  subtitle: Text(p['descripcion'], style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Descripción",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        p['descripcion'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: subtitleColor,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String value, bool isDark) {
+    final labelColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final valueColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF0EA5E9)),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: labelColor),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: valueColor),
+        ),
+      ],
     );
   }
 

@@ -310,14 +310,66 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
             }
           }
         } else {
-          // Registro nuevo localmente
-          final insertMap = _mapRemoteToLocal(table, remoteData, docId);
-          insertMap['synced'] = 1;
+          // Registro nuevo localmente en base a firebase_id, pero verifiquemos conflictos UNIQUE
+          bool conflictHandled = false;
 
-          if (table == 'ventas') {
-            await _insertLocalVentaAndItems(db, insertMap);
-          } else {
-            await db.insert(table, insertMap);
+          if (table == 'productos') {
+            final String? remoteCodigo = remoteData['codigo']?.toString().trim();
+            if (remoteCodigo != null && remoteCodigo.isNotEmpty) {
+              final existing = await db.query('productos', where: 'codigo = ?', whereArgs: [remoteCodigo], limit: 1);
+              if (existing.isNotEmpty) {
+                final localRow = existing.first;
+                final int localId = localRow['id'] as int;
+                
+                final updateMap = _mapRemoteToLocal(table, remoteData, docId);
+                updateMap['synced'] = 1;
+                
+                await db.update('productos', updateMap, where: 'id = ?', whereArgs: [localId]);
+                conflictHandled = true;
+              }
+            }
+          } else if (table == 'categorias') {
+            final String? remoteNombre = remoteData['nombre']?.toString().trim();
+            if (remoteNombre != null && remoteNombre.isNotEmpty) {
+              final existing = await db.query('categorias', where: 'LOWER(nombre) = ?', whereArgs: [remoteNombre.toLowerCase()], limit: 1);
+              if (existing.isNotEmpty) {
+                final localRow = existing.first;
+                final int localId = localRow['id'] as int;
+                
+                final updateMap = _mapRemoteToLocal(table, remoteData, docId);
+                updateMap['synced'] = 1;
+                
+                await db.update('categorias', updateMap, where: 'id = ?', whereArgs: [localId]);
+                conflictHandled = true;
+              }
+            }
+          } else if (table == 'usuarios') {
+            final String? remoteNombre = remoteData['nombre']?.toString().trim();
+            if (remoteNombre != null && remoteNombre.isNotEmpty) {
+              final existing = await db.query('usuarios', where: 'LOWER(nombre) = ?', whereArgs: [remoteNombre.toLowerCase()], limit: 1);
+              if (existing.isNotEmpty) {
+                final localRow = existing.first;
+                final int localId = localRow['id'] as int;
+                
+                final updateMap = _mapRemoteToLocal(table, remoteData, docId);
+                updateMap['synced'] = 1;
+                
+                await db.update('usuarios', updateMap, where: 'id = ?', whereArgs: [localId]);
+                conflictHandled = true;
+              }
+            }
+          }
+
+          if (!conflictHandled) {
+            // Registro nuevo localmente sin conflictos
+            final insertMap = _mapRemoteToLocal(table, remoteData, docId);
+            insertMap['synced'] = 1;
+
+            if (table == 'ventas') {
+              await _insertLocalVentaAndItems(db, insertMap);
+            } else {
+              await db.insert(table, insertMap);
+            }
           }
         }
       }
