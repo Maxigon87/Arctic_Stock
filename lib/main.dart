@@ -113,7 +113,7 @@ class _MyAppState extends State<MyApp> {
       brightness: Brightness.light,
       iconTheme: const IconThemeData(size: 24),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.teal,
+        seedColor: const Color(0xFF0284C7),
         brightness: Brightness.light,
       ).copyWith(
         outline: const Color(0xFFE3F2FD),
@@ -134,7 +134,7 @@ class _MyAppState extends State<MyApp> {
       brightness: Brightness.dark,
       iconTheme: const IconThemeData(size: 24),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.teal,
+        seedColor: const Color(0xFF22D3EE),
         brightness: Brightness.dark,
       ).copyWith(
         outline: const Color(0xFF0D1B2A),
