@@ -725,14 +725,14 @@ class _UserBadge extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             (() {
-              final avatarBase64 = DBService().activeUserAvatar;
+              final avatarBytes = DBService().activeUserAvatarBytes;
               return CircleAvatar(
                 radius: 14,
                 backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
-                backgroundImage: (avatarBase64 != null && avatarBase64.isNotEmpty)
-                    ? MemoryImage(base64Decode(avatarBase64))
+                backgroundImage: avatarBytes != null
+                    ? MemoryImage(avatarBytes)
                     : null,
-                child: (avatarBase64 == null || avatarBase64.isEmpty)
+                child: avatarBytes == null
                     ? Text(
                         name.isNotEmpty ? name[0].toUpperCase() : '?',
                         style: const TextStyle(fontSize: 10),

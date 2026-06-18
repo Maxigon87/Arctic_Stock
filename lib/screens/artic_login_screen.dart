@@ -81,6 +81,12 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   // --- Usuarios ---
 
   List<Map<String, dynamic>> _usuarios = [];
+  final Map<String, Uint8List> _avatarBytesCache = {};
+
+  Uint8List? _getAvatarBytes(String? base64Str) {
+    if (base64Str == null || base64Str.isEmpty) return null;
+    return _avatarBytesCache.putIfAbsent(base64Str, () => base64Decode(base64Str));
+  }
 
   int? _selectedUserId;
 
@@ -762,6 +768,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
                                                         items: _usuarios.map((u) {
                                                           final avatarBase64 = u['avatar'] as String?;
+                                                          final avatarBytes = _getAvatarBytes(avatarBase64);
                                                           return DropdownMenuItem<int>(
 
                                                             value: u['id'] as int,
@@ -772,10 +779,10 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                                                                 CircleAvatar(
                                                                   radius: 12,
                                                                   backgroundColor: Colors.transparent,
-                                                                  backgroundImage: (avatarBase64 != null && avatarBase64.isNotEmpty)
-                                                                      ? MemoryImage(base64Decode(avatarBase64))
+                                                                  backgroundImage: avatarBytes != null
+                                                                      ? MemoryImage(avatarBytes)
                                                                       : null,
-                                                                  child: (avatarBase64 == null || avatarBase64.isEmpty)
+                                                                  child: avatarBytes == null
                                                                       ? Icon(
                                                                           Icons.person,
                                                                           size: 16,

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -2096,6 +2098,9 @@ class DBService {
     );
     if (id == _activeUserId) {
       _activeUserAvatar = avatarBase64;
+      _activeUserAvatarBytes = (avatarBase64 != null && avatarBase64.isNotEmpty)
+          ? base64Decode(avatarBase64)
+          : null;
     }
     notifyDbChange();
     return count;
@@ -2105,17 +2110,22 @@ class DBService {
   int? _activeUserId;
   String? _activeUserName;
   String? _activeUserAvatar;
+  Uint8List? _activeUserAvatarBytes;
 
   void setActiveUser({required int? id, String? nombre, String? avatar}) {
     _activeUserId = id;
     _activeUserName = nombre;
     _activeUserAvatar = avatar;
+    _activeUserAvatarBytes = (avatar != null && avatar.isNotEmpty)
+        ? base64Decode(avatar)
+        : null;
     notifyDbChange();
   }
 
   int? get activeUserId => _activeUserId;
   String? get activeUserName => _activeUserName;
   String? get activeUserAvatar => _activeUserAvatar;
+  Uint8List? get activeUserAvatarBytes => _activeUserAvatarBytes;
 
   // Entrada "oficial" desde la UI: normaliza/valida y delega en insertVenta
   Future<int> insertVentaBase(Map<String, dynamic> data) async {

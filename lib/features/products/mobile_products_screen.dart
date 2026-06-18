@@ -221,6 +221,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   void _showAddProductoDialog() {
     final nombreCtrl = TextEditingController();
     final codigoCtrl = TextEditingController();
+    final codigoBarrasCtrl = TextEditingController();
     final precioCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
 
@@ -266,6 +267,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                   await _dbService.insertProducto({
                     'nombre': name,
                     'codigo': codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
+                    'codigoBarras': codigoBarrasCtrl.text.trim().isEmpty ? null : codigoBarrasCtrl.text.trim(),
                     'precio_venta': precioVal,
                     'stock': stockVal,
                     'costo_compra': 0.0,
@@ -306,7 +308,7 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                 controller: codigoCtrl,
                 style: style,
                 decoration: InputDecoration(
-                  labelText: 'Código / Cód. Barras',
+                  labelText: 'Código Único',
                   labelStyle: labelStyle,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -317,6 +319,45 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                     borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              StatefulBuilder(
+                builder: (context, setDialogState) {
+                  return TextField(
+                    controller: codigoBarrasCtrl,
+                    style: style,
+                    decoration: InputDecoration(
+                      labelText: 'Código de Barras',
+                      labelStyle: labelStyle,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
+                        onPressed: () async {
+                          final scannedCode = await Navigator.push<String>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ArticBarcodeScanner(
+                                title: 'Escanear Código de Barras',
+                              ),
+                            ),
+                          );
+                          if (scannedCode != null && scannedCode.isNotEmpty) {
+                            setDialogState(() {
+                              codigoBarrasCtrl.text = scannedCode;
+                            });
+                          }
+                        },
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+                      ),
+                    ),
+                  );
+                }
               ),
               const SizedBox(height: 12),
               TextField(

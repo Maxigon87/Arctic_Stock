@@ -868,12 +868,11 @@ class SalesScreenState extends State<SalesScreen> {
                         // Left Column (Cart / Search / Table)
                         Expanded(
                           flex: 11,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          child: Stack(
+                            clipBehavior: Clip.none,
                             children: [
-                              // Search Input field with dropdown Stack
-                              Stack(
-                                clipBehavior: Clip.none,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Row(
                                     children: [
@@ -885,6 +884,31 @@ class SalesScreenState extends State<SalesScreen> {
                                             hintText: "Buscar producto por nombre, código o código de barras...",
                                             hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
                                             prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.black38),
+                                            suffixIcon: IconButton(
+                                              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
+                                              onPressed: () async {
+                                                final barcodeResult = await Navigator.push<String?>(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) => const ArticBarcodeScanner(),
+                                                  ),
+                                                );
+                                                if (barcodeResult != null && barcodeResult.isNotEmpty) {
+                                                  final found = activeProducts.firstWhere(
+                                                    (p) => p['codigoBarras']?.toString() == barcodeResult || p['codigo']?.toString() == barcodeResult,
+                                                    orElse: () => {},
+                                                  );
+                                                  if (found.isNotEmpty) {
+                                                    await agregarAlCarrito(found);
+                                                    setLocalState(() {});
+                                                  } else {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(content: Text('No se encontró ningún producto con el código: $barcodeResult')),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                            ),
                                             isDense: true,
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                             border: OutlineInputBorder(
@@ -934,51 +958,6 @@ class SalesScreenState extends State<SalesScreen> {
                                       ),
                                     ],
                                   ),
-                                  // Live Search Dropdown
-                                  if (searchResults.isNotEmpty)
-                                    Positioned(
-                                      top: 45,
-                                      left: 0,
-                                      right: 185, // align with the search input
-                                      child: Material(
-                                        elevation: 8,
-                                        borderRadius: BorderRadius.circular(12),
-                                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                        child: Container(
-                                          constraints: const BoxConstraints(maxHeight: 250),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: borderColor),
-                                          ),
-                                          child: ListView.builder(
-                                            shrinkWrap: true,
-                                            itemCount: searchResults.length,
-                                            itemBuilder: (context, idx) {
-                                              final prod = searchResults[idx];
-                                              final pName = prod['nombre'] ?? '';
-                                              final pCode = prod['codigo'] ?? '';
-                                              final pPrice = (prod['precio_venta'] as num?)?.toDouble() ?? 0.0;
-                                              final pStock = (prod['stock'] as num?)?.toInt() ?? 0;
-                                              return ListTile(
-                                                dense: true,
-                                                title: Text(pName, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
-                                                subtitle: Text("Cod: $pCode | Stock: $pStock | ${formatCurrency(pPrice)}", style: TextStyle(color: subtextColor)),
-                                                trailing: const Icon(Icons.add, size: 16),
-                                                onTap: () async {
-                                                  await agregarAlCarrito(prod);
-                                                  searchCtrl.clear();
-                                                  setLocalState(() {
-                                                    searchResults.clear();
-                                                  });
-                                                },
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
                               const SizedBox(height: 20),
 
                               // Cart Table Title Row
@@ -1294,6 +1273,50 @@ class SalesScreenState extends State<SalesScreen> {
                               ),
                             ],
                           ),
+                          if (searchResults.isNotEmpty)
+                            Positioned(
+                                  top: 45,
+                                  left: 0,
+                                  right: 185, // align with the search input
+                                  child: Material(
+                                    elevation: 8,
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                    child: Container(
+                                      constraints: const BoxConstraints(maxHeight: 250),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: searchResults.length,
+                                        itemBuilder: (context, idx) {
+                                          final prod = searchResults[idx];
+                                          final pName = prod['nombre'] ?? '';
+                                          final pCode = prod['codigo'] ?? '';
+                                          final pPrice = (prod['precio_venta'] as num?)?.toDouble() ?? 0.0;
+                                          final pStock = (prod['stock'] as num?)?.toInt() ?? 0;
+                                          return ListTile(
+                                            dense: true,
+                                            title: Text(pName, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
+                                            subtitle: Text("Cod: $pCode | Stock: $pStock | ${formatCurrency(pPrice)}", style: TextStyle(color: subtextColor)),
+                                            trailing: const Icon(Icons.add, size: 16),
+                                            onTap: () async {
+                                              await agregarAlCarrito(prod);
+                                              searchCtrl.clear();
+                                              setLocalState(() {
+                                                searchResults.clear();
+                                              });
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         
                         const SizedBox(width: 24),
@@ -1424,23 +1447,88 @@ class SalesScreenState extends State<SalesScreen> {
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    Expanded(child: _buildPaymentButton(context, 'Efectivo', Icons.payments_outlined, selectedPaymentButton == 'Efectivo', setLocalState)),
+                                    Expanded(
+                                      child: _buildPaymentButton(
+                                        context,
+                                        'Efectivo',
+                                        Icons.payments_outlined,
+                                        selectedPaymentButton == 'Efectivo',
+                                        () {
+                                          setLocalState(() {
+                                            metodoSeleccionado = 'Efectivo';
+                                            selectedPaymentButton = 'Efectivo';
+                                          });
+                                        },
+                                      ),
+                                    ),
                                     const SizedBox(width: 8),
-                                    Expanded(child: _buildPaymentButton(context, 'Débito', Icons.credit_card_outlined, selectedPaymentButton == 'Débito', setLocalState)),
+                                    Expanded(
+                                      child: _buildPaymentButton(
+                                        context,
+                                        'Débito',
+                                        Icons.credit_card_outlined,
+                                        selectedPaymentButton == 'Débito',
+                                        () {
+                                          setLocalState(() {
+                                            metodoSeleccionado = 'Tarjeta';
+                                            selectedPaymentButton = 'Débito';
+                                          });
+                                        },
+                                      ),
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    Expanded(child: _buildPaymentButton(context, 'Crédito', Icons.credit_card_outlined, selectedPaymentButton == 'Crédito', setLocalState)),
+                                    Expanded(
+                                      child: _buildPaymentButton(
+                                        context,
+                                        'Crédito',
+                                        Icons.credit_card_outlined,
+                                        selectedPaymentButton == 'Crédito',
+                                        () {
+                                          setLocalState(() {
+                                            metodoSeleccionado = 'Tarjeta';
+                                            selectedPaymentButton = 'Crédito';
+                                          });
+                                        },
+                                      ),
+                                    ),
                                     const SizedBox(width: 8),
-                                    Expanded(child: _buildPaymentButton(context, 'Transferencia', Icons.account_balance_outlined, selectedPaymentButton == 'Transferencia', setLocalState)),
+                                    Expanded(
+                                      child: _buildPaymentButton(
+                                        context,
+                                        'Transferencia',
+                                        Icons.account_balance_outlined,
+                                        selectedPaymentButton == 'Transferencia',
+                                        () {
+                                          setLocalState(() {
+                                            metodoSeleccionado = 'Transferencia';
+                                            selectedPaymentButton = 'Transferencia';
+                                          });
+                                        },
+                                      ),
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    Expanded(child: _buildPaymentButton(context, 'Cuenta Corriente', Icons.book_outlined, selectedPaymentButton == 'Cuenta Corriente', setLocalState)),
+                                    Expanded(
+                                      child: _buildPaymentButton(
+                                        context,
+                                        'Cuenta Corriente',
+                                        Icons.book_outlined,
+                                        selectedPaymentButton == 'Cuenta Corriente',
+                                        () {
+                                          setLocalState(() {
+                                            metodoSeleccionado = 'Fiado';
+                                            selectedPaymentButton = 'Cuenta Corriente';
+                                          });
+                                        },
+                                      ),
+                                    ),
                                     const SizedBox(width: 8),
                                     const Expanded(child: SizedBox()),
                                   ],
@@ -1704,7 +1792,7 @@ class SalesScreenState extends State<SalesScreen> {
     String label,
     IconData icon,
     bool isSelected,
-    StateSetter setLocalState,
+    VoidCallback onTap,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeBg = isSelected
@@ -1718,19 +1806,7 @@ class SalesScreenState extends State<SalesScreen> {
         : (isDark ? Colors.white70 : Colors.black87);
 
     return InkWell(
-      onTap: () {
-        setLocalState(() {
-          if (label == 'Efectivo') {
-            metodoSeleccionado = 'Efectivo';
-          } else if (label == 'Débito' || label == 'Crédito') {
-            metodoSeleccionado = 'Tarjeta';
-          } else if (label == 'Transferencia') {
-            metodoSeleccionado = 'Transferencia';
-          } else if (label == 'Cuenta Corriente') {
-            metodoSeleccionado = 'Fiado';
-          }
-        });
-      },
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),

@@ -4,6 +4,7 @@ import 'package:artic_stock/services/db_service.dart'; // <- ajusta si tu ruta/c
 import 'package:artic_stock/widgets/artic_background.dart';
 import 'package:artic_stock/widgets/artic_container.dart';
 import 'package:artic_stock/widgets/artic_dialog.dart';
+import '../widgets/artic_barcode_scanner.dart';
 import '../utils/currency_formatter.dart';
 
 class ProductForm extends StatefulWidget {
@@ -242,10 +243,25 @@ class _ProductFormState extends State<ProductForm> {
                   Expanded(
                     child: TextFormField(
                       controller: _barCodeCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Código de Barras',
                         hintText: 'Escanea o escribe el código',
-                        suffixIcon: Icon(Icons.qr_code_scanner),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
+                          onPressed: () async {
+                            final barcodeResult = await Navigator.push<String?>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ArticBarcodeScanner(),
+                              ),
+                            );
+                            if (barcodeResult != null && barcodeResult.isNotEmpty) {
+                              setState(() {
+                                _barCodeCtrl.text = barcodeResult;
+                              });
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ),
