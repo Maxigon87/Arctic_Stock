@@ -479,7 +479,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
                 },
                 child: CircleAvatar(
                   radius: 36,
-                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withOpacity(0.1),
+                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withValues(alpha: 0.1),
                   backgroundImage: (avatarBase64 != null && avatarBase64!.isNotEmpty)
                       ? MemoryImage(base64Decode(avatarBase64!))
                       : null,
@@ -1198,7 +1198,7 @@ class _WindPainter extends CustomPainter {
 
   void paint(Canvas canvas, Size size) {
 
-    final paint = Paint()..color = Colors.white.withOpacity(0.15);
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.15);
 
     for (var p in particles) {
 

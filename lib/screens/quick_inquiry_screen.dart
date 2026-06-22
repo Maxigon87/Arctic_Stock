@@ -41,15 +41,13 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
   }
 
   String _normalizeText(String text) {
-    return text
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('ú', 'u')
-        .replaceAll('ñ', 'n')
-        .replaceAll('ü', 'u');
+    const replacements = {
+      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+      'ñ': 'n', 'ü': 'u'
+    };
+    return text.toLowerCase().replaceAllMapped(RegExp('[áéíóúñü]'), (match) {
+      return replacements[match.group(0)]!;
+    });
   }
 
   Future<void> _performSearch(String query) async {
@@ -114,8 +112,8 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final cardBgColor = isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.65);
-    final borderColor = isDark ? Colors.white.withOpacity(0.1) : Colors.black12;
+    final cardBgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.65);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -197,8 +195,8 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
                                       return ListTile(
                                         selected: isSelected,
                                         selectedTileColor: isDark
-                                            ? Colors.white.withOpacity(0.05)
-                                            : Colors.black.withOpacity(0.05),
+                                            ? Colors.white.withValues(alpha: 0.05)
+                                            : Colors.black.withValues(alpha: 0.05),
                                         title: Text(
                                           p['nombre'] ?? '',
                                           style: GoogleFonts.manrope(
@@ -297,7 +295,7 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                backgroundColor: isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.1) : const Color(0xFF0284C7).withValues(alpha: 0.1),
                 child: Text(
                   (p['nombre'] as String? ?? 'P').isNotEmpty
                       ? (p['nombre'] as String)[0].toUpperCase()
@@ -347,7 +345,7 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+              color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor),
             ),
@@ -379,9 +377,9 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: stockColor.withOpacity(0.08),
+              color: stockColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: stockColor.withOpacity(0.2)),
+              border: Border.all(color: stockColor.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -393,7 +391,7 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: stockColor.withOpacity(0.4),
+                        color: stockColor.withValues(alpha: 0.4),
                         blurRadius: 8,
                         spreadRadius: 2,
                       )

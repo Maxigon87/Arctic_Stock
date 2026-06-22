@@ -108,7 +108,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                    backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                     backgroundImage: (_dbService.activeUserAvatar != null && _dbService.activeUserAvatar!.isNotEmpty)
                         ? MemoryImage(base64Decode(_dbService.activeUserAvatar!))
                         : null,
@@ -268,7 +268,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -441,7 +441,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: methodColor.withOpacity(0.1),
+                      color: methodColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../lib/services/db_service.dart';
+import 'package:artic_stock/services/db_service.dart';
 
 void main() {
   setUpAll(() {
@@ -29,7 +29,9 @@ void main() {
       expect(exists.isNotEmpty, true, reason: "Table \$table does not exist");
 
       if (table != 'deleted_records' && table != 'config_sync' && table != 'items_venta') {
+         // ignore: unused_local_variable
          final cols = await db.rawQuery("PRAGMA table_info(\"\"\"\$table\"\"\");");
+         // ignore: avoid_print
          print("Columns for \$table: \${cols.map((e) => e['name']).toList()}");
       }
     }

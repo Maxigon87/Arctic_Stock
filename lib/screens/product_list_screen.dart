@@ -140,10 +140,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -210,10 +210,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -352,14 +352,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         opacity: inactivo ? 0.6 : 1.0,
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.45),
+                                            color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.45),
                                             borderRadius: BorderRadius.circular(16),
                                             border: Border.all(
                                               color: inactivo
-                                                  ? Colors.grey.withOpacity(0.2)
+                                                  ? Colors.grey.withValues(alpha: 0.2)
                                                   : (sinStock
-                                                      ? Colors.red.withOpacity(0.3)
-                                                      : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06))),
+                                                      ? Colors.red.withValues(alpha: 0.3)
+                                                      : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06))),
                                               width: 1.2,
                                             ),
                                           ),
@@ -376,7 +376,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                       children: [
                                                         CircleAvatar(
                                                           radius: 16,
-                                                          backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                                                          backgroundColor: isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.1) : const Color(0xFF0284C7).withValues(alpha: 0.1),
                                                           child: Text(
                                                             nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
                                                             style: TextStyle(
@@ -480,7 +480,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                         Container(
                                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                           decoration: BoxDecoration(
-                                                            color: stockBadgeColor.withOpacity(0.12),
+                                                            color: stockBadgeColor.withValues(alpha: 0.12),
                                                             borderRadius: BorderRadius.circular(6),
                                                           ),
                                                           child: Text(

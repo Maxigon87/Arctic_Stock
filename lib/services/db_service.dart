@@ -1727,15 +1727,13 @@ class DBService {
   }
 
   String _normalizeString(String str) {
-    return str
-        .toLowerCase()
-        .replaceAll('á', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('ú', 'u')
-        .replaceAll('ñ', 'n')
-        .replaceAll('ü', 'u');
+    const replacements = {
+      'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+      'ñ': 'n', 'ü': 'u'
+    };
+    return str.toLowerCase().replaceAllMapped(RegExp('[áéíóúñü]'), (match) {
+      return replacements[match.group(0)]!;
+    });
   }
 
   Future<List<Map<String, dynamic>>> getProductos({

@@ -139,12 +139,12 @@ class _HistorialArchivosScreenState extends State<HistorialArchivosScreen> {
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
       color: isDark
-          ? Colors.white.withOpacity(0.02)
-          : Colors.white.withOpacity(0.45),
+          ? Colors.white.withValues(alpha: 0.02)
+          : Colors.white.withValues(alpha: 0.45),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
           width: 1,
         ),
       ),

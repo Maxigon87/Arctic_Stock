@@ -25,14 +25,14 @@ class _ArticImageCropperDialogState extends State<ArticImageCropperDialog> {
       
       final boundary = _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
-        Navigator.pop(context);
+        if (mounted) Navigator.pop(context);
         return;
       }
       
       final ui.Image capturedImage = await boundary.toImage(pixelRatio: 2.0);
       final ByteData? byteData = await capturedImage.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
-        Navigator.pop(context);
+        if (mounted) Navigator.pop(context);
         return;
       }
       
@@ -51,11 +51,11 @@ class _ArticImageCropperDialogState extends State<ArticImageCropperDialog> {
       if (resizedByteData != null && mounted) {
         Navigator.pop(context, resizedByteData.buffer.asUint8List());
       } else {
-        Navigator.pop(context);
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       debugPrint("Error al recortar la imagen: $e");
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) {
         setState(() => _processing = false);
@@ -180,7 +180,7 @@ class HolePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
+      ..color = Colors.black.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
 
     final path = Path()

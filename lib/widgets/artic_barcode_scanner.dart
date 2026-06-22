@@ -49,8 +49,6 @@ class _ArticBarcodeScannerState extends State<ArticBarcodeScanner> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -165,7 +163,6 @@ class _ScannerOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final width = constraints.maxWidth;
-      final height = constraints.maxHeight;
       final scanAreaSize = width * 0.7;
 
       return Stack(
@@ -173,7 +170,7 @@ class _ScannerOverlay extends StatelessWidget {
           // Background Dim layer with cut-out
           ColorFiltered(
             colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.6),
+              Colors.black.withValues(alpha: 0.6),
               BlendMode.srcOut,
             ),
             child: Stack(
@@ -346,7 +343,7 @@ class _ScanningLineState extends State<_ScanningLine> with SingleTickerProviderS
               color: const Color(0xFF0EA5E9),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0EA5E9).withOpacity(0.5),
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.5),
                   blurRadius: 4,
                   spreadRadius: 2,
                 ),

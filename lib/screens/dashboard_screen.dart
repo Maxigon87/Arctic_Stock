@@ -137,10 +137,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.4),
+        color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black12,
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black12,
           width: 1.2,
         ),
       ),
@@ -201,10 +201,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -283,13 +283,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
                 style: ElevatedButton.styleFrom(
                   foregroundColor: isDark ? Colors.white : Colors.black87,
-                  backgroundColor: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  backgroundColor: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                     side: BorderSide(
-                      color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                      color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                     ),
                   ),
                 ),
@@ -499,10 +499,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.55),
+            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.25),
+              color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.25),
               width: 1.2,
             ),
           ),
@@ -614,7 +614,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
                   toY: total == 0 ? 100 : null,
-                  color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                  color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02),
                 ),
               ),
             ],

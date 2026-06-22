@@ -199,8 +199,8 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
-    final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
-    final handleColor = isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFE2E8F0);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF1F5F9);
+    final handleColor = isDark ? Colors.white.withValues(alpha: 0.2) : const Color(0xFFE2E8F0);
 
     showModalBottomSheet(
       context: context,
@@ -244,7 +244,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                         children: [
                           CircleAvatar(
                             radius: 30,
-                            backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                            backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                             child: Text(
                               nombre.isNotEmpty ? nombre[0].toUpperCase() : 'C',
                               style: GoogleFonts.manrope(
@@ -374,7 +374,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderCol = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final borderCol = isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF1F5F9);
     final activeColor = enabled ? color : (isDark ? Colors.white38 : const Color(0xFF94A3B8));
 
     return InkWell(
@@ -434,7 +434,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
   Widget _buildClientDebtsWidget(int clienteId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderCol = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final borderCol = isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF1F5F9);
     final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
     final subTextCol = isDark ? Colors.white70 : const Color(0xFF64748B);
     final dateTextCol = isDark ? Colors.white54 : const Color(0xFF94A3B8);
@@ -556,7 +556,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E).withOpacity(0.1),
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -740,7 +740,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.01),
+              color: Colors.black.withValues(alpha: 0.01),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -750,7 +750,7 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.08),
+              backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.08),
               child: Text(
                 nombre.isNotEmpty ? nombre[0].toUpperCase() : 'C',
                 style: GoogleFonts.manrope(

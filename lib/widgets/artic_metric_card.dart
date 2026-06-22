@@ -37,24 +37,24 @@ class ArticMetricCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: isDark
-                ? Colors.white.withOpacity(0.04)
-                : Colors.white.withOpacity(0.55),
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.white.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.white.withOpacity(0.25),
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.25),
               width: 1.2,
             ),
             gradient: LinearGradient(
               colors: isDark
                   ? [
-                      Colors.white.withOpacity(0.02),
-                      accentColor.withOpacity(0.03),
+                      Colors.white.withValues(alpha: 0.02),
+                      accentColor.withValues(alpha: 0.03),
                     ]
                   : [
-                      Colors.white.withOpacity(0.4),
-                      accentColor.withOpacity(0.04),
+                      Colors.white.withValues(alpha: 0.4),
+                      accentColor.withValues(alpha: 0.04),
                     ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -74,7 +74,7 @@ class ArticMetricCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: accentColor.withOpacity(isDark ? 0.12 : 0.15),
+                              color: accentColor.withValues(alpha: isDark ? 0.12 : 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
@@ -159,8 +159,8 @@ class ArticMetricCard extends StatelessWidget {
                             show: true,
                             gradient: LinearGradient(
                               colors: [
-                                accentColor.withOpacity(0.2),
-                                accentColor.withOpacity(0.0),
+                                accentColor.withValues(alpha: 0.2),
+                                accentColor.withValues(alpha: 0.0),
                               ],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,

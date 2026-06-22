@@ -130,8 +130,8 @@ class _SnowPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.fill
       ..color = darkMode
-          ? Colors.white.withOpacity(0.55)
-          : Colors.white.withOpacity(0.85);
+          ? Colors.white.withValues(alpha: 0.55)
+          : Colors.white.withValues(alpha: 0.85);
 
     for (var f in flakes) {
       canvas.drawCircle(

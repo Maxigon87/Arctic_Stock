@@ -198,7 +198,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       children: [
                         CircleAvatar(
                           radius: 32,
-                          backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.15) : const Color(0xFF0284C7).withOpacity(0.1),
+                          backgroundColor: isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.15) : const Color(0xFF0284C7).withValues(alpha: 0.1),
                           child: Text(
                             cliente.nombre.isNotEmpty ? cliente.nombre[0].toUpperCase() : 'C',
                             style: TextStyle(
@@ -298,10 +298,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                      color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                       ),
                     ),
                     child: Row(
@@ -427,10 +427,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                              color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                                color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.04),
                               ),
                             ),
                             child: Row(
@@ -485,8 +485,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: isPaid
-                                                ? Colors.green.withOpacity(0.1)
-                                                : Colors.amber.withOpacity(0.1),
+                                                ? Colors.green.withValues(alpha: 0.1)
+                                                : Colors.amber.withValues(alpha: 0.1),
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           child: Text(
@@ -612,7 +612,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: activeColor.withOpacity(0.12),
+                color: activeColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: activeColor, size: 22),
@@ -742,12 +742,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                           elevation: 0,
                                           margin: const EdgeInsets.symmetric(vertical: 6),
                                           color: isDark
-                                              ? Colors.white.withOpacity(0.02)
-                                              : Colors.white.withOpacity(0.45),
+                                              ? Colors.white.withValues(alpha: 0.02)
+                                              : Colors.white.withValues(alpha: 0.45),
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(12),
                                             side: BorderSide(
-                                              color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+                                              color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
                                               width: 1,
                                             ),
                                           ),

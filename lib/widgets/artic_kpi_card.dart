@@ -22,7 +22,7 @@ class ArticKpiCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: accentColor.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Row(
         children: [
