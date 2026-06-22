@@ -355,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildWindowButtons(BuildContext context, bool isDark) {
     final iconColor = isDark ? Colors.white70 : const Color(0xFF0F172A);
-    final hoverColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+    final hoverColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -388,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen>
         _buildWindowButton(
           icon: Icons.close,
           color: iconColor,
-          hoverColor: isDark ? Colors.red.withOpacity(0.2) : Colors.red.withOpacity(0.1),
+          hoverColor: isDark ? Colors.red.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.1),
           hoverIconColor: Colors.redAccent,
           onTap: () async {
             final salir = await _mostrarDialogoConfirmacion(context);
@@ -728,7 +728,7 @@ class _UserBadge extends StatelessWidget {
               final avatarBase64 = DBService().activeUserAvatar;
               return CircleAvatar(
                 radius: 14,
-                backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                 backgroundImage: (avatarBase64 != null && avatarBase64.isNotEmpty)
                     ? MemoryImage(base64Decode(avatarBase64))
                     : null,

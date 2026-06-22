@@ -185,7 +185,7 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.01),
+              color: Colors.black.withValues(alpha: 0.01),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -256,7 +256,7 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: methodColor.withOpacity(0.1),
+                    color: methodColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(

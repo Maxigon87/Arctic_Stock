@@ -667,11 +667,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }) {
     return Card(
       elevation: 0,
-      color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.45),
+      color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.45),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
           width: 1.2,
         ),
       ),
@@ -685,7 +685,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
+                    color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: accentColor, size: 22),
@@ -735,7 +735,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: accentColor.withOpacity(0.08),
+                        color: accentColor.withValues(alpha: 0.08),
                       ),
                     ),
                   ],
@@ -764,7 +764,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
-        side: BorderSide(color: color.withOpacity(0.4), width: 1),
+        side: BorderSide(color: color.withValues(alpha: 0.4), width: 1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
@@ -881,7 +881,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       style: OutlinedButton.styleFrom(
         foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.12) : Colors.black12,
+          color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black12,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1056,12 +1056,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                 elevation: 0,
                                 margin: const EdgeInsets.symmetric(vertical: 4),
                                 color: isDark
-                                    ? Colors.white.withOpacity(0.02)
-                                    : Colors.white.withOpacity(0.45),
+                                    ? Colors.white.withValues(alpha: 0.02)
+                                    : Colors.white.withValues(alpha: 0.45),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   side: BorderSide(
-                                    color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+                                    color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
                                     width: 1,
                                   ),
                                 ),
@@ -1069,7 +1069,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                   leading: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
+                                      color: Colors.green.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: const Icon(Icons.add_shopping_cart, color: Colors.green, size: 18),

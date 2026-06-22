@@ -211,7 +211,7 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
               border: Border.all(color: borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.01),
+                  color: Colors.black.withValues(alpha: 0.01),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -225,7 +225,7 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                        backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                         backgroundImage: (avatarBase64 != null && avatarBase64.isNotEmpty)
                             ? MemoryImage(base64Decode(avatarBase64))
                             : null,
@@ -374,7 +374,7 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
+            color: color.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: color, size: 22),

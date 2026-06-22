@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class ArticEmptyState extends StatelessWidget {
@@ -39,8 +38,8 @@ class ArticEmptyState extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        accentColor.withOpacity(isDark ? 0.12 : 0.2),
-                        accentColor.withOpacity(0.0),
+                        accentColor.withValues(alpha: isDark ? 0.12 : 0.2),
+                        accentColor.withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -48,15 +47,15 @@ class ArticEmptyState extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.5),
+                    color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.5),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: accentColor.withOpacity(0.25),
+                      color: accentColor.withValues(alpha: 0.25),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: accentColor.withOpacity(isDark ? 0.04 : 0.08),
+                        color: accentColor.withValues(alpha: isDark ? 0.04 : 0.08),
                         blurRadius: 12,
                       ),
                     ],
@@ -102,7 +101,7 @@ class ArticEmptyState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: accentColor.withOpacity(isDark ? 0.2 : 0.15),
+                      color: accentColor.withValues(alpha: isDark ? 0.2 : 0.15),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),

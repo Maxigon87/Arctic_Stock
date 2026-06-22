@@ -29,7 +29,7 @@ class SnowPainter extends CustomPainter {
     final paint = Paint()..color = Colors.white;
     for (var p in particles) {
       if (p.opacity <= 0 || p.y < 0) continue;
-      paint.color = Colors.white.withOpacity(p.opacity);
+      paint.color = Colors.white.withValues(alpha: p.opacity);
       canvas.drawCircle(
         Offset(p.x * size.width, p.y),
         p.size,
@@ -135,7 +135,7 @@ class ArticDialogCard extends StatelessWidget {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 24,
               offset: const Offset(0, 10),
             ),
@@ -149,11 +149,11 @@ class ArticDialogCard extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: isDark
-                    ? const Color(0xFF1E293B).withOpacity(0.9)
-                    : Colors.white.withOpacity(0.9),
+                    ? const Color(0xFF1E293B).withValues(alpha: 0.9)
+                    : Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
                   width: 1.2,
                 ),
               ),

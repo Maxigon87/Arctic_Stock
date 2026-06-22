@@ -29,10 +29,10 @@ class ArticSidebar extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       width: isCompact ? 76 : 260,
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.02) : Colors.white.withOpacity(0.45),
+        color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.45),
         border: Border(
           right: BorderSide(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black12,
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black12,
             width: 1.0,
           ),
         ),
@@ -232,7 +232,7 @@ class ArticSidebar extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.3),
+                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -262,7 +262,7 @@ class ArticSidebar extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.25),
+              color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withValues(alpha: 0.25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -305,7 +305,7 @@ class ArticSidebar extends StatelessWidget {
   Widget _buildQuickInquiryButton(BuildContext context, Color accentColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final buttonColors = isDark
-        ? [accentColor, accentColor.withOpacity(0.8)]
+        ? [accentColor, accentColor.withValues(alpha: 0.8)]
         : [const Color(0xFF0EA5E9), const Color(0xFF0284C7)];
 
     if (isCompact) {
@@ -329,7 +329,7 @@ class ArticSidebar extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.3),
+                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -359,7 +359,7 @@ class ArticSidebar extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.25),
+              color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withValues(alpha: 0.25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -479,11 +479,11 @@ class ArticSidebar extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05))
+                      ? (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05))
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   border: isSelected
-                      ? Border.all(color: accentColor.withOpacity(0.3), width: 1.0)
+                      ? Border.all(color: accentColor.withValues(alpha: 0.3), width: 1.0)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -504,7 +504,7 @@ class ArticSidebar extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
             color: isSelected
-                ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04))
+                ? (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border(

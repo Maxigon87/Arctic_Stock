@@ -22,7 +22,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
   Color get _cardColor => _isDark ? const Color(0xFF1E293B) : Colors.white;
   Color get _textColor => _isDark ? Colors.white : const Color(0xFF0F172A);
   Color get _subtitleColor => _isDark ? Colors.white70 : const Color(0xFF64748B);
-  Color get _borderColor => _isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFF1F5F9);
+  Color get _borderColor => _isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFF1F5F9);
   Color get _inputFillColor => _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
 
   // Step state
@@ -319,7 +319,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF0EA5E9).withOpacity(0.1) : Colors.transparent,
+            color: active ? const Color(0xFF0EA5E9).withValues(alpha: 0.1) : Colors.transparent,
             border: Border.all(color: color, width: 2),
             shape: BoxShape.circle,
           ),
@@ -606,7 +606,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                       ),
                       tileColor: _cardColor,
                       leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.08),
+                        backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.08),
                         child: Text(
                           c['nombre'].toString().isNotEmpty ? c['nombre'].toString()[0].toUpperCase() : 'C',
                           style: GoogleFonts.manrope(color: const Color(0xFF0EA5E9), fontWeight: FontWeight.bold),
@@ -667,7 +667,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               const SizedBox(width: 8),
               IconButton(
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                  backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.all(12),
                 ),
@@ -742,7 +742,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                     else
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                          backgroundColor: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                           foregroundColor: const Color(0xFF0EA5E9),
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1010,7 +1010,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
         color: _cardColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),

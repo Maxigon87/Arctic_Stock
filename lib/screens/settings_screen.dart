@@ -92,7 +92,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 child: CircleAvatar(
                   radius: 36,
-                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withOpacity(0.1),
+                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withValues(alpha: 0.1),
                   backgroundImage: (avatarBase64 != null && avatarBase64!.isNotEmpty)
                       ? MemoryImage(base64Decode(avatarBase64!))
                       : null,
@@ -176,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 child: CircleAvatar(
                   radius: 36,
-                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withOpacity(0.1),
+                  backgroundColor: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)).withValues(alpha: 0.1),
                   backgroundImage: (avatarBase64 != null && avatarBase64!.isNotEmpty)
                       ? MemoryImage(base64Decode(avatarBase64!))
                       : null,
@@ -269,10 +269,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                        color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                         ),
                       ),
                       child: Column(
@@ -303,7 +303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     }
                                     return Icon(Icons.person, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7));
                                   })(),
-                                  backgroundColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+                                  backgroundColor: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
                                   onPressed: () => _renameUser(u),
                                   onDeleted: () => _deleteUser(u['id'] as int),
                                   deleteIcon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
@@ -312,8 +312,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 label: const Text('Agregar usuario'),
                                 labelStyle: TextStyle(color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7), fontWeight: FontWeight.bold),
                                 avatar: Icon(Icons.person_add_alt_1, size: 16, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
-                                backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
-                                side: BorderSide(color: isDark ? const Color(0xFF22D3EE).withOpacity(0.3) : const Color(0xFF0284C7).withOpacity(0.3)),
+                                backgroundColor: isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.1) : const Color(0xFF0284C7).withValues(alpha: 0.1),
+                                side: BorderSide(color: isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.3) : const Color(0xFF0284C7).withValues(alpha: 0.3)),
                                 onPressed: _addUser,
                               ),
                             ],
@@ -327,10 +327,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                        color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                         ),
                       ),
                       child: Column(
@@ -349,7 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               style: ButtonStyle(
                                 backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
                                   if (states.contains(WidgetState.selected)) {
-                                    return isDark ? const Color(0xFF22D3EE).withOpacity(0.2) : const Color(0xFF0284C7).withOpacity(0.1);
+                                    return isDark ? const Color(0xFF22D3EE).withValues(alpha: 0.2) : const Color(0xFF0284C7).withValues(alpha: 0.1);
                                   }
                                   return Colors.transparent;
                                 }),
@@ -390,10 +390,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                        color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                         ),
                       ),
                       child: Column(
@@ -574,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildDivider(bool isDark) {
     return Divider(
       height: 1,
-      color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
       indent: 16,
       endIndent: 16,
     );

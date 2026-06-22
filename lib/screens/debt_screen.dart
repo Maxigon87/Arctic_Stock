@@ -223,9 +223,9 @@ class _DebtScreenState extends State<DebtScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Text(
         label,
@@ -507,10 +507,10 @@ class _DebtScreenState extends State<DebtScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                            color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                           ),
                         ),
                         child: DropdownButton<String>(
@@ -588,23 +588,23 @@ class _DebtScreenState extends State<DebtScreen> {
                               BorderSide borderSide;
 
                               if (isPagada) {
-                                cardColor = Colors.green.withOpacity(0.08);
+                                cardColor = Colors.green.withValues(alpha: 0.08);
                                 borderSide = BorderSide(
-                                  color: Colors.green.withOpacity(isDark ? 0.3 : 0.4),
+                                  color: Colors.green.withValues(alpha: isDark ? 0.3 : 0.4),
                                   width: 1,
                                 );
                               } else if (highlight) {
-                                cardColor = Colors.red.withOpacity(0.08);
+                                cardColor = Colors.red.withValues(alpha: 0.08);
                                 borderSide = BorderSide(
-                                  color: Colors.red.withOpacity(isDark ? 0.3 : 0.4),
+                                  color: Colors.red.withValues(alpha: isDark ? 0.3 : 0.4),
                                   width: 1,
                                 );
                               } else {
                                 cardColor = isDark
-                                    ? Colors.white.withOpacity(0.02)
-                                    : Colors.white.withOpacity(0.45);
+                                    ? Colors.white.withValues(alpha: 0.02)
+                                    : Colors.white.withValues(alpha: 0.45);
                                 borderSide = BorderSide(
-                                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+                                  color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
                                   width: 1,
                                 );
                               }

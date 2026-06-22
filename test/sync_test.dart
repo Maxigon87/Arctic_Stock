@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import '../lib/services/db_service.dart';
+import 'package:artic_stock/services/db_service.dart';
 
 void main() {
   setUpAll(() {

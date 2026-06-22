@@ -83,9 +83,9 @@ class SalesScreenState extends State<SalesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Text(
         label,
@@ -1250,10 +1250,10 @@ class SalesScreenState extends State<SalesScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -1280,10 +1280,10 @@ class SalesScreenState extends State<SalesScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                  color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -1309,7 +1309,7 @@ class SalesScreenState extends State<SalesScreen> {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                side: BorderSide(color: isDark ? Colors.white.withOpacity(0.15) : Colors.black12),
+                side: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
@@ -1385,10 +1385,10 @@ class SalesScreenState extends State<SalesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.6),
+                color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12,
+                  color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
                 ),
               ),
               child: DropdownButtonHideUnderline(
@@ -1422,7 +1422,7 @@ class SalesScreenState extends State<SalesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.03),
+        color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.03),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(
@@ -1448,7 +1448,7 @@ class SalesScreenState extends State<SalesScreen> {
 
     Color rowColor = Colors.transparent;
     if (!isEven) {
-      rowColor = isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01);
+      rowColor = isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.01);
     }
 
     final isPaid = !isFiado;
@@ -1459,7 +1459,7 @@ class SalesScreenState extends State<SalesScreen> {
         color: rowColor,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+            color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
           ),
         ),
       ),
@@ -1488,7 +1488,7 @@ class SalesScreenState extends State<SalesScreen> {
               children: [
                 CircleAvatar(
                   radius: 10,
-                  backgroundColor: isDark ? const Color(0xFF0284C7).withOpacity(0.2) : const Color(0xFF0284C7).withOpacity(0.1),
+                  backgroundColor: isDark ? const Color(0xFF0284C7).withValues(alpha: 0.2) : const Color(0xFF0284C7).withValues(alpha: 0.1),
                   child: Text(
                     cliente[0].toUpperCase(),
                     style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7)),
@@ -1535,8 +1535,8 @@ class SalesScreenState extends State<SalesScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: isPaid
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.amber.withOpacity(0.1),
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.amber.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
