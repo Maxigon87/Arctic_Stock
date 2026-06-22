@@ -513,9 +513,10 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
 
   Widget _buildClienteStep() {
     final filtered = _clientes.where((c) {
-      final name = (c['nombre'] as String? ?? '').toLowerCase();
-      final dni = (c['dni'] as String? ?? '').toLowerCase();
-      return name.contains(_clienteSearch.toLowerCase()) || dni.contains(_clienteSearch.toLowerCase());
+      final name = _dbService.normalizeString(c['nombre'] as String? ?? '');
+      final dni = _dbService.normalizeString(c['dni'] as String? ?? '');
+      final search = _dbService.normalizeString(_clienteSearch);
+      return name.contains(search) || dni.contains(search);
     }).toList();
 
     return Column(
@@ -635,10 +636,10 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
 
   Widget _buildProductosStep() {
     final filtered = _productos.where((p) {
-      final name = (p['nombre'] as String? ?? '').toLowerCase();
-      final code = (p['codigo'] as String? ?? '').toLowerCase();
-      final barcode = (p['codigoBarras'] as String? ?? '').toLowerCase();
-      final search = _productoSearch.toLowerCase().trim();
+      final name = _dbService.normalizeString(p['nombre'] as String? ?? '');
+      final code = _dbService.normalizeString(p['codigo'] as String? ?? '');
+      final barcode = _dbService.normalizeString(p['codigoBarras'] as String? ?? '');
+      final search = _dbService.normalizeString(_productoSearch.trim());
       return name.contains(search) || code.contains(search) || barcode.contains(search);
     }).toList();
 

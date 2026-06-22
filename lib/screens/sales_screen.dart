@@ -766,7 +766,7 @@ class SalesScreenState extends State<SalesScreen> {
     if (selectedPaymentButton == 'Tarjeta') {
       selectedPaymentButton = 'Débito';
     } else if (selectedPaymentButton == 'Fiado') {
-      selectedPaymentButton = 'Cuenta Corriente';
+      selectedPaymentButton = 'Fiado';
     }
 
     showArticDialog(
@@ -917,15 +917,15 @@ class SalesScreenState extends State<SalesScreen> {
                                             ),
                                           ),
                                           onChanged: (val) {
-                                            final query = val.trim().toLowerCase();
+                                            final query = dbService.normalizeString(val.trim());
                                             setLocalState(() {
                                               if (query.isEmpty) {
                                                 searchResults = [];
                                               } else {
                                                 searchResults = activeProducts.where((p) {
-                                                  final nombre = (p['nombre']?.toString() ?? '').toLowerCase();
-                                                  final codigo = (p['codigo']?.toString() ?? '').toLowerCase();
-                                                  final barcode = (p['codigoBarras']?.toString() ?? '').toLowerCase();
+                                                  final nombre = dbService.normalizeString(p['nombre']?.toString() ?? '');
+                                                  final codigo = dbService.normalizeString(p['codigo']?.toString() ?? '');
+                                                  final barcode = dbService.normalizeString(p['codigoBarras']?.toString() ?? '');
                                                   return nombre.contains(query) || codigo.contains(query) || barcode.contains(query);
                                                 }).toList();
                                               }
@@ -1518,21 +1518,30 @@ class SalesScreenState extends State<SalesScreen> {
                                     Expanded(
                                       child: _buildPaymentButton(
                                         context,
-                                        'Cuenta Corriente',
+                                        'Fiado',
                                         Icons.book_outlined,
-                                        selectedPaymentButton == 'Cuenta Corriente',
-                                        () {
-                                          setLocalState(() {
-                                            metodoSeleccionado = 'Fiado';
-                                            selectedPaymentButton = 'Cuenta Corriente';
-                                          });
-                                        },
+                                        selectedPaymentButton == 'Fiado',
+                                        _clienteSeleccionado == null
+                                            ? null
+                                            : () {
+                                                setLocalState(() {
+                                                  metodoSeleccionado = 'Fiado';
+                                                  selectedPaymentButton = 'Fiado';
+                                                });
+                                              },
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     const Expanded(child: SizedBox()),
                                   ],
                                 ),
+                                if (_clienteSeleccionado == null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '💡 Para habilitar "Fiado", debes seleccionar un cliente.',
+                                    style: TextStyle(fontSize: 11, color: subtextColor, fontStyle: FontStyle.italic),
+                                  ),
+                                ],
                                 const SizedBox(height: 20),
 
                                 // --- DISCOUNT SECTION ---
@@ -1792,18 +1801,23 @@ class SalesScreenState extends State<SalesScreen> {
     String label,
     IconData icon,
     bool isSelected,
-    VoidCallback onTap,
+    VoidCallback? onTap,
   ) {
+    final isDisabled = onTap == null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeBg = isSelected
         ? (isDark ? const Color(0xFF0284C7).withOpacity(0.25) : const Color(0xFF0284C7).withOpacity(0.08))
         : Colors.transparent;
-    final activeBorder = isSelected
-        ? (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
-        : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06));
-    final activeText = isSelected
-        ? (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
-        : (isDark ? Colors.white70 : Colors.black87);
+    final activeBorder = isDisabled
+        ? (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03))
+        : (isSelected
+            ? (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
+            : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06)));
+    final activeText = isDisabled
+        ? (isDark ? Colors.white30 : Colors.black26)
+        : (isSelected
+            ? (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
+            : (isDark ? Colors.white70 : Colors.black87));
 
     return InkWell(
       onTap: onTap,

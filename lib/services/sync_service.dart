@@ -307,6 +307,16 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
               await _updateLocalVentaAndItems(db, localVentaId, updateMap);
             } else {
               await db.update(table, updateMap, where: 'firebase_id = ?', whereArgs: [docId]);
+              if (table == 'usuarios') {
+                final localId = localRow['id'] as int;
+                if (localId == _dbService.activeUserId) {
+                  _dbService.setActiveUser(
+                    id: localId,
+                    nombre: updateMap['nombre'] as String?,
+                    avatar: updateMap['avatar'] as String?,
+                  );
+                }
+              }
             }
           }
         } else {
@@ -356,6 +366,14 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
                 
                 await db.update('usuarios', updateMap, where: 'id = ?', whereArgs: [localId]);
                 conflictHandled = true;
+
+                if (localId == _dbService.activeUserId) {
+                  _dbService.setActiveUser(
+                    id: localId,
+                    nombre: updateMap['nombre'] as String?,
+                    avatar: updateMap['avatar'] as String?,
+                  );
+                }
               }
             }
           }
@@ -368,7 +386,16 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
             if (table == 'ventas') {
               await _insertLocalVentaAndItems(db, insertMap);
             } else {
-              await db.insert(table, insertMap);
+              final insertedId = await db.insert(table, insertMap);
+              if (table == 'usuarios') {
+                if (insertedId == _dbService.activeUserId || (insertMap['nombre'] == _dbService.activeUserName)) {
+                  _dbService.setActiveUser(
+                    id: insertedId,
+                    nombre: insertMap['nombre'] as String?,
+                    avatar: insertMap['avatar'] as String?,
+                  );
+                }
+              }
             }
           }
         }

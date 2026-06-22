@@ -716,9 +716,10 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _clientes.where((c) {
-      final name = (c['nombre'] as String? ?? '').toLowerCase();
-      final dni = (c['dni'] as String? ?? '').toLowerCase();
-      return name.contains(_searchQuery.toLowerCase()) || dni.contains(_searchQuery.toLowerCase());
+      final name = _dbService.normalizeString(c['nombre'] as String? ?? '');
+      final dni = _dbService.normalizeString(c['dni'] as String? ?? '');
+      final query = _dbService.normalizeString(_searchQuery.trim());
+      return name.contains(query) || dni.contains(query);
     }).toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

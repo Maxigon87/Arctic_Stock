@@ -6,6 +6,7 @@ import '../utils/currency_formatter.dart';
 import '../widgets/artic_background.dart';
 import '../widgets/artic_container.dart';
 import '../widgets/artic_dialog.dart';
+import '../widgets/artic_barcode_scanner.dart';
 
 class QuickInquiryScreen extends StatefulWidget {
   final bool selectMode; // If true, allows returning the product to a sale flow
@@ -49,7 +50,8 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
         .replaceAll('ó', 'o')
         .replaceAll('ú', 'u')
         .replaceAll('ñ', 'n')
-        .replaceAll('ü', 'u');
+        .replaceAll('ü', 'u')
+        .replaceAll(',', '');
   }
 
   Future<void> _performSearch(String query) async {
@@ -149,29 +151,57 @@ class _QuickInquiryScreenState extends State<QuickInquiryScreen> {
                           color: textColor,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _searchCtrl,
-                        focusNode: _focusNode,
-                        autofocus: true,
-                        style: TextStyle(color: textColor),
-                        decoration: InputDecoration(
-                          hintText: 'Ingresa nombre, código o escanea código de barras...',
-                          hintStyle: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
-                          prefixIcon: Icon(Icons.search, color: isDark ? Colors.white70 : Colors.black54),
-                          suffixIcon: _searchCtrl.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchCtrl.clear();
-                                    _performSearch('');
-                                    _focusNode.requestFocus();
-                                  },
-                                )
-                              : null,
-                        ),
-                        onChanged: (val) => _performSearch(val),
-                        onSubmitted: (val) => _performSearch(val),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchCtrl,
+                              focusNode: _focusNode,
+                              autofocus: true,
+                              style: TextStyle(color: textColor),
+                              decoration: InputDecoration(
+                                hintText: 'Ingresa nombre, código o escanea código de barras...',
+                                hintStyle: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
+                                prefixIcon: Icon(Icons.search, color: isDark ? Colors.white70 : Colors.black54),
+                                suffixIcon: _searchCtrl.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _searchCtrl.clear();
+                                          _performSearch('');
+                                          _focusNode.requestFocus();
+                                        },
+                                      )
+                                    : null,
+                              ),
+                              onChanged: (val) => _performSearch(val),
+                              onSubmitted: (val) => _performSearch(val),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.all(12),
+                            ),
+                            icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9), size: 20),
+                            onPressed: () async {
+                              final barcodeResult = await Navigator.push<String?>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ArticBarcodeScanner(
+                                    title: 'Escanear Producto',
+                                  ),
+                                ),
+                              );
+                              if (barcodeResult != null && barcodeResult.isNotEmpty) {
+                                _searchCtrl.text = barcodeResult;
+                                _performSearch(barcodeResult);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Expanded(

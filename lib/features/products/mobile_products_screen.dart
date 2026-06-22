@@ -58,11 +58,15 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _productos.where((p) {
-      final name = (p['nombre'] as String? ?? '').toLowerCase();
-      final code = (p['codigo'] as String? ?? '').toLowerCase();
-      final desc = (p['descripcion'] as String? ?? '').toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      return name.contains(query) || code.contains(query) || desc.contains(query);
+      final name = _dbService.normalizeString(p['nombre'] as String? ?? '');
+      final code = _dbService.normalizeString(p['codigo'] as String? ?? '');
+      final barcode = _dbService.normalizeString(p['codigoBarras'] as String? ?? '');
+      final desc = _dbService.normalizeString(p['descripcion'] as String? ?? '');
+      final query = _dbService.normalizeString(_searchQuery.trim());
+      return name.contains(query) ||
+          code.contains(query) ||
+          barcode.contains(query) ||
+          desc.contains(query);
     }).toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

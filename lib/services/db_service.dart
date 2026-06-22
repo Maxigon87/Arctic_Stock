@@ -1435,12 +1435,12 @@ class DBService {
   ''', args);
 
     if (productoQuery != null && productoQuery.trim().isNotEmpty) {
-      final normalizedSearch = _normalizeString(productoQuery.trim());
+      final normalizedSearch = normalizeString(productoQuery.trim());
       return results.where((v) {
-        final nombres = _normalizeString(v['all_nombres'] as String? ?? '');
-        final desc = _normalizeString(v['all_descripciones'] as String? ?? '');
-        final codigos = _normalizeString(v['all_codigos'] as String? ?? '');
-        final codigoBarras = _normalizeString(v['all_codigoBarras'] as String? ?? '');
+        final nombres = normalizeString(v['all_nombres'] as String? ?? '');
+        final desc = normalizeString(v['all_descripciones'] as String? ?? '');
+        final codigos = normalizeString(v['all_codigos'] as String? ?? '');
+        final codigoBarras = normalizeString(v['all_codigoBarras'] as String? ?? '');
 
         return nombres.contains(normalizedSearch) ||
             desc.contains(normalizedSearch) ||
@@ -1728,7 +1728,7 @@ class DBService {
     return await db.insert('categorias', _withSyncMeta({'nombre': nombre}, forceDirty: false));
   }
 
-  String _normalizeString(String str) {
+  String normalizeString(String str) {
     return str
         .toLowerCase()
         .replaceAll('á', 'a')
@@ -1737,7 +1737,8 @@ class DBService {
         .replaceAll('ó', 'o')
         .replaceAll('ú', 'u')
         .replaceAll('ñ', 'n')
-        .replaceAll('ü', 'u');
+        .replaceAll('ü', 'u')
+        .replaceAll(',', '');
   }
 
   Future<List<Map<String, dynamic>>> getProductos({
@@ -1788,12 +1789,12 @@ class DBService {
     ''', args);
 
     if (search != null && search.trim().isNotEmpty) {
-      final normalizedSearch = _normalizeString(search.trim());
+      final normalizedSearch = normalizeString(search.trim());
       return results.where((p) {
-        final nombre = _normalizeString(p['nombre'] as String? ?? '');
-        final desc = _normalizeString(p['descripcion'] as String? ?? '');
-        final codigo = _normalizeString(p['codigo'] as String? ?? '');
-        final barcode = _normalizeString(p['codigoBarras'] as String? ?? '');
+        final nombre = normalizeString(p['nombre'] as String? ?? '');
+        final desc = normalizeString(p['descripcion'] as String? ?? '');
+        final codigo = normalizeString(p['codigo'] as String? ?? '');
+        final barcode = normalizeString(p['codigoBarras'] as String? ?? '');
         return nombre.contains(normalizedSearch) ||
             desc.contains(normalizedSearch) ||
             codigo.contains(normalizedSearch) ||
