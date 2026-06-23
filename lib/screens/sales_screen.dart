@@ -24,7 +24,6 @@ import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/artic_dialog.dart';
 import '../widgets/artic_barcode_scanner.dart';
-import '../widgets/artic_cached_image.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -1746,20 +1745,14 @@ class SalesScreenState extends State<SalesScreen> {
                                                     flex: 4,
                                                     child: Row(
                                                       children: [
-                                                        ArticCachedImage(
-                                                          imageUrl: p['imageUrl'],
+                                                        Container(
                                                           width: 40,
                                                           height: 40,
-                                                          borderRadius: 8,
-                                                          placeholder: Container(
-                                                            width: 40,
-                                                            height: 40,
-                                                            decoration: BoxDecoration(
-                                                              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-                                                              borderRadius: BorderRadius.circular(8),
-                                                            ),
-                                                            child: Icon(Icons.inventory_2_outlined, color: isDark ? Colors.white60 : Colors.black45, size: 20),
+                                                          decoration: BoxDecoration(
+                                                            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                                                            borderRadius: BorderRadius.circular(8),
                                                           ),
+                                                          child: Icon(Icons.inventory_2_outlined, color: isDark ? Colors.white60 : Colors.black45, size: 20),
                                                         ),
                                                         const SizedBox(width: 10),
                                                         Expanded(

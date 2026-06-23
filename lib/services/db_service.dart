@@ -1794,7 +1794,7 @@ class DBService {
 
     final results = await db.rawQuery('''
       SELECT p.id, p.codigo, p.codigoBarras, p.nombre, p.descripcion, p.precio_venta,
-             p.costo_compra, p.stock, p.categoria_id, p.activo,
+             p.costo_compra, p.stock, p.categoria_id, p.activo, p.imageUrl,
              c.nombre AS categoria_nombre,
              COALESCE(v_pop.vendidos_count, 0) AS vendidos_count
       FROM productos p

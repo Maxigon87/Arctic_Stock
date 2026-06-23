@@ -5,7 +5,6 @@ import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../widgets/artic_dialog.dart';
 import '../../../widgets/artic_barcode_scanner.dart';
-import '../../../widgets/artic_cached_image.dart';
 
 class MobileProductsScreen extends StatefulWidget {
   const MobileProductsScreen({super.key});
@@ -621,20 +620,14 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
         ),
         child: Row(
           children: [
-            ArticCachedImage(
-              imageUrl: prod['imageUrl'],
+            Container(
               width: 48,
               height: 48,
-              borderRadius: 12,
-              placeholder: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: innerBgColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 24),
+              decoration: BoxDecoration(
+                color: innerBgColor,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 24),
             ),
             const SizedBox(width: 12),
             Expanded(

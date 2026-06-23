@@ -717,32 +717,37 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 ),
                 child: Row(
                   children: [
-                    ArticCachedImage(
-                      imageUrl: p['imageUrl'],
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      placeholder: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.shopping_bag_outlined, color: const Color(0xFF0EA5E9), size: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(p['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textColor)),
-                          const SizedBox(height: 2),
-                          Text('Stock: $stock | ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 12, color: _subtitleColor)),
-                        ],
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _mostrarDetallesProducto(p),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.shopping_bag_outlined, color: const Color(0xFF0EA5E9), size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(p['nombre'] as String? ?? '', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textColor)),
+                                  const SizedBox(height: 2),
+                                  Text('Stock: $stock | ${formatCurrency(price)}', style: GoogleFonts.manrope(fontSize: 12, color: _subtitleColor)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     if (cartQty > 0)
                       Row(
                         children: [
@@ -774,6 +779,172 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 ),
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _mostrarDetallesProducto(Map<String, dynamic> p) {
+    final precio = (p['precio_venta'] as num?)?.toDouble() ?? 0.0;
+    final stock = (p['stock'] as num?)?.toInt() ?? 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+
+    showArticDialog(
+      context: context,
+      builder: (ctx) {
+        return ArticDialogCard(
+          title: "Detalles del Producto",
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                "Cerrar",
+                style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : const Color(0xFF0EA5E9)),
+              ),
+            ),
+          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    ArticCachedImage(
+                      imageUrl: p['imageUrl'],
+                      width: 150,
+                      height: 150,
+                      borderRadius: 16,
+                      hasShadow: true,
+                      placeholder: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE2E8F0),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Color(0xFF0EA5E9),
+                            size: 60,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      p['nombre'] ?? '',
+                      style: GoogleFonts.manrope(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Stock Actual",
+                            style: GoogleFonts.manrope(fontSize: 10, color: subtitleColor),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$stock",
+                            style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: stock > 0 ? const Color(0xFF22C55E) : const Color(0xFFEF4444)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Precio Venta",
+                            style: GoogleFonts.manrope(fontSize: 10, color: subtitleColor),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            formatCurrency(precio),
+                            style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildInfoItem(Icons.tag, "Código Interno", (p['codigo'] ?? '').toString().isNotEmpty ? p['codigo'].toString() : "No registrado", isDark),
+                    Divider(height: 16, color: borderColor),
+                    _buildInfoItem(Icons.qr_code, "Código de Barras", (p['codigoBarras'] ?? '').toString().isNotEmpty ? p['codigoBarras'].toString() : "No registrado", isDark),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String value, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF0EA5E9)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: GoogleFonts.manrope(fontSize: 10, color: isDark ? Colors.white60 : Colors.black54)),
+              Text(value, style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            ],
           ),
         ),
       ],

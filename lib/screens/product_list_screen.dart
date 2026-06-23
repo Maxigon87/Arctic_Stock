@@ -375,21 +375,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                   children: [
                                                     Row(
                                                       children: [
-                                                        ArticCachedImage(
-                                                          imageUrl: p['imageUrl'],
-                                                          width: 32,
-                                                          height: 32,
-                                                          borderRadius: 8,
-                                                          placeholder: CircleAvatar(
-                                                            radius: 16,
-                                                            backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
-                                                            child: Text(
-                                                              nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
-                                                              style: TextStyle(
-                                                                fontWeight: FontWeight.bold,
-                                                                color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                                                                fontSize: 12,
-                                                              ),
+                                                        CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                                                          child: Text(
+                                                            nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
+                                                            style: TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                              color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                                              fontSize: 12,
                                                             ),
                                                           ),
                                                         ),
@@ -443,6 +437,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                               else
                                                                 const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
                                                             ],
+                                                          )
+                                                        else
+                                                          IconButton(
+                                                            visualDensity: VisualDensity.compact,
+                                                            padding: EdgeInsets.zero,
+                                                            constraints: const BoxConstraints(),
+                                                            icon: Icon(Icons.info_outline, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+                                                            onPressed: () => _mostrarDetallesProducto(p),
                                                           ),
                                                       ],
                                                     ),
@@ -597,13 +599,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   children: [
                     ArticCachedImage(
                       imageUrl: p['imageUrl'],
-                      width: 150,
-                      height: 150,
+                      width: 180,
+                      height: 180,
                       borderRadius: 16,
                       hasShadow: true,
                       placeholder: Container(
-                        width: 150,
-                        height: 150,
+                        width: 180,
+                        height: 180,
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(16),
@@ -616,7 +618,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           child: Icon(
                             Icons.shopping_bag_outlined,
                             color: Color(0xFF0EA5E9),
-                            size: 64,
+                            size: 72,
                           ),
                         ),
                       ),
