@@ -14,6 +14,8 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:file_picker/file_picker.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/db_service.dart';
 
 import '../services/backup_service.dart';
@@ -52,6 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   ThemeMode _mode = ThemeMode.system;
 
+  String _tipoTicket = 'ticket_58mm';
+
 
 
   @override
@@ -71,6 +75,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _users = await DBService().getUsuarios();
 
     _mode = ThemeController.instance.mode.value;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    _tipoTicket = prefs.getString('tipo_ticket') ?? 'ticket_58mm';
 
     if (mounted) setState(() {});
 
@@ -1074,6 +1082,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                       ),
 
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    _buildSectionHeader("Configuración de Tickets", Icons.print, isDark),
+
+                    const SizedBox(height: 12),
+
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Selecciona el formato predeterminado para imprimir y compartir comprobantes de venta.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              unselectedWidgetColor: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                            child: Column(
+                              children: [
+                                RadioListTile<String>(
+                                  value: 'pdf_normal',
+                                  groupValue: _tipoTicket,
+                                  activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                  title: Text(
+                                    'PDF normal (A4)',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Formato de página completo optimizado para PDF standard o impresión de oficina.',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  onChanged: (val) async {
+                                    if (val != null) {
+                                      setState(() => _tipoTicket = val);
+                                      final prefs = await SharedPreferences.getInstance();
+                                      await prefs.setString('tipo_ticket', val);
+                                    }
+                                  },
+                                ),
+                                Divider(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                                RadioListTile<String>(
+                                  value: 'ticket_58mm',
+                                  groupValue: _tipoTicket,
+                                  activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                  title: Text(
+                                    'Ticket térmico 58 mm',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Diseño vertical compacto optimizado para impresoras térmicas de 58 mm.',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  onChanged: (val) async {
+                                    if (val != null) {
+                                      setState(() => _tipoTicket = val);
+                                      final prefs = await SharedPreferences.getInstance();
+                                      await prefs.setString('tipo_ticket', val);
+                                    }
+                                  },
+                                ),
+                                Divider(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                                RadioListTile<String>(
+                                  value: 'ticket_80mm',
+                                  groupValue: _tipoTicket,
+                                  activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                  title: Text(
+                                    'Ticket térmico 80 mm',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Diseño vertical optimizado para impresoras térmicas de 80 mm.',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  onChanged: (val) async {
+                                    if (val != null) {
+                                      setState(() => _tipoTicket = val);
+                                      final prefs = await SharedPreferences.getInstance();
+                                      await prefs.setString('tipo_ticket', val);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 28),

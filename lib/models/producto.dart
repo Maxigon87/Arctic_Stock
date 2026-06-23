@@ -7,6 +7,7 @@ class Producto {
   final double costoCompra; // NUEVO
   final int stock; // NUEVO
   final int? categoriaId; // NUEVO
+  final String? imageUrl; // NUEVO
 
   const Producto({
     this.id,
@@ -17,6 +18,7 @@ class Producto {
     required this.costoCompra,
     this.stock = 0,
     this.categoriaId,
+    this.imageUrl,
   });
 
   /// 💡 Utilidad por unidad (para mostrar rápido en UI)
@@ -32,6 +34,7 @@ class Producto {
         'costo_compra': costoCompra,
         'stock': stock,
         'categoria_id': categoriaId,
+        'imageUrl': imageUrl,
       };
 
   /// Cargar desde SQLite (tolerante al viejo 'precio')
@@ -58,6 +61,7 @@ class Producto {
           ? map['stock'] as int
           : int.tryParse('${map['stock'] ?? 0}') ?? 0,
       categoriaId: map['categoria_id'] as int?,
+      imageUrl: map['imageUrl']?.toString(),
     );
   }
 
@@ -70,6 +74,7 @@ class Producto {
     double? costoCompra,
     int? stock,
     int? categoriaId,
+    String? imageUrl,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -80,10 +85,11 @@ class Producto {
       costoCompra: costoCompra ?? this.costoCompra,
       stock: stock ?? this.stock,
       categoriaId: categoriaId ?? this.categoriaId,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
   @override
   String toString() =>
-      'Producto(id:$id, cod:$codigo, nombre:$nombre, pv:$precioVenta, cc:$costoCompra, stock:$stock, cat:$categoriaId)';
+      'Producto(id:$id, cod:$codigo, nombre:$nombre, pv:$precioVenta, cc:$costoCompra, stock:$stock, cat:$categoriaId, img:$imageUrl)';
 }

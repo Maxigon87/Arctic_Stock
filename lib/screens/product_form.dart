@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:artic_stock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
@@ -6,6 +7,8 @@ import 'package:artic_stock/widgets/artic_container.dart';
 import 'package:artic_stock/widgets/artic_dialog.dart';
 import '../widgets/artic_barcode_scanner.dart';
 import '../utils/currency_formatter.dart';
+import '../services/image_service.dart';
+import '../widgets/artic_cached_image.dart';
 
 class ProductForm extends StatefulWidget {
   final Map<String, dynamic>? initial; // null = crear, con datos = editar
@@ -29,6 +32,21 @@ class _ProductFormState extends State<ProductForm> {
   int? _categoriaId;
   List<Map<String, dynamic>> _categorias = [];
   bool _saving = false;
+  Uint8List? _selectedImageBytes;
+  bool _clearImage = false;
+
+  Future<void> _pickImage() async {
+    final bytes = await ImageService().pickImage(context);
+    if (bytes != null) {
+      final processed = await ImageService().processImage(bytes);
+      if (processed != null) {
+        setState(() {
+          _selectedImageBytes = processed;
+          _clearImage = false;
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -172,15 +190,38 @@ class _ProductFormState extends State<ProductForm> {
       'stock': int.tryParse(_stockCtrl.text) ??
           (widget.initial?['stock'] ?? 0),
       'categoria_id': _categoriaId,
+      'imageUrl': _clearImage ? null : (widget.initial?['imageUrl']),
     };
 
     setState(() => _saving = true);
     try {
+      int productId;
       if (widget.initial == null) {
-        await DBService().insertProducto(data);
+        productId = await DBService().insertProducto(data);
       } else {
-        await DBService().updateProducto(data, widget.initial!['id'] as int);
+        productId = widget.initial!['id'] as int;
+        await DBService().updateProducto(data, productId);
       }
+
+      if (_selectedImageBytes != null) {
+        final downloadUrl = await ImageService().uploadProductImage(productId, _selectedImageBytes!);
+        if (downloadUrl != null) {
+          final db = await DBService().database;
+          await db.rawUpdate(
+            'UPDATE productos SET imageUrl = ?, synced = 0, last_updated = ? WHERE id = ?',
+            [downloadUrl, DateTime.now().toIso8601String(), productId],
+          );
+          DBService().notifyDbChange();
+        }
+      } else if (_clearImage) {
+        final db = await DBService().database;
+        await db.rawUpdate(
+          'UPDATE productos SET imageUrl = NULL, synced = 0, last_updated = ? WHERE id = ?',
+          [DateTime.now().toIso8601String(), productId],
+        );
+        DBService().notifyDbChange();
+      }
+
       if (mounted) Navigator.pop(context, true); // devuelve true para refrescar
     } catch (e) {
       final msg = e.toString();
@@ -228,6 +269,86 @@ class _ProductFormState extends State<ProductForm> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          width: 150,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.1),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              )
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _selectedImageBytes != null
+                                ? Image.memory(_selectedImageBytes!, fit: BoxFit.cover)
+                                : (!_clearImage && widget.initial?['imageUrl'] != null)
+                                    ? ArticCachedImage(
+                                        imageUrl: widget.initial!['imageUrl'],
+                                        width: 150,
+                                        height: 150,
+                                        borderRadius: 16,
+                                      )
+                                    : Container(
+                                        color: Theme.of(context).brightness == Brightness.dark
+                                            ? const Color(0xFF1E293B)
+                                            : const Color(0xFFF1F5F9),
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.add_a_photo_outlined,
+                                            size: 40,
+                                            color: Theme.of(context).brightness == Brightness.dark
+                                                ? Colors.white38
+                                                : Colors.black38,
+                                          ),
+                                        ),
+                                      ),
+                          ),
+                        ),
+                        if (_selectedImageBytes != null || (!_clearImage && widget.initial?['imageUrl'] != null))
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: Colors.redAccent,
+                              child: IconButton(
+                                icon: const Icon(Icons.close, size: 16, color: Colors.white),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedImageBytes = null;
+                                    _clearImage = true;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.photo_camera, size: 16, color: Color(0xFF0EA5E9)),
+                      label: Text(
+                        (_selectedImageBytes != null || (!_clearImage && widget.initial?['imageUrl'] != null))
+                            ? 'Cambiar Imagen'
+                            : 'Subir Imagen',
+                        style: const TextStyle(color: Color(0xFF0EA5E9), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(

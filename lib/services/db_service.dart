@@ -74,6 +74,12 @@ class DBService {
         },
         onOpen: (db) async {
           await db.execute("PRAGMA foreign_keys = ON;");
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS carrito_temporal (
+              id INTEGER PRIMARY KEY,
+              data TEXT
+            )
+          ''');
           try {
             await db.rawQuery("PRAGMA journal_mode = WAL;");
           } catch (_) {}
@@ -103,6 +109,9 @@ class DBService {
 
           if (!await _columnExists(db, 'usuarios', 'avatar')) {
             await db.execute("ALTER TABLE usuarios ADD COLUMN avatar TEXT;");
+          }
+          if (!await _columnExists(db, 'productos', 'imageUrl')) {
+            await db.execute("ALTER TABLE productos ADD COLUMN imageUrl TEXT;");
           }
         },
       ),
@@ -192,6 +201,7 @@ class DBService {
         stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
         categoria_id INTEGER,
         activo INTEGER NOT NULL DEFAULT 1,
+        imageUrl TEXT,
         FOREIGN KEY (categoria_id) REFERENCES categorias(id)
       )
     ''');
@@ -293,6 +303,13 @@ class DBService {
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_items_venta_productoId ON items_venta(productoId);");
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS carrito_temporal (
+        id INTEGER PRIMARY KEY,
+        data TEXT
+      )
+    ''');
+
     await _createItemVentaTriggersV8(db);
   }
 
@@ -315,7 +332,8 @@ class DBService {
         costo_compra REAL NOT NULL DEFAULT 0 CHECK(costo_compra >= 0),
         stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
         categoria_id INTEGER,
-        activo INTEGER NOT NULL DEFAULT 1
+        activo INTEGER NOT NULL DEFAULT 1,
+        imageUrl TEXT
       )
     ''');
 
@@ -926,7 +944,8 @@ class DBService {
       'precio_venta': data['precio_venta'],
       'costo_compra': data['costo_compra'] ?? 0.0,
       'stock': data['stock'] ?? 0,
-      'categoria_id': data['categoria_id']
+      'categoria_id': data['categoria_id'],
+      'imageUrl': data['imageUrl']
     }, forceDirty: false));
     final stockInicial = (data['stock'] as int?) ?? 0;
     if (stockInicial > 0) {
@@ -964,7 +983,8 @@ class DBService {
         'precio_venta': data['precio_venta'],
         'costo_compra': data['costo_compra'] ?? 0.0,
         'stock': data['stock'] ?? 0,
-        'categoria_id': data['categoria_id']
+        'categoria_id': data['categoria_id'],
+        'imageUrl': data['imageUrl']
       }),
       where: 'id = ?',
       whereArgs: [id],
@@ -2320,5 +2340,35 @@ class DBService {
     if (!await _columnExists(db, 'ventas', 'discountAmount')) {
       await db.execute('ALTER TABLE ventas ADD COLUMN discountAmount REAL;');
     }
+  }
+
+  // --- Métodos de Carrito Temporal (Windows only, no sync) ---
+  Future<void> saveCarritoTemporal(String jsonStr) async {
+    final db = await database;
+    await db.insert(
+      'carrito_temporal',
+      {'id': 1, 'data': jsonStr},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> getCarritoTemporal() async {
+    final db = await database;
+    final maps = await db.query(
+      'carrito_temporal',
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+    if (maps.isEmpty) return null;
+    return maps.first['data'] as String?;
+  }
+
+  Future<void> clearCarritoTemporal() async {
+    final db = await database;
+    await db.delete(
+      'carrito_temporal',
+      where: 'id = ?',
+      whereArgs: [1],
+    );
   }
 }

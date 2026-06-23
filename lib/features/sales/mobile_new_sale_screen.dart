@@ -6,6 +6,7 @@ import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../widgets/artic_dialog.dart';
 import '../../../widgets/artic_barcode_scanner.dart';
+import '../../../widgets/artic_cached_image.dart';
 
 class MobileNewSaleScreen extends StatefulWidget {
   const MobileNewSaleScreen({super.key});
@@ -716,6 +717,22 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 ),
                 child: Row(
                   children: [
+                    ArticCachedImage(
+                      imageUrl: p['imageUrl'],
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      placeholder: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.shopping_bag_outlined, color: const Color(0xFF0EA5E9), size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

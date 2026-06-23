@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:confetti/confetti.dart';
 import '../models/cliente.dart';
 import '../services/db_service.dart';
@@ -22,6 +24,7 @@ import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/artic_dialog.dart';
 import '../widgets/artic_barcode_scanner.dart';
+import '../widgets/artic_cached_image.dart';
 import 'dart:async' as dart_async;
 import 'dart:async';
 
@@ -49,12 +52,14 @@ class SalesScreenState extends State<SalesScreen> {
   bool _aplicarDescuento = false;
   String _tipoDescuento = 'percentage'; // 'percentage' o 'fixed'
   final TextEditingController _descuentoCtrl = TextEditingController(text: '0');
+  final TextEditingController _observacionesCtrl = TextEditingController();
 
   @override
   void dispose() {
     _debounce?.cancel();
     _productoCtrl.dispose();
     _descuentoCtrl.dispose();
+    _observacionesCtrl.dispose();
     _confettiController.dispose();
     super.dispose();
   }
@@ -73,10 +78,150 @@ class SalesScreenState extends State<SalesScreen> {
     _cargarClientes();
     _confettiController =
         ConfettiController(duration: const Duration(milliseconds: 500));
-    if (widget.startNewSale) {
+    if (Platform.isWindows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _verificarCarritoPendiente();
+      });
+    } else if (widget.startNewSale) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         abrirCarrito();
       });
+    }
+  }
+
+  Future<void> _verificarCarritoPendiente() async {
+    if (!Platform.isWindows) return;
+    final dataStr = await dbService.getCarritoTemporal();
+    if (dataStr == null || dataStr.isEmpty) {
+      if (widget.startNewSale) {
+        abrirCarrito();
+      }
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> data = jsonDecode(dataStr);
+      final List<dynamic>? itemsRaw = data['carrito'];
+      if (itemsRaw == null || itemsRaw.isEmpty) {
+        await dbService.clearCarritoTemporal();
+        if (widget.startNewSale) {
+          abrirCarrito();
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final continuar = await showArticDialog<bool>(
+        context: context,
+        builder: (ctx) => ArticDialogCard(
+          title: "🛒 Venta pendiente",
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Descartar", style: TextStyle(color: Colors.redAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Continuar"),
+            ),
+          ],
+          child: Text(
+            "Hay una venta en curso. ¿Deseas continuarla o descartarla?",
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          ),
+        ),
+      );
+
+      if (continuar == true) {
+        _carrito.clear();
+        for (var item in itemsRaw) {
+          _carrito.add(Map<String, dynamic>.from(item));
+        }
+
+        if (data['cliente'] != null) {
+          _clienteSeleccionado = Cliente.fromMap(Map<String, dynamic>.from(data['cliente']));
+        } else {
+          _clienteSeleccionado = null;
+        }
+
+        metodoSeleccionado = data['metodoPago'];
+        _aplicarDescuento = data['aplicarDescuento'] ?? false;
+        _tipoDescuento = data['tipoDescuento'] ?? 'percentage';
+        _descuentoCtrl.text = (data['descuentoValor'] ?? 0.0).toString();
+        _observacionesCtrl.text = data['notas'] ?? '';
+
+        setState(() {});
+        abrirCarrito();
+      } else if (continuar == false) {
+        await dbService.clearCarritoTemporal();
+        setState(() {
+          _carrito.clear();
+          _clienteSeleccionado = null;
+          metodoSeleccionado = null;
+          _aplicarDescuento = false;
+          _tipoDescuento = 'percentage';
+          _descuentoCtrl.text = '0';
+          _observacionesCtrl.text = '';
+        });
+        if (widget.startNewSale) {
+          abrirCarrito();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error al restaurar carrito temporal: $e");
+      await dbService.clearCarritoTemporal();
+      if (widget.startNewSale) {
+        abrirCarrito();
+      }
+    }
+  }
+
+  Future<void> _autoGuardarCarrito() async {
+    if (!Platform.isWindows) return;
+    try {
+      if (_carrito.isEmpty) {
+        await dbService.clearCarritoTemporal();
+        if (mounted) setState(() {});
+        return;
+      }
+      final subtotalCarrito = _carrito.fold<double>(
+        0.0,
+        (sum, p) => sum + (p['subtotal'] as num).toDouble(),
+      );
+      final valDesc = double.tryParse(_descuentoCtrl.text) ?? 0.0;
+      double descuentoMonto = 0.0;
+      if (_aplicarDescuento) {
+        if (_tipoDescuento == 'percentage') {
+          descuentoMonto = subtotalCarrito * (valDesc / 100.0);
+        } else {
+          descuentoMonto = valDesc;
+        }
+      }
+      final totalCarrito = subtotalCarrito - descuentoMonto;
+
+      final data = {
+        'carrito': _carrito,
+        'cliente': _clienteSeleccionado?.toMap(),
+        'metodoPago': metodoSeleccionado,
+        'aplicarDescuento': _aplicarDescuento,
+        'tipoDescuento': _tipoDescuento,
+        'descuentoValor': valDesc,
+        'descuentoMonto': descuentoMonto,
+        'notas': _observacionesCtrl.text,
+        'subtotal': subtotalCarrito,
+        'total': totalCarrito,
+      };
+
+      await dbService.saveCarritoTemporal(jsonEncode(data));
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint("Error al autoguardar carrito: $e");
     }
   }
 
@@ -416,13 +561,11 @@ class SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  Future<Uint8List> _generarPdfComprobante(
-      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+  Future<Uint8List> _generarPdf58mm(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
     final pdf = pw.Document();
-    const lineWidth = 32;
-    final logoData =
-        await rootBundle.load('assets/logo/logo_sin_titulo.png');
-    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    const int lineWidth = 32;
+    final font = pw.Font.courier();
 
     String _repeat(String char, int times) => List.filled(times, char).join();
 
@@ -442,23 +585,22 @@ class SalesScreenState extends State<SalesScreen> {
     void _addCentered(List<String> target, String text) {
       for (final line in _wrap(text)) {
         final pad = ((lineWidth - line.length) / 2).floor();
-        target.add("${_repeat(' ', pad)}$line");
-      }
-    }
-
-    void _addTwoCols(List<String> target, String left, String right) {
-      if (left.length + right.length > lineWidth) {
-        final parts = _wrap(left);
-        target.addAll(parts.take(parts.length - 1));
-        _addTwoCols(target, parts.last, right);
-      } else {
-        final spaces = lineWidth - left.length - right.length;
-        target.add("$left${_repeat(' ', spaces)}$right");
+        final leftPad = pad > 0 ? pad : 0;
+        target.add("${_repeat(' ', leftPad)}$line");
       }
     }
 
     final ventaId = header['id'] as int? ?? 0;
-    final fecha = header['fecha']?.toString().split('T').first ?? '';
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
+      try {
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
     final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
         ? header['clienteNombre']
         : 'Consumidor Final';
@@ -473,6 +615,7 @@ class SalesScreenState extends State<SalesScreen> {
     final linesOut = <String>[];
     _addCentered(linesOut, 'Venta #$ventaId');
     _addCentered(linesOut, fecha);
+    linesOut.add(_repeat('-', lineWidth));
     _addWrapped(linesOut, 'Cliente: $cliente');
     _addWrapped(linesOut, 'Vendedor: $vendedor');
     _addWrapped(linesOut, 'Método: $metodo');
@@ -480,39 +623,69 @@ class SalesScreenState extends State<SalesScreen> {
     _addCentered(linesOut, 'PRODUCTOS');
     linesOut.add(_repeat('-', lineWidth));
 
-    for (final it in items) {
+    for (var i = 0; i < items.length; i++) {
+      final it = items[i];
       final nombre = (it['producto'] ?? '').toString();
       final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
       final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
       final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
 
       _addWrapped(linesOut, nombre);
-      _addTwoCols(linesOut, '${cant} x ${formatCurrency(pu)}',
-          formatCurrency(sub));
-      linesOut.add('');
+      linesOut.add('$cant x ${formatCurrency(pu)}');
+      linesOut.add(formatCurrency(sub));
+      
+      if (i < items.length - 1) {
+        linesOut.add('---');
+      }
     }
 
     linesOut.add(_repeat('-', lineWidth));
+    
     if (descuento > 0) {
-      _addTwoCols(linesOut, 'SUBTOTAL', formatCurrency(subtotal));
-      _addTwoCols(linesOut, 'DESCUENTO', '-${formatCurrency(descuento)}');
+      linesOut.add('SUBTOTAL');
+      linesOut.add(formatCurrency(subtotal));
+      linesOut.add('DESCUENTO');
+      linesOut.add('-${formatCurrency(descuento)}');
+      linesOut.add(_repeat('-', lineWidth));
     }
-    _addTwoCols(linesOut, 'TOTAL', formatCurrency(total));
-    linesOut.add(_repeat('-', lineWidth));
 
-    final font = pw.Font.courier();
+    final totalLines = <String>[];
+    totalLines.add(_repeat('=', 17));
+    totalLines.add('      TOTAL      ');
+    final totalStr = formatCurrency(total);
+    final pad = ((17 - totalStr.length) / 2).floor();
+    final leftPad = pad > 0 ? pad : 0;
+    totalLines.add("${_repeat(' ', leftPad)}$totalStr");
+    totalLines.add(_repeat('=', 17));
+
+    final finalMessageLines = <String>[];
+    finalMessageLines.add('');
+    _addCentered(finalMessageLines, '¡Gracias por su compra!');
+    _addCentered(finalMessageLines, 'Arctic Stock');
+
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
-        margin: const pw.EdgeInsets.all(5),
+        pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 8),
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
             pw.Center(child: pw.Image(logoImage, width: 40)),
-            pw.SizedBox(height: 5),
+            pw.SizedBox(height: 8),
             pw.Text(
               linesOut.join('\n'),
-              style: pw.TextStyle(font: font, fontSize: 8),
+              style: pw.TextStyle(font: font, fontSize: 8.5, height: 1.1),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              totalLines.join('\n'),
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 11, fontWeight: pw.FontWeight.bold, height: 1.1),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              finalMessageLines.join('\n'),
+              style: pw.TextStyle(font: font, fontSize: 8.5, height: 1.1),
             ),
           ],
         ),
@@ -520,6 +693,501 @@ class SalesScreenState extends State<SalesScreen> {
     );
 
     return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdf80mm(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
+    final pdf = pw.Document();
+    final font = pw.Font.helvetica();
+    final fontBold = pw.Font.helveticaBold();
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
+      try {
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.all(6),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Center(child: pw.Image(logoImage, width: 50)),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              'Arctic Stock',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: fontBold, fontSize: 14),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Comprobante de Venta',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 4),
+            
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Venta #$ventaId', style: pw.TextStyle(font: fontBold, fontSize: 9)),
+                pw.Text(fecha, style: pw.TextStyle(font: font, fontSize: 9)),
+              ],
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text('Cliente: $cliente', style: pw.TextStyle(font: font, fontSize: 9)),
+            pw.Text('Vendedor: $vendedor', style: pw.TextStyle(font: font, fontSize: 9)),
+            pw.Text('Método de Pago: $metodo', style: pw.TextStyle(font: font, fontSize: 9)),
+            
+            pw.SizedBox(height: 6),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 4),
+            pw.Text('PRODUCTOS', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: fontBold, fontSize: 10)),
+            pw.SizedBox(height: 4),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 6),
+
+            pw.Table(
+              columnWidths: {
+                0: const pw.FlexColumnWidth(3),
+                1: const pw.FlexColumnWidth(2),
+                2: const pw.FlexColumnWidth(1.5),
+              },
+              children: [
+                for (final it in items)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          (it['producto'] ?? '').toString(),
+                          style: pw.TextStyle(font: font, fontSize: 8.5),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          '${it['cantidad']} x ${formatCurrency(it['precioUnitario'])}',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(font: font, fontSize: 8.5),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          formatCurrency(it['subtotal'] ?? 0.0),
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(font: fontBold, fontSize: 8.5),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            
+            pw.SizedBox(height: 8),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 6),
+
+            if (descuento > 0) ...[
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Subtotal:', style: pw.TextStyle(font: font, fontSize: 9)),
+                  pw.Text(formatCurrency(subtotal), style: pw.TextStyle(font: font, fontSize: 9)),
+                ],
+              ),
+              pw.SizedBox(height: 2),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Descuento:', style: pw.TextStyle(font: font, fontSize: 9)),
+                  pw.Text('-${formatCurrency(descuento)}', style: pw.TextStyle(font: font, fontSize: 9)),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+            ],
+            
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('TOTAL:', style: pw.TextStyle(font: fontBold, fontSize: 12)),
+                pw.Text(formatCurrency(total), style: pw.TextStyle(font: fontBold, fontSize: 12)),
+              ],
+            ),
+
+            pw.SizedBox(height: 16),
+            pw.Divider(thickness: 1, color: PdfColors.grey400),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              '¡Gracias por su compra!',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 9),
+            ),
+            pw.Text(
+              'Arctic Stock',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColors.grey500),
+            ),
+            pw.SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdfA4(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
+    final pdf = pw.Document();
+    final font = pw.Font.helvetica();
+    final fontBold = pw.Font.helveticaBold();
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
+      try {
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  children: [
+                    pw.Image(logoImage, width: 48, height: 48),
+                    pw.SizedBox(width: 12),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'ARCTIC STOCK',
+                          style: pw.TextStyle(font: fontBold, fontSize: 20, color: PdfColor.fromHex('#0284C7')),
+                        ),
+                        pw.Text(
+                          'Sistema de Ventas y Control de Stock',
+                          style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromHex('#0284C7'),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      ),
+                      child: pw.Text(
+                        'COMPROBANTE',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.white),
+                      ),
+                    ),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      'Venta Nº: #$ventaId',
+                      style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.grey900),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            
+            pw.SizedBox(height: 24),
+            pw.Divider(thickness: 1, color: PdfColor.fromHex('#E2E8F0')),
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'DETALLES DEL CLIENTE',
+                        style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColor.fromHex('#64748B')),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Text(
+                        cliente,
+                        style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.grey900),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Cliente Registrado',
+                        style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey500),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'DETALLES DE LA TRANSACCIÓN',
+                        style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColor.fromHex('#64748B')),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Text('Fecha: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Text(fecha, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text('Vendedor: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Text(vendedor, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text('Método de Pago: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: pw.BoxDecoration(
+                              color: PdfColor.fromHex('#F0FDFA'),
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                              border: pw.Border.all(color: PdfColor.fromHex('#CCFBF1'), width: 1),
+                            ),
+                            child: pw.Text(
+                              metodo,
+                              style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#0F766E')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 24),
+
+            pw.Table(
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.2),
+                1: const pw.FlexColumnWidth(3.5),
+                2: const pw.FlexColumnWidth(1),
+                3: const pw.FlexColumnWidth(1.5),
+                4: const pw.FlexColumnWidth(1.5),
+              },
+              border: const pw.TableBorder(
+                horizontalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey300),
+                bottom: pw.BorderSide(width: 1, color: PdfColors.grey400),
+              ),
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor.fromHex('#F8FAFC'),
+                  ),
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('CÓDIGO', style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('DESCRIPCIÓN DEL PRODUCTO', style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('CANTIDAD', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('P. UNITARIO', textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('TOTAL', textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                  ],
+                ),
+                for (final it in items)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text((it['codigo'] ?? '—').toString(), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text((it['producto'] ?? '').toString(), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey900)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(it['cantidad'].toString(), textAlign: pw.TextAlign.center, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(formatCurrency(it['precioUnitario'] ?? 0.0), textAlign: pw.TextAlign.right, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(formatCurrency(it['subtotal'] ?? 0.0), textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey900)),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  flex: 3,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'TÉRMINOS Y CONDICIONES',
+                        style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColor.fromHex('#94A3B8')),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Este documento sirve como comprobante oficial de la transacción. Para cualquier reclamo o devolución, presente este comprobante.',
+                        style: pw.TextStyle(font: font, fontSize: 8, color: PdfColor.fromHex('#94A3B8')),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 40),
+                pw.Expanded(
+                  flex: 2,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      if (descuento > 0) ...[
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Subtotal:', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+                            pw.Text(formatCurrency(subtotal), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Descuento:', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.red500)),
+                            pw.Text('-${formatCurrency(descuento)}', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.red500)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Divider(thickness: 1, color: PdfColors.grey300),
+                        pw.SizedBox(height: 6),
+                      ],
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('TOTAL NETO:', style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey900)),
+                          pw.Text(
+                            formatCurrency(total),
+                            style: pw.TextStyle(font: fontBold, fontSize: 15, color: PdfColor.fromHex('#0284C7')),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            pw.Spacer(),
+
+            pw.Divider(thickness: 1, color: PdfColor.fromHex('#E2E8F0')),
+            pw.SizedBox(height: 8),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  '¡Gracias por confiar en nosotros!',
+                  style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey500),
+                ),
+                pw.Text(
+                  'Arctic Stock • www.arcticstock.com',
+                  style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColors.grey500),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdfComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final tipoTicket = prefs.getString('tipo_ticket') ?? 'ticket_58mm';
+
+    final logoData = await rootBundle.load('assets/logo/logo_sin_titulo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
+    if (tipoTicket == 'pdf_normal') {
+      return _generarPdfA4(header, items, logoImage);
+    } else if (tipoTicket == 'ticket_80mm') {
+      return _generarPdf80mm(header, items, logoImage);
+    } else {
+      return _generarPdf58mm(header, items, logoImage);
+    }
   }
 
   Future<void> _guardarComprobante(
@@ -730,6 +1398,7 @@ class SalesScreenState extends State<SalesScreen> {
           'cantidad': cant,
           'subtotal': precio * cant,
           'stockDisponible': stock,
+          'imageUrl': producto['imageUrl'],
         });
       } else {
         final actual = _carrito[idx]['cantidad'] as int;
@@ -751,9 +1420,19 @@ class SalesScreenState extends State<SalesScreen> {
     bool clienteConDeudas = false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    _aplicarDescuento = false;
-    _tipoDescuento = 'percentage';
-    _descuentoCtrl.text = '0';
+    if (_carrito.isEmpty) {
+      _aplicarDescuento = false;
+      _tipoDescuento = 'percentage';
+      _descuentoCtrl.text = '0';
+      _clienteSeleccionado = null;
+      metodoSeleccionado = 'Efectivo';
+      _observacionesCtrl.text = '';
+    } else {
+      if (_clienteSeleccionado != null && _clienteSeleccionado!.id != null) {
+        final count = await dbService.countDeudasCliente(_clienteSeleccionado!.id!);
+        clienteConDeudas = count > 1;
+      }
+    }
 
     // Query active products once before showing dialog
     final allProds = await dbService.getStockProductos();
@@ -849,6 +1528,32 @@ class SalesScreenState extends State<SalesScreen> {
                               color: textColor,
                             ),
                           ),
+                          if (Platform.isWindows) ...[
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.save_outlined, color: Color(0xFF10B981), size: 12),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Autoguardado local",
+                                    style: TextStyle(
+                                      color: const Color(0xFF10B981),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       IconButton(
@@ -901,6 +1606,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                   if (found.isNotEmpty) {
                                                     await agregarAlCarrito(found);
                                                     setLocalState(() {});
+                                                    _autoGuardarCarrito();
                                                   } else {
                                                     ScaffoldMessenger.of(context).showSnackBar(
                                                       SnackBar(content: Text('No se encontró ningún producto con el código: $barcodeResult')),
@@ -953,6 +1659,7 @@ class SalesScreenState extends State<SalesScreen> {
                                           if (producto != null) {
                                             await agregarAlCarrito(producto);
                                             setLocalState(() {});
+                                            _autoGuardarCarrito();
                                           }
                                         },
                                       ),
@@ -1039,14 +1746,20 @@ class SalesScreenState extends State<SalesScreen> {
                                                     flex: 4,
                                                     child: Row(
                                                       children: [
-                                                        Container(
+                                                        ArticCachedImage(
+                                                          imageUrl: p['imageUrl'],
                                                           width: 40,
                                                           height: 40,
-                                                          decoration: BoxDecoration(
-                                                            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-                                                            borderRadius: BorderRadius.circular(8),
+                                                          borderRadius: 8,
+                                                          placeholder: Container(
+                                                            width: 40,
+                                                            height: 40,
+                                                            decoration: BoxDecoration(
+                                                              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                            ),
+                                                            child: Icon(Icons.inventory_2_outlined, color: isDark ? Colors.white60 : Colors.black45, size: 20),
                                                           ),
-                                                          child: Icon(Icons.inventory_2_outlined, color: isDark ? Colors.white60 : Colors.black45, size: 20),
                                                         ),
                                                         const SizedBox(width: 10),
                                                         Expanded(
@@ -1115,6 +1828,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                                         p['cantidad'] = cantidad - 1;
                                                                         p['subtotal'] = precioUnit * (cantidad - 1);
                                                                       });
+                                                                      _autoGuardarCarrito();
                                                                     }
                                                                   : null,
                                                             ),
@@ -1144,6 +1858,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                                         p['cantidad'] = cantidad + 1;
                                                                         p['subtotal'] = precioUnit * (cantidad + 1);
                                                                       });
+                                                                      _autoGuardarCarrito();
                                                                     }
                                                                   : () {
                                                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1177,7 +1892,10 @@ class SalesScreenState extends State<SalesScreen> {
                                                     child: Center(
                                                       child: IconButton(
                                                         icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                                                        onPressed: () => setLocalState(() => _carrito.removeAt(i)),
+                                                        onPressed: () {
+                                                          setLocalState(() => _carrito.removeAt(i));
+                                                          _autoGuardarCarrito();
+                                                        },
                                                       ),
                                                     ),
                                                   ),
@@ -1208,6 +1926,7 @@ class SalesScreenState extends State<SalesScreen> {
                                     if (found.isNotEmpty) {
                                       await agregarAlCarrito(found);
                                       setLocalState(() {});
+                                      _autoGuardarCarrito();
                                     } else {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(content: Text('No se encontró ningún producto con el código: $barcodeResult')),
@@ -1308,6 +2027,7 @@ class SalesScreenState extends State<SalesScreen> {
                                               setLocalState(() {
                                                 searchResults.clear();
                                               });
+                                              _autoGuardarCarrito();
                                             },
                                           );
                                         },
@@ -1400,6 +2120,7 @@ class SalesScreenState extends State<SalesScreen> {
                                           } else {
                                             setLocalState(() => clienteConDeudas = false);
                                           }
+                                          _autoGuardarCarrito();
                                         },
                                       ),
                                       const SizedBox(height: 8),
@@ -1411,6 +2132,7 @@ class SalesScreenState extends State<SalesScreen> {
                                           if (nuevo != null) {
                                             setState(() => _clientes.add(nuevo));
                                             setLocalState(() => _clienteSeleccionado = nuevo);
+                                            _autoGuardarCarrito();
                                           }
                                         },
                                       ),
@@ -1458,6 +2180,7 @@ class SalesScreenState extends State<SalesScreen> {
                                             metodoSeleccionado = 'Efectivo';
                                             selectedPaymentButton = 'Efectivo';
                                           });
+                                          _autoGuardarCarrito();
                                         },
                                       ),
                                     ),
@@ -1473,6 +2196,7 @@ class SalesScreenState extends State<SalesScreen> {
                                             metodoSeleccionado = 'Tarjeta';
                                             selectedPaymentButton = 'Débito';
                                           });
+                                          _autoGuardarCarrito();
                                         },
                                       ),
                                     ),
@@ -1492,6 +2216,7 @@ class SalesScreenState extends State<SalesScreen> {
                                             metodoSeleccionado = 'Tarjeta';
                                             selectedPaymentButton = 'Crédito';
                                           });
+                                          _autoGuardarCarrito();
                                         },
                                       ),
                                     ),
@@ -1507,6 +2232,7 @@ class SalesScreenState extends State<SalesScreen> {
                                             metodoSeleccionado = 'Transferencia';
                                             selectedPaymentButton = 'Transferencia';
                                           });
+                                          _autoGuardarCarrito();
                                         },
                                       ),
                                     ),
@@ -1528,6 +2254,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                   metodoSeleccionado = 'Fiado';
                                                   selectedPaymentButton = 'Fiado';
                                                 });
+                                                _autoGuardarCarrito();
                                               },
                                       ),
                                     ),
@@ -1566,6 +2293,7 @@ class SalesScreenState extends State<SalesScreen> {
                                             _descuentoCtrl.text = '0';
                                           }
                                         });
+                                        _autoGuardarCarrito();
                                       },
                                     ),
                                   ],
@@ -1584,6 +2312,7 @@ class SalesScreenState extends State<SalesScreen> {
                                               _tipoDescuento = val;
                                               _descuentoCtrl.text = '0';
                                             });
+                                            _autoGuardarCarrito();
                                           }
                                         },
                                       ),
@@ -1599,6 +2328,7 @@ class SalesScreenState extends State<SalesScreen> {
                                               _tipoDescuento = val;
                                               _descuentoCtrl.text = '0';
                                             });
+                                            _autoGuardarCarrito();
                                           }
                                         },
                                       ),
@@ -1619,7 +2349,10 @@ class SalesScreenState extends State<SalesScreen> {
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                    onChanged: (val) => setLocalState(() {}),
+                                    onChanged: (val) {
+                                      setLocalState(() {});
+                                      _autoGuardarCarrito();
+                                    },
                                   ),
                                   if (hasDiscountError) ...[
                                     const SizedBox(height: 4),
@@ -1647,6 +2380,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                   setLocalState(() {
                                                     _descuentoCtrl.text = percent.toString();
                                                   });
+                                                  _autoGuardarCarrito();
                                                 }
                                               },
                                             ),
@@ -1739,8 +2473,12 @@ class SalesScreenState extends State<SalesScreen> {
 
                                 // --- OBSERVACIONES ---
                                 TextFormField(
+                                  controller: _observacionesCtrl,
                                   maxLines: 2,
                                   style: TextStyle(color: textColor, fontSize: 13),
+                                  onChanged: (val) {
+                                    _autoGuardarCarrito();
+                                  },
                                   decoration: InputDecoration(
                                     labelText: "Observaciones (opcional)",
                                     labelStyle: TextStyle(color: subtextColor, fontSize: 12),
@@ -2004,8 +2742,17 @@ class SalesScreenState extends State<SalesScreen> {
         });
       }
 
+      if (Platform.isWindows) {
+        await dbService.clearCarritoTemporal();
+      }
       setState(() {
         _carrito.clear();
+        _clienteSeleccionado = null;
+        metodoSeleccionado = null;
+        _aplicarDescuento = false;
+        _tipoDescuento = 'percentage';
+        _descuentoCtrl.text = '0';
+        _observacionesCtrl.text = '';
       });
 
       // Refrescar listado con los filtros actuales

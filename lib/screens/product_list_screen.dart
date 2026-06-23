@@ -9,6 +9,7 @@ import '../utils/currency_formatter.dart';
 
 import 'product_form.dart';
 import '../widgets/artic_dialog.dart';
+import '../widgets/artic_cached_image.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool selectMode;
@@ -374,15 +375,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                   children: [
                                                     Row(
                                                       children: [
-                                                        CircleAvatar(
-                                                          radius: 16,
-                                                          backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
-                                                          child: Text(
-                                                            nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
-                                                            style: TextStyle(
-                                                              fontWeight: FontWeight.bold,
-                                                              color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-                                                              fontSize: 12,
+                                                        ArticCachedImage(
+                                                          imageUrl: p['imageUrl'],
+                                                          width: 32,
+                                                          height: 32,
+                                                          borderRadius: 8,
+                                                          placeholder: CircleAvatar(
+                                                            radius: 16,
+                                                            backgroundColor: isDark ? const Color(0xFF22D3EE).withOpacity(0.1) : const Color(0xFF0284C7).withOpacity(0.1),
+                                                            child: Text(
+                                                              nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.bold,
+                                                                color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                                                fontSize: 12,
+                                                              ),
                                                             ),
                                                           ),
                                                         ),
@@ -588,13 +595,31 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Center(
                 child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0EA5E9).withOpacity(0.1),
-                        shape: BoxShape.circle,
+                    ArticCachedImage(
+                      imageUrl: p['imageUrl'],
+                      width: 150,
+                      height: 150,
+                      borderRadius: 16,
+                      hasShadow: true,
+                      placeholder: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE2E8F0),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Color(0xFF0EA5E9),
+                            size: 64,
+                          ),
+                        ),
                       ),
-                      child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 32),
                     ),
                     const SizedBox(height: 12),
                     Text(
