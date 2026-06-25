@@ -9,6 +9,7 @@ class ArticSidebar extends StatelessWidget {
   final bool isCompact;
   final VoidCallback? onNewSale;
   final VoidCallback? onQuickInquiry;
+  final bool hasPendingCart;
 
   const ArticSidebar({
     super.key,
@@ -18,6 +19,7 @@ class ArticSidebar extends StatelessWidget {
     this.isCompact = false,
     this.onNewSale,
     this.onQuickInquiry,
+    this.hasPendingCart = false,
   });
 
   @override
@@ -220,29 +222,59 @@ class ArticSidebar extends StatelessWidget {
             child: InkWell(
               onTap: onNewSale,
               borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: buttonColors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: buttonColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isDark ? accentColor : const Color(0xFF0EA5E9)).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.add_shopping_cart,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                    child: const Icon(
+                      Icons.add_shopping_cart,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  if (hasPendingCart)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: const Text(
+                          '1',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -277,14 +309,14 @@ class ArticSidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 11.0, horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(
+                children: [
+                  const Icon(
                     Icons.add_shopping_cart,
                     color: Colors.white,
                     size: 18,
                   ),
-                  SizedBox(width: 8),
-                  Text(
+                  const SizedBox(width: 8),
+                  const Text(
                     "Nueva Venta",
                     style: TextStyle(
                       color: Colors.white,
@@ -293,6 +325,24 @@ class ArticSidebar extends StatelessWidget {
                       letterSpacing: 0.3,
                     ),
                   ),
+                  if (hasPendingCart) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        "1",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -5,6 +5,8 @@ import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../widgets/artic_dialog.dart';
 import '../../../widgets/artic_barcode_scanner.dart';
+import '../../screens/product_form.dart';
+import '../../widgets/artic_cached_image.dart';
 
 class MobileProductsScreen extends StatefulWidget {
   const MobileProductsScreen({super.key});
@@ -60,12 +62,10 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
     final filtered = _productos.where((p) {
       final name = _dbService.normalizeString(p['nombre'] as String? ?? '');
       final code = _dbService.normalizeString(p['codigo'] as String? ?? '');
-      final barcode = _dbService.normalizeString(p['codigoBarras'] as String? ?? '');
       final desc = _dbService.normalizeString(p['descripcion'] as String? ?? '');
       final query = _dbService.normalizeString(_searchQuery.trim());
       return name.contains(query) ||
           code.contains(query) ||
-          barcode.contains(query) ||
           desc.contains(query);
     }).toList();
 
@@ -216,194 +216,18 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF0EA5E9),
         foregroundColor: Colors.white,
-        onPressed: _showAddProductoDialog,
+        onPressed: _goToCreate,
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  void _showAddProductoDialog() {
-    final nombreCtrl = TextEditingController();
-    final codigoCtrl = TextEditingController();
-    final codigoBarrasCtrl = TextEditingController();
-    final precioCtrl = TextEditingController();
-    final stockCtrl = TextEditingController(text: '0');
-
-    showArticDialog(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final style = GoogleFonts.manrope(color: isDark ? Colors.white : const Color(0xFF0F172A));
-        final labelStyle = GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B));
-        
-        return ArticDialogCard(
-          title: 'Nuevo Producto',
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancelar', style: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0EA5E9),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () async {
-                final name = nombreCtrl.text.trim();
-                final precioVal = double.tryParse(precioCtrl.text.trim());
-                final stockVal = int.tryParse(stockCtrl.text.trim()) ?? 0;
-
-                if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('El nombre es obligatorio')),
-                  );
-                  return;
-                }
-                if (precioVal == null || precioVal < 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('El precio debe ser un número válido >= 0')),
-                  );
-                  return;
-                }
-
-                try {
-                  await _dbService.insertProducto({
-                    'nombre': name,
-                    'codigo': codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
-                    'codigoBarras': codigoBarrasCtrl.text.trim().isEmpty ? null : codigoBarrasCtrl.text.trim(),
-                    'precio_venta': precioVal,
-                    'stock': stockVal,
-                    'costo_compra': 0.0,
-                    'categoria_id': null,
-                  });
-                  Navigator.pop(ctx);
-                  _loadProductos();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error al crear producto: $e')),
-                  );
-                }
-              },
-              child: Text('Guardar', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
-            ),
-          ],
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nombreCtrl,
-                style: style,
-                decoration: InputDecoration(
-                  labelText: 'Nombre *',
-                  labelStyle: labelStyle,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: codigoCtrl,
-                style: style,
-                decoration: InputDecoration(
-                  labelText: 'Código Único',
-                  labelStyle: labelStyle,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              StatefulBuilder(
-                builder: (context, setDialogState) {
-                  return TextField(
-                    controller: codigoBarrasCtrl,
-                    style: style,
-                    decoration: InputDecoration(
-                      labelText: 'Código de Barras',
-                      labelStyle: labelStyle,
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
-                        onPressed: () async {
-                          final scannedCode = await Navigator.push<String>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ArticBarcodeScanner(
-                                title: 'Escanear Código de Barras',
-                              ),
-                            ),
-                          );
-                          if (scannedCode != null && scannedCode.isNotEmpty) {
-                            setDialogState(() {
-                              codigoBarrasCtrl.text = scannedCode;
-                            });
-                          }
-                        },
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
-                      ),
-                    ),
-                  );
-                }
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: precioCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: style,
-                decoration: InputDecoration(
-                  labelText: 'Precio de Venta *',
-                  labelStyle: labelStyle,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: stockCtrl,
-                keyboardType: TextInputType.number,
-                style: style,
-                decoration: InputDecoration(
-                  labelText: 'Stock Inicial',
-                  labelStyle: labelStyle,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  Future<void> _goToCreate() async {
+    final ok = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductForm()),
     );
+    if (ok == true) _loadProductos();
   }
 
   Widget _buildEmptyState() {
@@ -449,7 +273,6 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
     final String name = prod['nombre'] as String? ?? 'Producto';
     final int currentStock = (prod['stock'] as num?)?.toInt() ?? 0;
     final String code = prod['codigo'] as String? ?? '';
-    final String barcode = prod['codigoBarras'] as String? ?? '';
     
     int tempStock = currentStock;
     final controller = TextEditingController(text: currentStock.toString());
@@ -510,18 +333,12 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                     name,
                     style: GoogleFonts.manrope(fontSize: 15, color: isDark ? Colors.white70 : const Color(0xFF64748B), fontWeight: FontWeight.bold),
                   ),
-                  if (code.isNotEmpty || barcode.isNotEmpty) ...[
+                  if (code.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    if (code.isNotEmpty)
-                      Text(
-                        'Cód. Interno: $code',
-                        style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)),
-                      ),
-                    if (barcode.isNotEmpty)
-                      Text(
-                        'Cód. Barras: $barcode',
-                        style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)),
-                      ),
+                    Text(
+                      'Cód. Barras: $code',
+                      style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF94A3B8)),
+                    ),
                   ],
                   const SizedBox(height: 20),
                   Row(
@@ -581,7 +398,6 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
   Widget _buildProductCard(Map<String, dynamic> prod) {
     final name = prod['nombre'] as String? ?? 'Producto sin nombre';
     final code = prod['codigo'] as String? ?? '';
-    final barcode = prod['codigoBarras'] as String? ?? '';
     final price = (prod['precio_venta'] as num?)?.toDouble() ?? 0.0;
     final stock = (prod['stock'] as num?)?.toInt() ?? 0;
 
@@ -620,14 +436,22 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: innerBgColor,
-                borderRadius: BorderRadius.circular(12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ArticCachedImage(
+                imageUrl: prod['imageUrl'],
+                width: 48,
+                height: 48,
+                placeholder: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: innerBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 24),
+                ),
               ),
-              child: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF0EA5E9), size: 24),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -645,11 +469,9 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  if (code.isNotEmpty || barcode.isNotEmpty) ...[
+                  if (code.isNotEmpty) ...[
                     Text(
-                      code == barcode
-                          ? 'Cód: $code'
-                          : 'Cód: $code | Barras: $barcode',
+                      'Cód: $code',
                       style: GoogleFonts.manrope(
                         fontSize: 11,
                         color: const Color(0xFF94A3B8),
@@ -688,6 +510,81 @@ class _MobileProductsScreenState extends State<MobileProductsScreen> {
                 fontSize: 16,
                 color: textColor,
               ),
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: subtitleColor, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onSelected: (val) async {
+                if (val == 'edit') {
+                  final ok = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ProductForm(initial: prod)),
+                  );
+                  if (ok == true) _loadProductos();
+                } else if (val == 'stock') {
+                  _showAdjustStockDialog(prod);
+                } else if (val == 'delete') {
+                  final confirm = await showArticDialog<bool>(
+                    context: context,
+                    builder: (ctx) => ArticDialogCard(
+                      title: 'Eliminar producto',
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text('Cancelar', style: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Eliminar'),
+                        ),
+                      ],
+                      child: Text(
+                        '¿Estás seguro de que deseas eliminar este producto?',
+                        style: GoogleFonts.manrope(color: isDark ? Colors.white70 : const Color(0xFF334155)),
+                      ),
+                    ),
+                  );
+                  if (confirm == true) {
+                    await _dbService.deleteProducto(prod['id'] as int);
+                    _loadProductos();
+                  }
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Editar'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'stock',
+                  child: Row(
+                    children: [
+                      Icon(Icons.inventory_2_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Ajustar Stock'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                      SizedBox(width: 8),
+                      Text('Eliminar', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

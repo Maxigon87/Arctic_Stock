@@ -22,7 +22,7 @@ class _ProductFormState extends State<ProductForm> {
   final _formKey = GlobalKey<FormState>();
 
   final _codigoCtrl = TextEditingController();
-  final _barCodeCtrl = TextEditingController(); // 👈 NUEVO
+
   final _nombreCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _costoCtrl = TextEditingController();
@@ -57,7 +57,6 @@ class _ProductFormState extends State<ProductForm> {
     final i = widget.initial;
     if (i != null) {
       _codigoCtrl.text = (i['codigo'] ?? '').toString();
-      _barCodeCtrl.text = (i['codigoBarras'] ?? '').toString(); // 👈 NUEVO
       _nombreCtrl.text = (i['nombre'] ?? '').toString();
       _descCtrl.text = (i['descripcion'] ?? '').toString();
       _costoCtrl.text = _numToStr(i['costo_compra']);
@@ -70,7 +69,7 @@ class _ProductFormState extends State<ProductForm> {
   @override
   void dispose() {
     _codigoCtrl.dispose();
-    _barCodeCtrl.dispose(); // 👈 NUEVO
+
     _nombreCtrl.dispose();
     _descCtrl.dispose();
     _costoCtrl.dispose();
@@ -180,8 +179,7 @@ class _ProductFormState extends State<ProductForm> {
     final data = {
       'codigo':
           _codigoCtrl.text.trim().isEmpty ? null : _codigoCtrl.text.trim(),
-      'codigoBarras':
-          _barCodeCtrl.text.trim().isEmpty ? null : _barCodeCtrl.text.trim(),
+      'codigoBarras': null,
       'nombre': _nombreCtrl.text.trim(),
       'descripcion':
           _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
@@ -349,44 +347,28 @@ class _ProductFormState extends State<ProductForm> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _codigoCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Código interno (único)',
-                        hintText: 'EJ: ABC-123',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _barCodeCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Código de Barras',
-                        hintText: 'Escanea o escribe el código',
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF0EA5E9)),
-                          onPressed: () async {
-                            final barcodeResult = await Navigator.push<String?>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ArticBarcodeScanner(),
-                              ),
-                            );
-                            if (barcodeResult != null && barcodeResult.isNotEmpty) {
-                              setState(() {
-                                _barCodeCtrl.text = barcodeResult;
-                              });
-                            }
-                          },
+              TextFormField(
+                controller: _codigoCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Código de Barras',
+                  hintText: 'Escanea o escribe el código de barras...',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner, color: const Color(0xFF0EA5E9)),
+                    onPressed: () async {
+                      final barcodeResult = await Navigator.push<String?>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ArticBarcodeScanner(),
                         ),
-                      ),
-                    ),
+                      );
+                      if (barcodeResult != null && barcodeResult.isNotEmpty) {
+                        setState(() {
+                          _codigoCtrl.text = barcodeResult;
+                        });
+                      }
+                    },
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(

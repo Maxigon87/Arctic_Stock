@@ -22,6 +22,7 @@ import '../screens/quick_inquiry_screen.dart';
 import '../services/file_helper.dart';
 import '../utils/file_namer.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/number_to_words.dart';
 import '../widgets/artic_dialog.dart';
 import '../widgets/artic_barcode_scanner.dart';
 import 'dart:async' as dart_async;
@@ -1555,9 +1556,61 @@ class SalesScreenState extends State<SalesScreen> {
                           ],
                         ],
                       ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: subtextColor),
-                        onPressed: () => Navigator.pop(ctx),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.minimize_rounded, color: subtextColor),
+                            tooltip: "Minimizar carrito",
+                            onPressed: () {
+                              _autoGuardarCarrito();
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, color: subtextColor),
+                            tooltip: "Cerrar y descartar carrito",
+                            onPressed: () async {
+                              final confirmar = await showArticDialog<bool>(
+                                context: context,
+                                builder: (c) => ArticDialogCard(
+                                  title: '¿Descartar carrito?',
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, false),
+                                      child: Text('No, mantener', style: TextStyle(color: subtextColor)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () => Navigator.pop(c, true),
+                                      child: const Text('Sí, descartar'),
+                                    ),
+                                  ],
+                                  child: Text(
+                                    '¿Estás seguro de que deseas cerrar y descartar el carrito? Se borrarán todos los productos agregados.',
+                                    style: TextStyle(color: textColor),
+                                  ),
+                                ),
+                              );
+                              if (confirmar == true) {
+                                await dbService.clearCarritoTemporal();
+                                setState(() {
+                                  _carrito.clear();
+                                  _clienteSeleccionado = null;
+                                  metodoSeleccionado = null;
+                                  _aplicarDescuento = false;
+                                  _tipoDescuento = 'percentage';
+                                  _descuentoCtrl.text = '0';
+                                  _observacionesCtrl.text = '';
+                                });
+                                Navigator.pop(ctx);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1599,7 +1652,7 @@ class SalesScreenState extends State<SalesScreen> {
                                                 );
                                                 if (barcodeResult != null && barcodeResult.isNotEmpty) {
                                                   final found = activeProducts.firstWhere(
-                                                    (p) => p['codigoBarras']?.toString() == barcodeResult || p['codigo']?.toString() == barcodeResult,
+                                                    (p) => p['codigo']?.toString() == barcodeResult,
                                                     orElse: () => {},
                                                   );
                                                   if (found.isNotEmpty) {
@@ -1630,8 +1683,8 @@ class SalesScreenState extends State<SalesScreen> {
                                                 searchResults = activeProducts.where((p) {
                                                   final nombre = dbService.normalizeString(p['nombre']?.toString() ?? '');
                                                   final codigo = dbService.normalizeString(p['codigo']?.toString() ?? '');
-                                                  final barcode = dbService.normalizeString(p['codigoBarras']?.toString() ?? '');
-                                                  return nombre.contains(query) || codigo.contains(query) || barcode.contains(query);
+                                                  
+                                                  return nombre.contains(query) || codigo.contains(query);
                                                 }).toList();
                                               }
                                             });
@@ -1913,7 +1966,7 @@ class SalesScreenState extends State<SalesScreen> {
                                   );
                                   if (barcodeResult != null && barcodeResult.isNotEmpty) {
                                     final found = activeProducts.firstWhere(
-                                      (p) => p['codigoBarras']?.toString() == barcodeResult || p['codigo']?.toString() == barcodeResult,
+                                      (p) => p['codigo']?.toString() == barcodeResult,
                                       orElse: () => {},
                                     );
                                     if (found.isNotEmpty) {
@@ -2424,14 +2477,33 @@ class SalesScreenState extends State<SalesScreen> {
                                       ),
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text("TOTAL", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)),
-                                          Text(
-                                            formatCurrency(totalCarrito),
-                                            style: TextStyle(
-                                              color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF22C55E),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 18,
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  formatCurrency(totalCarrito),
+                                                  style: TextStyle(
+                                                    color: isDark ? const Color(0xFF22D3EE) : const Color(0xFF22C55E),
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 18,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  numberToWords(totalCarrito),
+                                                  textAlign: TextAlign.right,
+                                                  style: TextStyle(
+                                                    color: isDark ? Colors.white70 : Colors.black87,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -3169,11 +3241,16 @@ class SalesScreenState extends State<SalesScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: abrirCarrito,
-        backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
-        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-        child: const Icon(Icons.add_shopping_cart),
+      floatingActionButton: Badge(
+        label: const Text('1'),
+        isLabelVisible: _carrito.isNotEmpty,
+        backgroundColor: Colors.redAccent,
+        child: FloatingActionButton(
+          onPressed: abrirCarrito,
+          backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+          foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+          child: const Icon(Icons.add_shopping_cart),
+        ),
       ),
     );
   }

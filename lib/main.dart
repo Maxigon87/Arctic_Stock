@@ -81,6 +81,7 @@ Future<void> main() async {
   Intl.defaultLocale = 'es_AR';
 
   await ThemeController.instance.init();
+  await DBService().initActiveUser();
 
   // Iniciar sincronización si hay un negocio configurado localmente
   final authService = AuthService();
@@ -215,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   int _productosSinStock = 0;
   bool _animarBadge = false;
+  bool _hasPendingCart = false;
 
   NavItem _selected = NavItem.none;
   bool _startNewSaleInVentas = false;
@@ -273,10 +275,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadProductosSinStock() async {
     final count = await DBService().getProductosSinStockCount();
+    final hasCart = await DBService().getCarritoTemporal() != null;
     if (!mounted) return;
-    if (count != _productosSinStock) {
+    if (count != _productosSinStock || hasCart != _hasPendingCart) {
       setState(() {
         _productosSinStock = count;
+        _hasPendingCart = hasCart;
         _animarBadge = true;
       });
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -453,6 +457,7 @@ class _HomeScreenState extends State<HomeScreen>
                               onItemSelected: (item) => setState(() => _selected = item),
                               productosSinStock: _productosSinStock,
                               isCompact: isCompact,
+                              hasPendingCart: _hasPendingCart,
                               onNewSale: () {
                                 setState(() {
                                   _startNewSaleInVentas = true;

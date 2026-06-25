@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/cliente.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DBService {
   static final DBService _instance = DBService._internal();
@@ -1814,11 +1815,9 @@ class DBService {
         final nombre = normalizeString(p['nombre'] as String? ?? '');
         final desc = normalizeString(p['descripcion'] as String? ?? '');
         final codigo = normalizeString(p['codigo'] as String? ?? '');
-        final barcode = normalizeString(p['codigoBarras'] as String? ?? '');
         return nombre.contains(normalizedSearch) ||
             desc.contains(normalizedSearch) ||
-            codigo.contains(normalizedSearch) ||
-            barcode.contains(normalizedSearch);
+            codigo.contains(normalizedSearch);
       }).toList();
     }
 
@@ -2127,11 +2126,29 @@ class DBService {
     return count;
   }
 
-  // ===== Usuario activo (en memoria) =====
+  // ===== Usuario activo (en memoria y persistido) =====
   int? _activeUserId;
   String? _activeUserName;
   String? _activeUserAvatar;
   Uint8List? _activeUserAvatarBytes;
+
+  Future<void> initActiveUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = prefs.getInt('active_user_id');
+      if (id != null) {
+        _activeUserId = id;
+        _activeUserName = prefs.getString('active_user_nombre');
+        _activeUserAvatar = prefs.getString('active_user_avatar');
+        _activeUserAvatarBytes = (_activeUserAvatar != null && _activeUserAvatar!.isNotEmpty)
+            ? base64Decode(_activeUserAvatar!)
+            : null;
+        notifyDbChange();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
 
   void setActiveUser({required int? id, String? nombre, String? avatar}) {
     _activeUserId = id;
@@ -2141,6 +2158,28 @@ class DBService {
         ? base64Decode(avatar)
         : null;
     notifyDbChange();
+
+    SharedPreferences.getInstance().then((prefs) {
+      if (id == null) {
+        prefs.remove('active_user_id');
+        prefs.remove('active_user_nombre');
+        prefs.remove('active_user_avatar');
+      } else {
+        prefs.setInt('active_user_id', id);
+        if (nombre != null) {
+          prefs.setString('active_user_nombre', nombre);
+        } else {
+          prefs.remove('active_user_nombre');
+        }
+        if (avatar != null) {
+          prefs.setString('active_user_avatar', avatar);
+        } else {
+          prefs.remove('active_user_avatar');
+        }
+      }
+    }).catchError((e) {
+      // ignore
+    });
   }
 
   int? get activeUserId => _activeUserId;
@@ -2350,6 +2389,7 @@ class DBService {
       {'id': 1, 'data': jsonStr},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    notifyDbChange();
   }
 
   Future<String?> getCarritoTemporal() async {
@@ -2370,5 +2410,6 @@ class DBService {
       where: 'id = ?',
       whereArgs: [1],
     );
+    notifyDbChange();
   }
 }

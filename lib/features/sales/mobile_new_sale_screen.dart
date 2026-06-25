@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../models/cliente.dart';
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../../utils/number_to_words.dart';
 import '../../../widgets/artic_dialog.dart';
 import '../../../widgets/artic_barcode_scanner.dart';
 import '../../../widgets/artic_cached_image.dart';
@@ -639,9 +640,8 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
     final filtered = _productos.where((p) {
       final name = _dbService.normalizeString(p['nombre'] as String? ?? '');
       final code = _dbService.normalizeString(p['codigo'] as String? ?? '');
-      final barcode = _dbService.normalizeString(p['codigoBarras'] as String? ?? '');
       final search = _dbService.normalizeString(_productoSearch.trim());
-      return name.contains(search) || code.contains(search) || barcode.contains(search);
+      return name.contains(search) || code.contains(search);
     }).toList();
 
     return Column(
@@ -920,9 +920,7 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildInfoItem(Icons.tag, "Código Interno", (p['codigo'] ?? '').toString().isNotEmpty ? p['codigo'].toString() : "No registrado", isDark),
-                    Divider(height: 16, color: borderColor),
-                    _buildInfoItem(Icons.qr_code, "Código de Barras", (p['codigoBarras'] ?? '').toString().isNotEmpty ? p['codigoBarras'].toString() : "No registrado", isDark),
+                    _buildInfoItem(Icons.qr_code, "Código de Barras", (p['codigo'] ?? '').toString().isNotEmpty ? p['codigo'].toString() : "No registrado", isDark),
                   ],
                 ),
               ),
@@ -1022,9 +1020,35 @@ class _MobileNewSaleScreenState extends State<MobileNewSaleScreen> {
               Divider(height: 24, thickness: 1, color: _borderColor),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Total', style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w800, color: _textColor)),
-                  Text(formatCurrency(_total), style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF0EA5E9))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          formatCurrency(_total),
+                          style: GoogleFonts.manrope(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF0EA5E9),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          numberToWords(_total),
+                          textAlign: TextAlign.right,
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ],
