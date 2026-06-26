@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter/widgets.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'db_service.dart';
 import 'auth_service.dart';
+import 'connectivity_helper.dart';
 
 class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   static final SyncService _instance = SyncService._internal();
@@ -21,7 +23,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   DateTime? get lastSyncTime => _lastSyncTime;
 
   StreamSubscription<void>? _dbListener;
-  List<StreamSubscription<QuerySnapshot>> _firestoreListeners = [];
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   Timer? _periodicSyncTimer;
 
   // Iniciar la sincronización basada en eventos y escuchar cambios locales/ciclo de vida
@@ -43,55 +45,25 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     WidgetsBinding.instance.addObserver(this);
 
-    // Iniciar temporizador de sincronización periódica cada 15 minutos (sincronización de respaldo completa)
+    // Iniciar temporizador de sincronización periódica cada 5 minutos
     _periodicSyncTimer?.cancel();
-    _periodicSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+    _periodicSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!_isSyncing) {
         syncData(force: true);
       }
     });
 
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
+      if (!result.contains(ConnectivityResult.none)) {
+        if (!_isSyncing) {
+           syncData(force: true);
+        }
+      }
+    });
+
     // Ejecutar sincronización inicial al arrancar el servicio (completa)
     await syncData(force: true);
-
-    // Iniciar listeners de Firestore para sincronización en tiempo real desde la nube
-    _startFirestoreListeners();
-  }
-
-  Future<void> _startFirestoreListeners() async {
-    final negocioId = _authService.negocioId ?? await _authService.getLocalNegocioId();
-    if (negocioId == null) return;
-
-    for (var listener in _firestoreListeners) {
-      listener.cancel();
-    }
-    _firestoreListeners.clear();
-
-    final tablesToPull = [
-      'categorias',
-      'usuarios',
-      'clientes',
-      'productos',
-      'ventas',
-      'deudas',
-      'movimientos_stock'
-    ];
-
-    for (final table in tablesToPull) {
-      final listener = _firestore
-          .collection('negocios')
-          .doc(negocioId)
-          .collection(table)
-          .snapshots()
-          .listen((snapshot) {
-        if (snapshot.docChanges.isNotEmpty) {
-           Timer(const Duration(milliseconds: 500), () {
-              syncData(force: true);
-           });
-        }
-      });
-      _firestoreListeners.add(listener);
-    }
   }
 
   // Detener la sincronización y el observer de ciclo de vida
@@ -99,11 +71,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     _dbListener?.cancel();
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
-    for (var listener in _firestoreListeners) {
-      listener.cancel();
-    }
-    _firestoreListeners.clear();
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
     WidgetsBinding.instance.removeObserver(this);
+    _lastSyncTime = null;
   }
 
   @override
@@ -153,6 +124,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   // Ejecutar sincronización bidireccional completa
   Future<void> syncData({bool force = false}) async {
     if (_isSyncing) return;
+
+    final hasInternet = await ConnectivityHelper.hasInternet();
+    if (!hasInternet) {
+      debugPrint("Sincronización cancelada: No hay conexión a internet. Trabajando offline.");
+      return;
+    }
+
     _isSyncing = true;
     notifyListeners();
 
