@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'db_service.dart';
+import 'sync_service.dart';
 
 class AuthService extends ChangeNotifier {
   static final AuthService _instance = AuthService._internal();
@@ -29,6 +30,9 @@ class AuthService extends ChangeNotifier {
         email: email.trim(),
         password: password.trim(),
       );
+
+      // Detener cualquier sincronización en progreso y limpiar el timestamp
+      SyncService().stopPeriodicSync();
 
       // Limpiar la base de datos local por completo antes de escribir la nueva configuración
       await _dbService.clearDatabase();
@@ -72,6 +76,9 @@ class AuthService extends ChangeNotifier {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Detener cualquier sincronización en progreso y limpiar el timestamp
+      SyncService().stopPeriodicSync();
+
       // Limpiar la base de datos local por completo antes de escribir la nueva configuración
       await _dbService.clearDatabase();
 
@@ -111,6 +118,9 @@ class AuthService extends ChangeNotifier {
     try {
       await _auth.signOut();
       
+      // Detener cualquier sincronización en progreso y limpiar el timestamp
+      SyncService().stopPeriodicSync();
+
       // Limpiar el usuario activo local (empleado)
       _dbService.setActiveUser(id: null, nombre: null, avatar: null);
 
