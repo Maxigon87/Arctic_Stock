@@ -17,20 +17,24 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   bool _isSyncing = false;
   bool get isSyncing => _isSyncing;
 
+  DateTime? _lastSyncTime;
+  DateTime? get lastSyncTime => _lastSyncTime;
+
   StreamSubscription<void>? _dbListener;
   List<StreamSubscription<QuerySnapshot>> _firestoreListeners = [];
+  Timer? _periodicSyncTimer;
 
   // Iniciar la sincronización basada en eventos y escuchar cambios locales/ciclo de vida
   void startPeriodicSync() async {
-    // Escuchar cambios en la base de datos local con un debounce de 3 segundos para evitar sobrecarga
+    // Escuchar cambios en la base de datos local con un debounce de 1 segundo
     _dbListener?.cancel();
     Timer? debounceTimer;
     _dbListener = _dbService.onDatabaseChanged.listen((_) {
       if (_isSyncing) return;
       debounceTimer?.cancel();
-      debounceTimer = Timer(const Duration(seconds: 3), () {
+      debounceTimer = Timer(const Duration(seconds: 1), () {
         if (!_isSyncing) {
-          syncData();
+          syncData(force: false);
         }
       });
     });
@@ -39,8 +43,16 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     WidgetsBinding.instance.addObserver(this);
 
-    // Ejecutar sincronización inicial al arrancar el servicio
-    await syncData();
+    // Iniciar temporizador de sincronización periódica cada 15 minutos (sincronización de respaldo completa)
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      if (!_isSyncing) {
+        syncData(force: true);
+      }
+    });
+
+    // Ejecutar sincronización inicial al arrancar el servicio (completa)
+    await syncData(force: true);
 
     // Iniciar listeners de Firestore para sincronización en tiempo real desde la nube
     _startFirestoreListeners();
@@ -72,12 +84,9 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
           .collection(table)
           .snapshots()
           .listen((snapshot) {
-        // En lugar de procesar aquí y potencialmente causar problemas de concurrencia,
-        // simplemente disparamos el syncData si hay cambios, que tiene su propio control de concurrencia.
         if (snapshot.docChanges.isNotEmpty) {
-           // Pequeño debounce para no saturar si entran muchos eventos juntos
            Timer(const Duration(milliseconds: 500), () {
-              syncData();
+              syncData(force: true);
            });
         }
       });
@@ -88,6 +97,8 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   // Detener la sincronización y el observer de ciclo de vida
   void stopPeriodicSync() {
     _dbListener?.cancel();
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = null;
     for (var listener in _firestoreListeners) {
       listener.cancel();
     }
@@ -99,25 +110,91 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       debugPrint("App retomada en primer plano: Iniciando sincronización por ciclo de vida.");
-      syncData();
+      syncData(force: true);
     }
   }
 
-  // Ejecutar sincronización bidireccional completa
-  Future<void> syncData() async {
-    if (_isSyncing) return;
+  // Obtener conteo detallado de cambios locales pendientes
+  Future<Map<String, int>> getPendingChangesCount() async {
+    final db = await _dbService.database;
+    final Map<String, int> counts = {};
 
-    final negocioId = _authService.negocioId ?? await _authService.getLocalNegocioId();
-    if (negocioId == null) {
-      debugPrint("Sincronización cancelada: No hay negocio autenticado.");
-      return;
+    try {
+      final deletesRes = await db.rawQuery('SELECT COUNT(*) FROM deleted_records');
+      final deletes = deletesRes.isNotEmpty ? (deletesRes.first.values.first as int? ?? 0) : 0;
+      if (deletes > 0) {
+        counts['Eliminaciones'] = deletes;
+      }
+    } catch (_) {}
+
+    final tables = {
+      'categorias': 'Categorías',
+      'usuarios': 'Usuarios',
+      'clientes': 'Clientes',
+      'productos': 'Productos',
+      'ventas': 'Ventas',
+      'deudas': 'Deudas',
+      'movimientos_stock': 'Movimientos de Stock'
+    };
+
+    for (final entry in tables.entries) {
+      try {
+        final countRes = await db.rawQuery('SELECT COUNT(*) FROM ${entry.key} WHERE synced = 0');
+        final count = countRes.isNotEmpty ? (countRes.first.values.first as int? ?? 0) : 0;
+        if (count > 0) {
+          counts[entry.value] = count;
+        }
+      } catch (_) {}
     }
 
+    return counts;
+  }
+
+  // Ejecutar sincronización bidireccional completa
+  Future<void> syncData({bool force = false}) async {
+    if (_isSyncing) return;
     _isSyncing = true;
     notifyListeners();
 
     try {
-      debugPrint("Iniciando sincronización para el negocio: $negocioId");
+      final negocioId = _authService.negocioId ?? await _authService.getLocalNegocioId();
+      if (negocioId == null) {
+        debugPrint("Sincronización cancelada: No hay negocio autenticado.");
+        _isSyncing = false;
+        notifyListeners();
+        return;
+      }
+
+      // Cargar la última fecha de sincronización de la base de datos si no está cargada en memoria
+      if (_lastSyncTime == null) {
+        try {
+          final db = await _dbService.database;
+          final config = await db.query('config_sync', where: 'negocioId = ?', whereArgs: [negocioId], limit: 1);
+          if (config.isNotEmpty) {
+            final ts = config.first['last_sync_timestamp'] as String?;
+            if (ts != null && ts.isNotEmpty) {
+              _lastSyncTime = DateTime.tryParse(ts);
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Obtener los cambios locales pendientes
+      final pending = await getPendingChangesCount();
+
+      // Si no existen cambios locales pendientes y no es forzada, no hacemos nada
+      if (pending.isEmpty && !force) {
+        _isSyncing = false;
+        notifyListeners();
+        return;
+      }
+
+      if (pending.isNotEmpty) {
+        pending.forEach((key, value) {
+          debugPrint("$key pendientes: $value");
+        });
+      }
+      debugPrint("Iniciando sincronización...");
 
       // 1. Procesar eliminaciones locales (tombstones) hacia la nube
       await _syncDeletes(negocioId);
@@ -128,7 +205,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       // 3. Descargar cambios remotos (Pull)
       await _syncPull(negocioId);
 
-      debugPrint("Sincronización finalizada con éxito.");
+      debugPrint("Sincronización finalizada.");
     } catch (e, stack) {
       debugPrint("Error durante la sincronización: $e");
       debugPrint(stack.toString());
@@ -271,8 +348,12 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
 
       QuerySnapshot snapshot;
       if (lastSyncTime != null && lastSyncTime.isNotEmpty) {
-        // Traer solo los modificados después de la última sincronización
-        snapshot = await query.where('last_updated', isGreaterThan: lastSyncTime).get();
+        // Restar 24 horas de margen de seguridad para evitar desfases de reloj y zonas horarias
+        final parsed = DateTime.tryParse(lastSyncTime);
+        final queryTime = parsed != null 
+            ? parsed.subtract(const Duration(hours: 24)).toIso8601String() 
+            : lastSyncTime;
+        snapshot = await query.where('last_updated', isGreaterThan: queryTime).get();
       } else {
         // Primera sincronización: descargar todo
         snapshot = await query.get();
@@ -376,6 +457,21 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
                 }
               }
             }
+          } else if (table == 'clientes') {
+            final String? remoteNombre = remoteData['nombre']?.toString().trim();
+            if (remoteNombre != null && remoteNombre.isNotEmpty) {
+              final existing = await db.query('clientes', where: 'LOWER(nombre) = ?', whereArgs: [remoteNombre.toLowerCase()], limit: 1);
+              if (existing.isNotEmpty) {
+                final localRow = existing.first;
+                final int localId = localRow['id'] as int;
+                
+                final updateMap = _mapRemoteToLocal(table, remoteData, docId);
+                updateMap['synced'] = 1;
+                
+                await db.update('clientes', updateMap, where: 'id = ?', whereArgs: [localId]);
+                conflictHandled = true;
+              }
+            }
           }
 
           if (!conflictHandled) {
@@ -403,12 +499,16 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     // Actualizar la última fecha de sincronización
-    await db.update(
+    await db.insert(
       'config_sync',
-      {'last_sync_timestamp': nowTime},
-      where: 'negocioId = ?',
-      whereArgs: [negocioId],
+      {
+        'negocioId': negocioId,
+        'last_sync_timestamp': nowTime,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    _lastSyncTime = DateTime.tryParse(nowTime);
+    notifyListeners();
   }
 
   // Mapear campos remotos a campos locales SQLite

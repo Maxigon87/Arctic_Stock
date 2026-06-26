@@ -54,6 +54,35 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
     }
   }
 
+  void _cerrarSesionEmpleado(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Cambiar de Empleado', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+        content: const Text('¿Estás seguro que deseas salir del empleado actual? Volverás a la pantalla de selección de personal.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text('Cancelar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text('Salir', style: GoogleFonts.manrope()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      _dbService.setActiveUser(id: null, nombre: null, avatar: null);
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, '/mobile_login');
+      }
+    }
+  }
+
   void _mostrarPerfil(BuildContext context) {
     showDialog(
       context: context,
@@ -125,6 +154,108 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _mostrarSincronizacion(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final syncService = SyncService();
+          final isSyncing = syncService.isSyncing;
+          final lastSync = syncService.lastSyncTime;
+
+          String timeAgo = "Nunca";
+          if (lastSync != null) {
+            final diff = DateTime.now().difference(lastSync);
+            if (diff.inSeconds < 60) {
+              timeAgo = "Hace unos segundos";
+            } else if (diff.inMinutes < 60) {
+              timeAgo = "Hace ${diff.inMinutes} minuto${diff.inMinutes == 1 ? '' : 's'}";
+            } else {
+              timeAgo = "Hace ${diff.inHours} hora${diff.inHours == 1 ? '' : 's'}";
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Sincronización en la Nube', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Última Sincronización:', style: GoogleFonts.manrope(fontSize: 12, color: const Color(0xFF64748B))),
+                Text(timeAgo, style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF0F172A))),
+                const SizedBox(height: 16),
+                FutureBuilder<Map<String, int>>(
+                  future: syncService.getPendingChangesCount(),
+                  builder: (context, snapshot) {
+                    final pending = snapshot.data ?? {};
+                    if (pending.isEmpty) {
+                      return Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Todos los datos locales están sincronizados con la nube.",
+                              style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Cambios locales pendientes:",
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.amberAccent : Colors.amber.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ...pending.entries.map((e) => Text(
+                          "• ${e.key}: ${e.value}",
+                          style: GoogleFonts.manrope(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                        )),
+                      ],
+                    );
+                  },
+                ),
+                if (isSyncing) ...[
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0EA5E9))),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cerrar', style: GoogleFonts.manrope(color: const Color(0xFF64748B))),
+              ),
+              if (!isSyncing)
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
+                  onPressed: () async {
+                    setDialogState(() {});
+                    await syncService.syncData(force: true);
+                    setDialogState(() {});
+                  },
+                  icon: const Icon(Icons.sync, size: 16),
+                  label: const Text("Sincronizar ahora"),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -331,6 +462,32 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
             cardColor: cardColor,
             borderColor: borderColor,
             onTap: () => _mostrarPerfil(context),
+          ),
+          const SizedBox(height: 12),
+          _buildMenuCard(
+            context,
+            icon: Icons.cloud_sync_outlined,
+            color: const Color(0xFF06B6D4),
+            title: 'Sincronización',
+            subtitle: 'Estado y sincronización manual con la nube',
+            textColor: textColor,
+            subtitleColor: subtitleColor,
+            cardColor: cardColor,
+            borderColor: borderColor,
+            onTap: () => _mostrarSincronizacion(context),
+          ),
+          const SizedBox(height: 12),
+          _buildMenuCard(
+            context,
+            icon: Icons.switch_account_outlined,
+            color: const Color(0xFF10B981),
+            title: 'Cambiar Empleado',
+            subtitle: 'Salir del empleado actual y seleccionar otro',
+            textColor: textColor,
+            subtitleColor: subtitleColor,
+            cardColor: cardColor,
+            borderColor: borderColor,
+            onTap: () => _cerrarSesionEmpleado(context),
           ),
           const SizedBox(height: 12),
           _buildMenuCard(

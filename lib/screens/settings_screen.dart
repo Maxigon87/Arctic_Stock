@@ -17,10 +17,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/db_service.dart';
-
 import '../services/backup_service.dart';
-
 import '../services/catalog_service.dart';
+import '../services/sync_service.dart';
 
 import '../utils/theme_controller.dart';
 
@@ -1076,6 +1075,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 const SnackBar(content: Text('✅ Catálogo importado')),
                               );
                             }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSectionCard(
+                      title: "Sincronización en la Nube",
+                      subtitle: "Visualiza el estado de la base de datos local y la nube de Firestore.",
+                      icon: Icons.cloud_sync_outlined,
+                      isDark: isDark,
+                      children: [
+                        AnimatedBuilder(
+                          animation: SyncService(),
+                          builder: (context, _) {
+                            final isSyncing = SyncService().isSyncing;
+                            final lastSync = SyncService().lastSyncTime;
+                            
+                            String timeAgo = "Nunca";
+                            if (lastSync != null) {
+                              final diff = DateTime.now().difference(lastSync);
+                              if (diff.inSeconds < 60) {
+                                timeAgo = "Hace unos segundos";
+                              } else if (diff.inMinutes < 60) {
+                                timeAgo = "Hace ${diff.inMinutes} minuto${diff.inMinutes == 1 ? '' : 's'}";
+                              } else {
+                                timeAgo = "Hace ${diff.inHours} hora${diff.inHours == 1 ? '' : 's'}";
+                              }
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Última sincronización:",
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.white70 : const Color(0xFF475569),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          timeAgo,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (isSyncing)
+                                      const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                                      )
+                                    else
+                                      ElevatedButton.icon(
+                                        onPressed: () async {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Iniciando sincronización manual...')),
+                                          );
+                                          await SyncService().syncData(force: true);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('✅ Sincronización finalizada con éxito.')),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(Icons.sync, size: 16),
+                                        label: const Text("🔄 Sincronizar ahora"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                                          foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                FutureBuilder<Map<String, int>>(
+                                  future: SyncService().getPendingChangesCount(),
+                                  builder: (context, snapshot) {
+                                    final pending = snapshot.data ?? {};
+                                    if (pending.isEmpty) {
+                                      return Row(
+                                        children: [
+                                          const Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            "Todos los datos locales están sincronizados con la nube.",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Cambios pendientes de sincronizar:",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.amberAccent : Colors.amber.shade800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        ...pending.entries.map((e) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 4.0),
+                                          child: Text(
+                                            "• ${e.key}: ${e.value} pendiente${e.value == 1 ? '' : 's'}",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                            ),
+                                          ),
+                                        )),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            );
                           },
                         ),
                       ],

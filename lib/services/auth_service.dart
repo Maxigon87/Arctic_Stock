@@ -30,6 +30,9 @@ class AuthService extends ChangeNotifier {
         password: password.trim(),
       );
 
+      // Limpiar la base de datos local por completo antes de escribir la nueva configuración
+      await _dbService.clearDatabase();
+
       final db = await _dbService.database;
       await db.insert(
         'config_sync',
@@ -68,6 +71,9 @@ class AuthService extends ChangeNotifier {
         'email': email.trim(),
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Limpiar la base de datos local por completo antes de escribir la nueva configuración
+      await _dbService.clearDatabase();
 
       // Guardar localmente la configuración de sincronización
       final db = await _dbService.database;
@@ -108,9 +114,8 @@ class AuthService extends ChangeNotifier {
       // Limpiar el usuario activo local (empleado)
       _dbService.setActiveUser(id: null, nombre: null, avatar: null);
 
-      // Limpiar configuración de sincronización local
-      final db = await _dbService.database;
-      await db.delete('config_sync');
+      // Limpiar la base de datos local por completo
+      await _dbService.clearDatabase();
 
       notifyListeners();
     } catch (e) {

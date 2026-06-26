@@ -37,6 +37,39 @@ class DBService {
     notifyDbChange();
   }
 
+  /// Cierra la base de datos y la elimina físicamente (o vacía las tablas en caso de fallo).
+  Future<void> clearDatabase() async {
+    final path = await _resolveDbPath();
+    await close();
+    try {
+      await databaseFactory.deleteDatabase(path);
+    } catch (_) {
+      // Si por alguna razón falla el borrado físico (ej. archivo bloqueado),
+      // abrimos la DB y vaciamos todas las tablas principales.
+      final db = await database;
+      await db.execute("PRAGMA foreign_keys = OFF;");
+      final tables = [
+        'categorias',
+        'productos',
+        'usuarios',
+        'clientes',
+        'ventas',
+        'deudas',
+        'items_venta',
+        'movimientos_stock',
+        'deleted_records',
+        'config_sync',
+        'carrito_temporal'
+      ];
+      for (final table in tables) {
+        try {
+          await db.delete(table);
+        } catch (_) {}
+      }
+      await db.execute("PRAGMA foreign_keys = ON;");
+    }
+  }
+
   Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await _initDB();

@@ -89,7 +89,7 @@ Future<void> main() async {
   if (cachedNegocioId != null) {
     SyncService().startPeriodicSync();
     // Ejecutar una sincronización inicial asíncrona
-    SyncService().syncData();
+    SyncService().syncData(force: true);
   }
 
   runApp(const MyApp());
@@ -566,7 +566,38 @@ class _HomeScreenState extends State<HomeScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text("Salir"),
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () async {
+              BuildContext? loaderContext;
+              showDialog(
+                context: ctx,
+                barrierDismissible: false,
+                builder: (loadingCtx) {
+                  loaderContext = loadingCtx;
+                  return WillPopScope(
+                    onWillPop: () async => false,
+                    child: const AlertDialog(
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF22D3EE))),
+                          SizedBox(height: 16),
+                          Text("Guardando y sincronizando cambios pendientes antes de salir...", textAlign: TextAlign.center),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+
+              try {
+                await SyncService().syncData(force: true);
+              } catch (_) {}
+
+              if (loaderContext != null) {
+                Navigator.of(loaderContext!).pop();
+              }
+              Navigator.of(ctx).pop(true);
+            },
           ),
         ],
         child: Text(

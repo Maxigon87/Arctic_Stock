@@ -182,12 +182,8 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
       SyncService().startPeriodicSync();
 
-      // Sincronización silenciosa inicial
-
-      SyncService().syncData().then((_) {
-
+      SyncService().syncData(force: true).then((_) {
         if (mounted) _loadUsuarios();
-
       });
 
     } else {
@@ -270,8 +266,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
 
 
-      await SyncService().syncData();
-
+      await SyncService().syncData(force: true);
       SyncService().startPeriodicSync();
 
       await _loadUsuarios();

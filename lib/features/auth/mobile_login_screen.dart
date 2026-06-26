@@ -436,9 +436,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
 
 
-      await SyncService().syncData();
-
-
+      await SyncService().syncData(force: true);
 
       SyncService().startPeriodicSync();
 
