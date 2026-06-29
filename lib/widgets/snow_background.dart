@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/theme_controller.dart';
 
 class Snowflake {
   double x;
@@ -57,24 +58,32 @@ class _SnowBackgroundState extends State<SnowBackground> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        IgnorePointer(
-          child: RepaintBoundary(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                _updateSnow();
-                return CustomPaint(
-                  painter: SnowPainter(snowflakes: _snowflakes),
-                  child: Container(),
-                );
-              },
+    return ValueListenableBuilder<bool>(
+      valueListenable: ThemeController.instance.performanceMode,
+      builder: (context, isPerformanceMode, _) {
+        if (isPerformanceMode) {
+          return widget.child;
+        }
+        return Stack(
+          children: [
+            widget.child,
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    _updateSnow();
+                    return CustomPaint(
+                      painter: SnowPainter(snowflakes: _snowflakes),
+                      child: Container(),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

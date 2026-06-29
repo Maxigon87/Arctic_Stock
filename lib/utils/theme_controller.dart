@@ -6,7 +6,9 @@ class ThemeController {
   static final ThemeController instance = ThemeController._();
 
   final ValueNotifier<ThemeMode> mode = ValueNotifier(ThemeMode.system);
+  final ValueNotifier<bool> performanceMode = ValueNotifier(false);
   static const _kKey = 'theme_mode'; // 'system' | 'light' | 'dark'
+  static const _kPerfKey = 'performance_mode';
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -21,6 +23,7 @@ class ThemeController {
       default:
         mode.value = ThemeMode.system;
     }
+    performanceMode.value = prefs.getBool(_kPerfKey) ?? false;
   }
 
   Future<void> setMode(ThemeMode m) async {
@@ -32,5 +35,11 @@ class ThemeController {
       ThemeMode.dark => 'dark',
     };
     await prefs.setString(_kKey, str);
+  }
+
+  Future<void> setPerformanceMode(bool value) async {
+    performanceMode.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPerfKey, value);
   }
 }

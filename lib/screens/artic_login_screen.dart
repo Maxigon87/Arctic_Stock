@@ -14,6 +14,7 @@ import '../widgets/articlogo.dart';
 import '../services/auth_service.dart';
 
 import '../services/sync_service.dart';
+import '../utils/theme_controller.dart';
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -69,6 +70,8 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   bool _showRegisterForm = false;
 
   bool _authenticating = false;
+
+  bool _obscurePassword = true;
 
   final _emailController = TextEditingController();
 
@@ -304,6 +307,83 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
   }
 
 
+
+  Future<void> _showPasswordResetDialog() async {
+    final resetEmailController = TextEditingController(text: _emailController.text);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final ok = await showArticDialog<bool>(
+      context: context,
+      builder: (ctx) => ArticDialogCard(
+        title: 'Recuperar Contraseña',
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enviar Correo'),
+          ),
+        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Ingresa el correo electrónico de tu negocio y te enviaremos un enlace para restablecer tu contraseña.',
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              keyboardType: TextInputType.emailAddress,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                labelText: 'Correo Electrónico',
+                labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      final email = resetEmailController.text.trim();
+      if (email.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Por favor escribe tu correo electrónico')),
+          );
+        }
+        return;
+      }
+
+      setState(() => _authenticating = true);
+      try {
+        await AuthService().sendPasswordResetEmail(email);
+        if (mounted) {
+          setState(() => _authenticating = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Correo de restablecimiento enviado con éxito')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _authenticating = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al enviar correo: $e')),
+          );
+        }
+      }
+    }
+  }
 
   Future<void> _logoutBusiness() async {
 
@@ -609,9 +689,18 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
           children: [
 
-            CustomPaint(
+            ValueListenableBuilder<bool>(
+              valueListenable: ThemeController.instance.performanceMode,
+              builder: (context, isPerformanceMode, _) {
+                if (isPerformanceMode) return const SizedBox.shrink();
+                return CustomPaint(
+                  size: Size.infinite,
+                  painter: _WindPainter(_windParticles),
+                );
+              },
+            ),
 
-                size: Size.infinite, painter: _WindPainter(_windParticles)),
+
 
             Center(
 
@@ -1056,7 +1145,7 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
           controller: _passwordController,
 
-          obscureText: true,
+          obscureText: _obscurePassword,
 
           style: TextStyle(
 
@@ -1082,6 +1171,18 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
 
             ),
 
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
+
             border: const OutlineInputBorder(),
 
             enabledBorder: OutlineInputBorder(
@@ -1097,6 +1198,30 @@ class _ArticLoginScreenState extends State<ArticLoginScreen>
           ),
 
         ),
+
+        if (!_showRegisterForm) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _showPasswordResetDialog,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(50, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                '¿Olvidaste tu contraseña?',
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF22D3EE)
+                      : const Color(0xFF0284C7),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 20),
 

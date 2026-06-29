@@ -880,6 +880,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             },
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: ThemeController.instance.performanceMode,
+                          builder: (context, isPerf, _) {
+                            return SwitchListTile(
+                              title: Text(
+                                'Modo Rendimiento',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Desactiva animaciones de fondo, nieve y efectos de ventana para un mejor rendimiento.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              value: isPerf,
+                              activeColor: isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7),
+                              onChanged: (val) async {
+                                await ThemeController.instance.setPerformanceMode(val);
+                              },
+                            );
+                          },
+                        ),
                       ],
                     ),
 

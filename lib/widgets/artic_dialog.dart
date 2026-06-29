@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../utils/theme_controller.dart';
 
 class SnowParticle {
   double x; // normalized 0..1
@@ -125,83 +126,110 @@ class ArticDialogCard extends StatelessWidget {
     this.maxWidth,
   });
 
+  Widget _buildDialogContent(BuildContext context, bool isDark) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (title != null) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title!,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, size: 18, color: isDark ? Colors.white60 : Colors.black54),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+        Flexible(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: child,
+          ),
+        ),
+        if (actions != null) ...[
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: actions!,
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return SnowFallEffect(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF1E293B).withOpacity(0.9)
-                    : Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
-                  width: 1.2,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (title != null) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title!,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close, size: 18, color: isDark ? Colors.white60 : Colors.black54),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: ThemeController.instance.performanceMode,
+      builder: (context, isPerformanceMode, _) {
+        final content = Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          decoration: BoxDecoration(
+            boxShadow: isPerformanceMode
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
                     ),
-                    const SizedBox(height: 16),
                   ],
-                  Flexible(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      child: child,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: isPerformanceMode
+                ? Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.1),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: _buildDialogContent(context, isDark),
+                  )
+                : BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E293B).withOpacity(0.9)
+                            : Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: _buildDialogContent(context, isDark),
                     ),
                   ),
-                  if (actions != null) ...[
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: actions!,
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ),
-        ),
-      ),
+        );
+
+        if (isPerformanceMode) {
+          return content;
+        }
+        return SnowFallEffect(child: content);
+      },
     );
   }
 }

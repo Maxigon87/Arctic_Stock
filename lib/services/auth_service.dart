@@ -132,4 +132,13 @@ class AuthService extends ChangeNotifier {
       rethrow;
     }
   }
+
+  // Enviar correo de restablecimiento de contraseña
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

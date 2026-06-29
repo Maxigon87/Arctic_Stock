@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/theme_controller.dart';
 
 class ArticBackground extends StatelessWidget {
   final Widget child;
@@ -24,13 +25,19 @@ class ArticBackground extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
       ),
-      child: Stack(
-        children: [
-          const Positioned.fill(
-            child: SnowParticlesWidget(),
-          ),
-          child, // Se mantiene intacto sin reconstruirse en cada cuadro de la animación
-        ],
+      child: ValueListenableBuilder<bool>(
+        valueListenable: ThemeController.instance.performanceMode,
+        builder: (context, isPerformanceMode, _) {
+          return Stack(
+            children: [
+              if (!isPerformanceMode)
+                const Positioned.fill(
+                  child: SnowParticlesWidget(),
+                ),
+              child, // Se mantiene intacto sin reconstruirse en cada cuadro de la animación
+            ],
+          );
+        },
       ),
     );
   }

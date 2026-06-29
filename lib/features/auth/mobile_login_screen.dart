@@ -86,6 +86,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   bool _loading = false;
 
+  bool _obscurePassword = true;
+
 
 
 
@@ -489,6 +491,69 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
 
 
+
+  Future<void> _showPasswordResetDialog() async {
+    final resetEmailCtrl = TextEditingController(text: _emailCtrl.text);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Recuperar Contraseña', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Ingresa el correo electrónico de tu negocio y te enviaremos un enlace para restablecer tu contraseña.',
+              style: GoogleFonts.manrope(color: isDark ? Colors.white70 : const Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: GoogleFonts.manrope(color: textColor),
+              decoration: InputDecoration(
+                labelText: 'Correo Electrónico',
+                labelStyle: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.manrope()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Enviar Correo', style: GoogleFonts.manrope()),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      final email = resetEmailCtrl.text.trim();
+      if (email.isEmpty) {
+        _showSnackbar('Por favor escribe tu correo electrónico');
+        return;
+      }
+
+      setState(() => _loading = true);
+      try {
+        await _authService.sendPasswordResetEmail(email);
+        setState(() => _loading = false);
+        _showSnackbar('Correo de restablecimiento enviado con éxito');
+      } catch (e) {
+        setState(() => _loading = false);
+        _showSnackbar('Error al enviar correo: $e');
+      }
+    }
+  }
 
   Future<void> _logoutBusiness() async {
 
@@ -1327,7 +1392,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
 
 
-            obscureText: true,
+            obscureText: _obscurePassword,
 
 
 
@@ -1346,6 +1411,18 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               prefixIcon: Icon(Icons.lock_outlined, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
 
 
+
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
+              ),
 
               labelStyle: GoogleFonts.manrope(color: isDark ? Colors.white60 : const Color(0xFF64748B)),
 
@@ -1376,6 +1453,24 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
 
           ),
+
+          if (!_showRegisterForm) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: _showPasswordResetDialog,
+                child: Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: GoogleFonts.manrope(
+                    color: const Color(0xFF0EA5E9),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ],
 
 
 
