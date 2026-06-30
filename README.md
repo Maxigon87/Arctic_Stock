@@ -1,98 +1,246 @@
-# ❄️ Arctic Stock – Sistema de Gestión Comercial
+# ❄️ Arctic Stock – Sistema de Gestión Comercial Multiplataforma
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.22+-blue?logo=flutter)
-![SQLite](https://img.shields.io/badge/SQLite-3-lightgrey?logo=sqlite)
+![Firebase](https://img.shields.io/badge/Firebase-Enabled-orange?logo=firebase)
+![SQLite](https://img.shields.io/badge/SQLite-Offline--First-lightgrey?logo=sqlite)
+![Platforms](https://img.shields.io/badge/Windows-Android-blue)
 ![Status](https://img.shields.io/badge/status-Production-green)
 
+---
+
 ## 🚀 Descripción
-**Arctic Stock** es una aplicación desarrollada en **Flutter** (Desktop/Mobile) para la gestión integral de inventario, ventas, clientes y deudas, con reportes avanzados y estadísticas en tiempo real.  
+
+**Arctic Stock** es un sistema de gestión comercial desarrollado en **Flutter** para **Windows y Android**, diseñado para pequeños y medianos negocios que necesitan administrar inventario, ventas, clientes, deudas y estadísticas en tiempo real.
+
+El sistema utiliza una arquitectura **Offline First**, permitiendo trabajar localmente mediante SQLite y sincronizar automáticamente los datos mediante Firebase.
+
+---
+
 ## 📥 Instalación
 
-Descarga el instalador con un clic:
+### Windows
 
-[![Download Arctic Stock](https://img.shields.io/badge/Descargar-Instalador-blue?style=for-the-badge&logo=windows)](https://github.com/Maxigon87/Arctic_Stock/releases/download/1.0.0/ArcticStock-Setup-1.0.0.exe)
+[![Download Arctic Stock](https://img.shields.io/badge/Descargar-Instalador-blue?style=for-the-badge\&logo=windows)](https://github.com/Maxigon87/Arctic_Stock/releases)
 
----
+### Android
 
-💡 Diseñada para pequeños y medianos negocios que buscan una solución moderna, rápida y visualmente atractiva.
+Descargar el APK desde la sección Releases:
 
----
-
-## 🖥️ Características principales
-
-### 📦 Gestión de Inventario
-- CRUD completo para productos con categorías.  
-- Control de stock en tiempo real.  
-- Badge dinámico que alerta productos agotados con animación.  
-- Filtro rápido para listar productos sin stock.  
-- Alertas automáticas al intentar vender sin stock suficiente.  
-
-### 💰 Ventas
-- Registro de ventas con múltiples métodos de pago.  
-- Validación de stock antes de confirmar ventas.  
-- Carrito interactivo con edición de cantidades.  
-- Soporte para ventas fiadas → genera deudas automáticamente.  
-
-### 📄 Reportes
-- Exportación en **PDF** y **Excel**.  
-- Reportes de ventas, deudas y stock.  
-
-### 📊 Dashboard Inteligente
-- KPIs en tiempo real:
-  - Ventas del día y del mes.  
-  - Deudas pendientes.  
-  - Producto más vendido.  
-  - Cantidad de productos sin stock 🔥  
-- Gráfico de ventas últimos 7 días.  
-- Gráfico circular de métodos de pago.  
-- Filtros por categoría y rango de fechas.  
-
-### 🌙 Experiencia de Usuario
-- Modo claro/oscuro con persistencia de preferencias.  
-- Animaciones suaves (AnimatedScale, AnimatedOpacity).  
-- Interfaz responsive y moderna.  
+📱 `ArcticStockMobile.apk`
 
 ---
 
-## 🛠️ Tecnologías utilizadas
-- **Flutter 3.22+**  
-- **SQLite** con `sqflite_common_ffi`  
-- **PDF & Excel** → `pdf`, `printing`, `excel`  
-- **Gráficos** → `fl_chart`  
-- **Persistencia** → `shared_preferences`  
+## 🖥 Plataformas compatibles
+
+* ✅ Windows
+* ✅ Android
+* 🔄 Web (próximamente)
 
 ---
 
-## ⚡ Últimas mejoras implementadas
-- ✅ Animación del badge de productos sin stock.  
-- ✅ Filtro exclusivo para productos agotados.  
-- ✅ Validación de stock en ventas con alertas.  
-- ✅ KPI en Dashboard para productos sin stock.  
-- ✅ Actualización en tiempo real con `notifyDbChange()` y streams.  
+# 📦 Gestión de Inventario
+
+* CRUD completo de productos.
+* Categorías personalizadas.
+* Control de stock en tiempo real.
+* Indicadores visuales de stock.
+* Productos agotados destacados.
+* Alertas de stock insuficiente.
+* Códigos internos.
+* Soporte para códigos de barras.
+* Búsqueda inteligente.
 
 ---
 
-## 📂 Estructura del proyecto
-```bash
-lib/
- ├── screens/
- │   ├── dashboard_screen.dart
- │   ├── sales_screen.dart
- │   ├── product_list_screen.dart
- │   └── ...
- ├── services/
- │   ├── db_service.dart
- │   ├── backup_service.dart
- │   └── catalog_service.dart
- ├── widgets/
- │   ├── artic_background.dart
- │   ├── artic_container.dart
- │   └── artic_kpi_card.dart
- └── main.dart
+# 🔍 Búsqueda Avanzada
 
-### Respaldo
+* Búsqueda por nombre.
+* Búsqueda por código.
+* Búsqueda por código de barras.
+* Ignora mayúsculas y minúsculas.
+* Ignora acentos y caracteres especiales.
 
-El servicio de respaldo permite exportar la información de ventas,
-ganancias, clientes, datos del dashboard y deudas en un archivo ZIP.
-Los productos no se incluyen ya que poseen su propia opción de
-exportación a través del `CatalogService`.
+Ejemplos:
+
+* cafe → Café
+* canon → Cañón
+* camion → Camión
+
+---
+
+# 🛒 Ventas
+
+* Carrito interactivo.
+* Edición de cantidades.
+* Múltiples métodos de pago.
+* Ventas fiadas.
+* Generación automática de deudas.
+* Descuentos porcentuales.
+* Descuentos por monto fijo.
+* Redondeo de ventas.
+* Validación de stock.
+* Consulta rápida de precios.
+
+---
+
+# 📱 Aplicación Android
+
+La aplicación móvil permite:
+
+* Dashboard comercial.
+* Gestión de productos.
+* Gestión de clientes.
+* Gestión de deudas.
+* Consulta rápida.
+* Ventas móviles.
+* Búsqueda por código de barras.
+* Sincronización con escritorio.
+
+---
+
+# 📊 Dashboard Comercial
+
+KPIs en tiempo real:
+
+* Ventas del día.
+* Ventas del mes.
+* Ganancia diaria.
+* Ganancia mensual.
+* Productos sin stock.
+* Producto más vendido.
+* Deudas pendientes.
+
+Además incluye:
+
+* Ventas últimos 7 días.
+* Métodos de pago.
+* Filtros por fechas.
+* Filtros por categorías.
+
+---
+
+# 🖨 Impresión
+
+* PDF A4.
+* Ticket térmico 58 mm.
+* Ticket térmico 80 mm.
+* Optimización para impresoras térmicas.
+* Compartir comprobantes.
+
+---
+
+# 📦 Consulta Rápida
+
+Permite:
+
+* Buscar productos.
+* Escanear códigos.
+* Consultar precios.
+* Ver stock.
+* Agregar directamente al carrito.
+
+Compatible con:
+
+* Lectores USB.
+* Lectores Bluetooth.
+* Escáneres de código de barras.
+
+---
+
+# 💾 Respaldos y Datos
+
+* Exportar respaldo completo.
+* Importar respaldo.
+* Exportar catálogo.
+* Importar catálogo.
+* Sincronización con Firebase.
+* Base local SQLite.
+
+---
+
+# ☁ Arquitectura
+
+```text
+SQLite
+    ↓
+Base local rápida
+
+Firebase
+    ↓
+Sincronización nube
+
+Windows
+Android
+```
+
+Arquitectura:
+
+* Offline First.
+* Datos locales.
+* Sincronización automática.
+* Soporte sin conexión.
+
+---
+
+# 🎨 Experiencia de Usuario
+
+* Modo claro.
+* Modo oscuro.
+* Tema del sistema.
+* Animaciones suaves.
+* Diseño responsive.
+* Interfaz moderna.
+* Material Design.
+
+---
+
+# 🛠 Tecnologías
+
+* Flutter 3.22+
+* SQLite
+* Firebase Authentication
+* Cloud Firestore
+* Firebase Storage
+* Shared Preferences
+* fl_chart
+* pdf
+* printing
+* excel
+* image_picker
+* cached_network_image
+
+---
+
+# ⚡ Últimas mejoras
+
+* ✅ Aplicación Android.
+* ✅ Sincronización Firebase.
+* ✅ Códigos de barras.
+* ✅ Consulta rápida.
+* ✅ Descuentos manuales.
+* ✅ Ordenamiento avanzado.
+* ✅ Búsqueda sin acentos.
+* ✅ Ticket 58 mm.
+* ✅ Ticket 80 mm.
+* ✅ Dashboard móvil.
+* ✅ Gestión de clientes móvil.
+* ✅ Gestión de deudas móvil.
+* ✅ Carrito móvil.
+* ✅ Configuración de impresión.
+* ✅ Arquitectura multiplataforma.
+
+---
+
+# 🚀 Próximamente
+
+* Imágenes de productos.
+* Catálogo web.
+* Carrito online.
+* Pedidos desde clientes.
+* Integración WhatsApp.
+* Marketplace web.
+* Pagos online.
+
+---
+
+Desarrollado con ❤️ usando Flutter.
