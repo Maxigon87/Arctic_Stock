@@ -243,12 +243,9 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         final isMax = await windowManager.isMaximized();
-        if (!isMax) {
-          await windowManager.maximize();
-        }
         if (mounted) {
           setState(() {
-            _isWindowMaximized = true;
+            _isWindowMaximized = isMax;
           });
         }
       }
