@@ -18,13 +18,38 @@ class MobileHomeScreen extends StatefulWidget {
 
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
+  Map<String, dynamic>? _selectedSaleForDetail;
+  bool _showChangeEmployeeOnMore = false;
 
-  final List<Widget> _screens = const [
-    MobileDashboardScreen(),
-    MobileSalesScreen(),
-    MobileProductsScreen(),
-    MobileClientsScreen(),
-    MobileMoreScreen(),
+  List<Widget> get _screens => [
+    MobileDashboardScreen(
+      onNavigateToSales: (sale) {
+        setState(() {
+          _selectedSaleForDetail = sale;
+          _currentIndex = 1;
+        });
+      },
+      onNavigateToMoreWithChangeEmployee: () {
+        setState(() {
+          _showChangeEmployeeOnMore = true;
+          _currentIndex = 4;
+        });
+      },
+    ),
+    MobileSalesScreen(
+      initialSelectedSale: _selectedSaleForDetail,
+      onDetailShown: () {
+        _selectedSaleForDetail = null;
+      },
+    ),
+    const MobileProductsScreen(),
+    const MobileClientsScreen(),
+    MobileMoreScreen(
+      initialShowChangeEmployee: _showChangeEmployeeOnMore,
+      onChangeEmployeeShown: () {
+        _showChangeEmployeeOnMore = false;
+      },
+    ),
   ];
 
   Future<bool?> _mostrarDialogoConfirmacion(BuildContext context) async {

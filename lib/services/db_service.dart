@@ -1355,7 +1355,30 @@ class DBService {
 
   Future<int> deleteCliente(int id) async {
     final db = await database;
-    // Registro de baja en deleted_records para sincronización
+    // 1. Desvincular ventas (poner clienteId = NULL y marcar synced = 0)
+    await db.update(
+      'ventas',
+      _withSyncMeta({'clienteId': null}),
+      where: 'clienteId = ?',
+      whereArgs: [id],
+    );
+    
+    // 2. Eliminar todas las deudas del cliente de forma ordenada (para evitar violar foreign key)
+    final deudas = await db.query('deudas', columns: ['id', 'firebase_id'], where: 'clienteId = ?', whereArgs: [id]);
+    for (final d in deudas) {
+      final deId = d['id'] as int;
+      final fId = d['firebase_id'] as String?;
+      if (fId != null) {
+        await db.insert('deleted_records', {
+          'table_name': 'deudas',
+          'firebase_id': fId,
+          'deleted_at': DateTime.now().toIso8601String(),
+        });
+      }
+      await db.delete('deudas', where: 'id = ?', whereArgs: [deId]);
+    }
+
+    // 3. Registro de baja en deleted_records para sincronización del cliente
     final rec = await db.query('clientes', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
     if (rec.isNotEmpty && rec.first['firebase_id'] != null) {
       await db.insert('deleted_records', {
@@ -1365,6 +1388,22 @@ class DBService {
       });
     }
     final count = await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
+    notifyDbChange();
+    return count;
+  }
+
+  Future<int> deleteDeuda(int id) async {
+    final db = await database;
+    // Registro de baja en deleted_records para sincronización
+    final rec = await db.query('deudas', columns: ['firebase_id'], where: 'id = ?', whereArgs: [id]);
+    if (rec.isNotEmpty && rec.first['firebase_id'] != null) {
+      await db.insert('deleted_records', {
+        'table_name': 'deudas',
+        'firebase_id': rec.first['firebase_id'] as String,
+        'deleted_at': DateTime.now().toIso8601String(),
+      });
+    }
+    final count = await db.delete('deudas', where: 'id = ?', whereArgs: [id]);
     notifyDbChange();
     return count;
   }

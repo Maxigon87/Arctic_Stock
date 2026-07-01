@@ -443,6 +443,46 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                                 },
                               ),
                             ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildActionButton(
+                                icon: Icons.delete_outline,
+                                label: 'Eliminar',
+                                color: const Color(0xFFEF4444),
+                                enabled: true,
+                                onTap: () async {
+                                  final confirm = await showArticDialog<bool>(
+                                    context: context,
+                                    builder: (c) => ArticDialogCard(
+                                      title: 'Eliminar Cliente',
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(c, false),
+                                          child: Text('Cancelar', style: GoogleFonts.manrope(color: subtitleColor)),
+                                        ),
+                                        FilledButton(
+                                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+                                          onPressed: () => Navigator.pop(c, true),
+                                          child: Text('Eliminar', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                      child: Text(
+                                        '¿Está seguro de que desea eliminar a $nombre? Se desvincularán sus ventas y se borrarán todas sus deudas asociadas.',
+                                        style: GoogleFonts.manrope(color: textColor),
+                                      ),
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    await _dbService.deleteCliente(id);
+                                    if (context.mounted) {
+                                      Navigator.pop(ctx); // Close details sheet
+                                      _loadClientes();
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -658,49 +698,89 @@ class _MobileClientsScreenState extends State<MobileClientsScreen> {
                         style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFFEF4444)),
                       ),
                       const SizedBox(height: 6),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF22C55E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        onPressed: () async {
-                          final confirm = await showArticDialog<bool>(
-                            context: context,
-                            builder: (c) => ArticDialogCard(
-                              title: 'Saldar Deuda',
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(c, false),
-                                  child: Text('Cancelar', style: GoogleFonts.manrope(color: subTextCol)),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+                            onPressed: () async {
+                              final confirm = await showArticDialog<bool>(
+                                context: context,
+                                builder: (c) => ArticDialogCard(
+                                  title: 'Eliminar Deuda',
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, false),
+                                      child: Text('Cancelar', style: GoogleFonts.manrope(color: subTextCol)),
+                                    ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+                                      onPressed: () => Navigator.pop(c, true),
+                                      child: Text('Eliminar', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                  child: Text(
+                                    '¿Está seguro de que desea eliminar esta deuda por ${formatCurrency(monto)}? Esta acción no se puede deshacer.',
+                                    style: GoogleFonts.manrope(color: textCol),
+                                  ),
                                 ),
-                                FilledButton(
-                                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
-                                  onPressed: () => Navigator.pop(c, true),
-                                  child: Text('Confirmar Pago', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                              child: Text(
-                                '¿Confirmas que deseas registrar el pago de esta deuda por ${formatCurrency(monto)}?',
-                                style: GoogleFonts.manrope(color: textCol),
-                              ),
-                            ),
-                          );
+                              );
 
-                          if (confirm == true) {
-                            await _dbService.markDeudaAsPagada(id, monto);
-                            Navigator.pop(context); // Close details sheet
-                            _loadClientes();
-                          }
-                        },
-                        child: Text(
-                          'Pagar',
-                          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
+                              if (confirm == true) {
+                                await _dbService.deleteDeuda(id);
+                                if (context.mounted) {
+                                  Navigator.pop(context); // Close details sheet
+                                  _loadClientes();
+                                }
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF22C55E),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () async {
+                              final confirm = await showArticDialog<bool>(
+                                context: context,
+                                builder: (c) => ArticDialogCard(
+                                  title: 'Saldar Deuda',
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, false),
+                                      child: Text('Cancelar', style: GoogleFonts.manrope(color: subTextCol)),
+                                    ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
+                                      onPressed: () => Navigator.pop(c, true),
+                                      child: Text('Confirmar Pago', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                  child: Text(
+                                    '¿Confirmas que deseas registrar el pago de esta deuda por ${formatCurrency(monto)}?',
+                                    style: GoogleFonts.manrope(color: textCol),
+                                  ),
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                await _dbService.markDeudaAsPagada(id, monto);
+                                Navigator.pop(context); // Close details sheet
+                                _loadClientes();
+                              }
+                            },
+                            child: Text(
+                              'Pagar',
+                              style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

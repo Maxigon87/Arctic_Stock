@@ -170,8 +170,37 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   Future<void> _deleteCliente(int id) async {
-    await DBService().deleteCliente(id);
-    _loadClientes();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirm = await showArticDialog<bool>(
+      context: context,
+      builder: (c) => ArticDialogCard(
+        title: "Eliminar Cliente",
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text("Eliminar"),
+          ),
+        ],
+        child: Text(
+          "¿Está seguro que desea eliminar este cliente? Se desvincularán sus ventas históricas y se borrarán todas sus deudas.",
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
+      ),
+    );
+
+    if (confirm == true) {
+      await DBService().deleteCliente(id);
+      _loadClientes();
+    }
   }
 
   void _showClienteInfo(Cliente cliente) {
@@ -568,80 +597,125 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          IconButton(
-                                            icon: Icon(
-                                              isPaid ? Icons.undo : Icons.check_circle_outline,
-                                              color: isPaid ? Colors.orange : Colors.green,
-                                              size: 18,
-                                            ),
-                                            tooltip: isPaid ? "Volver a Deuda" : "Saldar Deuda",
-                                            onPressed: () async {
-                                              if (isPaid) {
-                                                // Confirmación para volver a deuda
-                                                final conf = await showArticDialog<bool>(
-                                                  context: context,
-                                                  builder: (c) => ArticDialogCard(
-                                                    title: "Volver a Deuda",
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed: () => Navigator.pop(c, false),
-                                                        child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
-                                                      ),
-                                                      ElevatedButton(
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: Colors.orange,
-                                                          foregroundColor: Colors.white,
-                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(
+                                                  isPaid ? Icons.undo : Icons.check_circle_outline,
+                                                  color: isPaid ? Colors.orange : Colors.green,
+                                                  size: 18,
+                                                ),
+                                                tooltip: isPaid ? "Volver a Deuda" : "Saldar Deuda",
+                                                onPressed: () async {
+                                                  if (isPaid) {
+                                                    // Confirmación para volver a deuda
+                                                    final conf = await showArticDialog<bool>(
+                                                      context: context,
+                                                      builder: (c) => ArticDialogCard(
+                                                        title: "Volver a Deuda",
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(c, false),
+                                                            child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                                          ),
+                                                          ElevatedButton(
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.orange,
+                                                              foregroundColor: Colors.white,
+                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                            ),
+                                                            onPressed: () => Navigator.pop(c, true),
+                                                            child: const Text("Sí, reactivar"),
+                                                          ),
+                                                        ],
+                                                        child: Text(
+                                                          "¿Seguro que desea reactivar esta deuda?",
+                                                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
                                                         ),
-                                                        onPressed: () => Navigator.pop(c, true),
-                                                        child: const Text("Sí, reactivar"),
                                                       ),
-                                                    ],
-                                                    child: Text(
-                                                      "¿Seguro que desea reactivar esta deuda?",
-                                                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-                                                    ),
-                                                  ),
-                                                );
-                                                if (conf == true) {
-                                                  await DBService().revertirDeudaAPendiente(idDeuda);
-                                                  Navigator.pop(ctx);
-                                                  _showClienteInfo(cliente);
-                                                }
-                                              } else {
-                                                // Saldar deuda
-                                                final conf = await showArticDialog<bool>(
-                                                  context: context,
-                                                  builder: (c) => ArticDialogCard(
-                                                    title: "Saldar Deuda",
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed: () => Navigator.pop(c, false),
-                                                        child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
-                                                      ),
-                                                      ElevatedButton(
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: Colors.green,
-                                                          foregroundColor: Colors.white,
-                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                    );
+                                                    if (conf == true) {
+                                                      await DBService().revertirDeudaAPendiente(idDeuda);
+                                                      Navigator.pop(ctx);
+                                                      _showClienteInfo(cliente);
+                                                    }
+                                                  } else {
+                                                    // Saldar deuda
+                                                    final conf = await showArticDialog<bool>(
+                                                      context: context,
+                                                      builder: (c) => ArticDialogCard(
+                                                        title: "Saldar Deuda",
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(c, false),
+                                                            child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                                          ),
+                                                          ElevatedButton(
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.green,
+                                                              foregroundColor: Colors.white,
+                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                            ),
+                                                            onPressed: () => Navigator.pop(c, true),
+                                                            child: const Text("Sí, pagar"),
+                                                          ),
+                                                        ],
+                                                        child: Text(
+                                                          "¿Seguro que desea marcar esta deuda como Pagada?",
+                                                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
                                                         ),
-                                                        onPressed: () => Navigator.pop(c, true),
-                                                        child: const Text("Sí, pagar"),
                                                       ),
-                                                    ],
-                                                    child: Text(
-                                                      "¿Seguro que desea marcar esta deuda como Pagada?",
-                                                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                                                    );
+                                                    if (conf == true) {
+                                                      await DBService().markDeudaAsPagada(idDeuda, m);
+                                                      Navigator.pop(ctx);
+                                                      _showClienteInfo(cliente);
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.redAccent,
+                                                  size: 18,
+                                                ),
+                                                tooltip: "Eliminar Deuda",
+                                                onPressed: () async {
+                                                  final conf = await showArticDialog<bool>(
+                                                    context: context,
+                                                    builder: (c) => ArticDialogCard(
+                                                      title: "Eliminar Deuda",
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () => Navigator.pop(c, false),
+                                                          child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                                                        ),
+                                                        ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.redAccent,
+                                                            foregroundColor: Colors.white,
+                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                          ),
+                                                          onPressed: () => Navigator.pop(c, true),
+                                                          child: const Text("Eliminar"),
+                                                        ),
+                                                      ],
+                                                      child: Text(
+                                                        "¿Está seguro que desea eliminar esta deuda por " + formatCurrency(m) + "? Esta acción no se puede deshacer.",
+                                                        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                                                      ),
                                                     ),
-                                                  ),
-                                                );
-                                                if (conf == true) {
-                                                  await DBService().markDeudaAsPagada(idDeuda, m);
-                                                  Navigator.pop(ctx);
-                                                  _showClienteInfo(cliente);
-                                                }
-                                              }
-                                            },
+                                                  );
+                                                  if (conf == true) {
+                                                    await DBService().deleteDeuda(idDeuda);
+                                                    Navigator.pop(ctx);
+                                                    _showClienteInfo(cliente);
+                                                  }
+                                                },
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),

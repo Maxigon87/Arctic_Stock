@@ -506,6 +506,50 @@ class _DebtScreenState extends State<DebtScreen> {
                     },
                     label: const Text('Volver a deuda', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  onPressed: () async {
+                    final conf = await showArticDialog<bool>(
+                      context: context,
+                      builder: (c) => ArticDialogCard(
+                        title: "Eliminar Deuda",
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, false),
+                            child: Text("Cancelar", style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () => Navigator.pop(c, true),
+                            child: const Text("Eliminar"),
+                          ),
+                        ],
+                        child: Text(
+                          "¿Está seguro que desea eliminar esta deuda por $monto? Esta acción no se puede deshacer.",
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    );
+                    if (conf == true) {
+                      await dbService.deleteDeuda(id);
+                      if (!mounted) return;
+                      Navigator.pop(ctx);
+                      _loadDeudas();
+                    }
+                  },
+                  label: const Text("Eliminar deuda", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
               ],
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -1210,9 +1211,12 @@ class SalesScreenState extends State<SalesScreen> {
       final ventaId = header['id'] as int? ?? 0;
       final cliente = header['clienteNombre']?.toString() ??
           'Consumidor Final';
-      final file = File(
-          '${dir.path}/${FileNamer.factura(ventaId, cliente)}');
+      final file = File('${dir.path}/${FileNamer.factura(ventaId, cliente)}');
       await file.writeAsBytes(bytes, flush: true);
+      
+      // Abrir el PDF automáticamente
+      await OpenFilex.open(file.path);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Comprobante guardado en ${file.path}')),

@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:artic_stock/services/db_service.dart'; // <- ajusta si tu ruta/case es distinto
 import 'package:artic_stock/widgets/artic_background.dart';
 import 'package:artic_stock/widgets/artic_container.dart';
@@ -202,15 +205,36 @@ class _ProductFormState extends State<ProductForm> {
       }
 
       if (_selectedImageBytes != null) {
-        final downloadUrl = await ImageService().uploadProductImage(productId, _selectedImageBytes!);
-        if (downloadUrl != null) {
-          final db = await DBService().database;
-          await db.rawUpdate(
-            'UPDATE productos SET imageUrl = ?, synced = 0, last_updated = ? WHERE id = ?',
-            [downloadUrl, DateTime.now().toIso8601String(), productId],
-          );
-          DBService().notifyDbChange();
+        // Guardar localmente primero para visualización inmediata offline
+        final appDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory(p.join(appDir.path, 'cached_product_images'));
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
         }
+        final localPath = p.join(cacheDir.path, 'local_prod_$productId.jpg');
+        await File(localPath).writeAsBytes(_selectedImageBytes!);
+
+        // Actualizar base de datos local con la ruta local
+        final db = await DBService().database;
+        await db.rawUpdate(
+          'UPDATE productos SET imageUrl = ?, synced = 0, last_updated = ? WHERE id = ?',
+          [localPath, DateTime.now().toIso8601String(), productId],
+        );
+        DBService().notifyDbChange();
+
+        // Subir a Firebase Storage en segundo plano
+        ImageService().uploadProductImage(productId, _selectedImageBytes!).then((downloadUrl) async {
+          if (downloadUrl != null) {
+            final db = await DBService().database;
+            await db.rawUpdate(
+              'UPDATE productos SET imageUrl = ?, synced = 0, last_updated = ? WHERE id = ?',
+              [downloadUrl, DateTime.now().toIso8601String(), productId],
+            );
+            DBService().notifyDbChange();
+          }
+        }).catchError((e) {
+          debugPrint("Error subiendo imagen en background: $e");
+        });
       } else if (_clearImage) {
         final db = await DBService().database;
         await db.rawUpdate(

@@ -1,14 +1,28 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart'; // 👈 NUEVO
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 import 'mobile_new_sale_screen.dart';
 
 class MobileSalesScreen extends StatefulWidget {
-  const MobileSalesScreen({super.key});
+  final Map<String, dynamic>? initialSelectedSale;
+  final VoidCallback? onDetailShown;
+
+  const MobileSalesScreen({
+    super.key,
+    this.initialSelectedSale,
+    this.onDetailShown,
+  });
 
   @override
   State<MobileSalesScreen> createState() => _MobileSalesScreenState();
@@ -24,8 +38,33 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadVentas();
+    _loadVentas().then((_) {
+      _checkInitialSelectedSale();
+    });
     _dbSub = _dbService.onDatabaseChanged.listen((_) => _loadVentas());
+  }
+
+  @override
+  void didUpdateWidget(covariant MobileSalesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialSelectedSale != null &&
+        widget.initialSelectedSale != oldWidget.initialSelectedSale) {
+      _checkInitialSelectedSale();
+    }
+  }
+
+  void _checkInitialSelectedSale() {
+    if (widget.initialSelectedSale != null) {
+      final saleId = widget.initialSelectedSale!['id'];
+      final sale = _ventas.firstWhere((v) => v['id'] == saleId, orElse: () => widget.initialSelectedSale!);
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showSaleDetails(sale);
+        if (widget.onDetailShown != null) {
+          widget.onDetailShown!();
+        }
+      });
+    }
   }
 
   @override
@@ -561,40 +600,655 @@ class _MobileSalesScreenState extends State<MobileSalesScreen> {
     );
   }
 
-  void _shareSaleTicket(Map<String, dynamic> sale, List<Map<String, dynamic>> items) {
-    final id = sale['id'];
-    final total = (sale['total'] as num?)?.toDouble() ?? 0.0;
-    final clientName = sale['clienteNombre'] as String? ?? 'Consumidor Final';
-    final method = sale['metodoPago'] as String? ?? '—';
-    final rawFecha = sale['fecha'] as String?;
-    String formattedDate = '';
-    if (rawFecha != null) {
+  Future<void> _shareSaleTicket(Map<String, dynamic> sale, List<Map<String, dynamic>> items) async {
+    try {
+      final bytes = await _generarPdfComprobante(sale, items);
+      
+      // Save it to cache/temporary folder to share it
+      final tempDir = await getTemporaryDirectory();
+      final ventaId = sale['id'] as int? ?? 0;
+      final cliente = sale['clienteNombre']?.toString() ?? 'Consumidor Final';
+      
+      // Sanitize file name
+      final sanitizedClient = cliente.replaceAll(RegExp(r'[^\w\s-]'), '');
+      final file = File('${tempDir.path}/factura_${ventaId}_$sanitizedClient.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      
+      await Share.shareXFiles([XFile(file.path)], subject: 'Ticket de Venta #$ventaId');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al generar y compartir ticket: $e')),
+      );
+    }
+  }
+
+  Future<Uint8List> _generarPdf58mm(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
+    final pdf = pw.Document();
+    const int lineWidth = 32;
+    final font = pw.Font.courier();
+
+    String _repeat(String char, int times) => List.filled(times, char).join();
+
+    List<String> _wrap(String text) {
+      final lines = <String>[];
+      for (var i = 0; i < text.length; i += lineWidth) {
+        final end = (i + lineWidth < text.length) ? i + lineWidth : text.length;
+        lines.add(text.substring(i, end));
+      }
+      return lines;
+    }
+
+    void _addWrapped(List<String> target, String text) {
+      target.addAll(_wrap(text));
+    }
+
+    void _addCentered(List<String> target, String text) {
+      for (final line in _wrap(text)) {
+        final pad = ((lineWidth - line.length) / 2).floor();
+        final leftPad = pad > 0 ? pad : 0;
+        target.add("${_repeat(' ', leftPad)}$line");
+      }
+    }
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
       try {
-        final parsed = DateTime.parse(rawFecha);
-        formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
-      } catch (_) {}
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
+
+    final linesOut = <String>[];
+    _addCentered(linesOut, 'Venta #$ventaId');
+    _addCentered(linesOut, fecha);
+    linesOut.add(_repeat('-', lineWidth));
+    _addWrapped(linesOut, 'Cliente: $cliente');
+    _addWrapped(linesOut, 'Vendedor: $vendedor');
+    _addWrapped(linesOut, 'Método: $metodo');
+    linesOut.add(_repeat('-', lineWidth));
+    _addCentered(linesOut, 'PRODUCTOS');
+    linesOut.add(_repeat('-', lineWidth));
+
+    for (var i = 0; i < items.length; i++) {
+      final it = items[i];
+      final nombre = (it['producto'] ?? '').toString();
+      final cant = (it['cantidad'] as num?)?.toInt() ?? 0;
+      final pu = (it['precioUnitario'] as num?)?.toDouble() ?? 0.0;
+      final sub = (it['subtotal'] as num?)?.toDouble() ?? (pu * cant);
+
+      _addWrapped(linesOut, nombre);
+      linesOut.add('$cant x ${formatCurrency(pu)}');
+      linesOut.add(formatCurrency(sub));
+      
+      if (i < items.length - 1) {
+        linesOut.add('---');
+      }
     }
 
-    final buffer = StringBuffer();
-    buffer.writeln('❄️ Arctic Stock ❄️');
-    buffer.writeln('=================================');
-    buffer.writeln('Ticket de Venta #$id');
-    buffer.writeln('Fecha: $formattedDate');
-    buffer.writeln('Cliente: $clientName');
-    buffer.writeln('Metodo: $method');
-    buffer.writeln('=================================');
-    buffer.writeln('Productos:');
-    for (var item in items) {
-      final name = item['producto'] ?? '';
-      final cant = item['cantidad'] ?? 0;
-      final sub = (item['subtotal'] as num?)?.toDouble() ?? 0.0;
-      buffer.writeln('- $cant x $name: ${formatCurrency(sub)}');
+    linesOut.add(_repeat('-', lineWidth));
+    
+    if (descuento > 0) {
+      linesOut.add('SUBTOTAL');
+      linesOut.add(formatCurrency(subtotal));
+      linesOut.add('DESCUENTO');
+      linesOut.add('-${formatCurrency(descuento)}');
+      linesOut.add(_repeat('-', lineWidth));
     }
-    buffer.writeln('=================================');
-    buffer.writeln('TOTAL: ${formatCurrency(total)}');
-    buffer.writeln('=================================');
-    buffer.writeln('¡Gracias por su compra!');
 
-    Share.share(buffer.toString(), subject: 'Ticket de Venta #$id');
+    final totalLines = <String>[];
+    totalLines.add(_repeat('=', 17));
+    totalLines.add('      TOTAL      ');
+    final totalStr = formatCurrency(total);
+    final pad = ((17 - totalStr.length) / 2).floor();
+    final leftPad = pad > 0 ? pad : 0;
+    totalLines.add("${_repeat(' ', leftPad)}$totalStr");
+    totalLines.add(_repeat('=', 17));
+
+    final finalMessageLines = <String>[];
+    finalMessageLines.add('');
+    _addCentered(finalMessageLines, '¡Gracias por su compra!');
+    _addCentered(finalMessageLines, 'Arctic Stock');
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Center(child: pw.Image(logoImage, width: 40)),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              linesOut.join('\n'),
+              style: pw.TextStyle(font: font, fontSize: 8.5, height: 1.1),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              totalLines.join('\n'),
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 11, fontWeight: pw.FontWeight.bold, height: 1.1),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              finalMessageLines.join('\n'),
+              style: pw.TextStyle(font: font, fontSize: 8.5, height: 1.1),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdf80mm(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
+    final pdf = pw.Document();
+    final font = pw.Font.helvetica();
+    final fontBold = pw.Font.helveticaBold();
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
+      try {
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity),
+        margin: const pw.EdgeInsets.all(6),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Center(child: pw.Image(logoImage, width: 50)),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              'Arctic Stock',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: fontBold, fontSize: 14),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Comprobante de Venta',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 4),
+            
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Venta #$ventaId', style: pw.TextStyle(font: fontBold, fontSize: 9)),
+                pw.Text(fecha, style: pw.TextStyle(font: font, fontSize: 9)),
+              ],
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text('Cliente: $cliente', style: pw.TextStyle(font: font, fontSize: 9)),
+            pw.Text('Vendedor: $vendedor', style: pw.TextStyle(font: font, fontSize: 9)),
+            pw.Text('Método de Pago: $metodo', style: pw.TextStyle(font: font, fontSize: 9)),
+            
+            pw.SizedBox(height: 6),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 4),
+            pw.Text('PRODUCTOS', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: fontBold, fontSize: 10)),
+            pw.SizedBox(height: 4),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 6),
+
+            pw.Table(
+              columnWidths: {
+                0: const pw.FlexColumnWidth(3),
+                1: const pw.FlexColumnWidth(2),
+                2: const pw.FlexColumnWidth(1.5),
+              },
+              children: [
+                for (final it in items)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          (it['producto'] ?? '').toString(),
+                          style: pw.TextStyle(font: font, fontSize: 8.5),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          '${it['cantidad']} x ${formatCurrency(it['precioUnitario'])}',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(font: font, fontSize: 8.5),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Text(
+                          formatCurrency(it['subtotal'] ?? 0.0),
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(font: fontBold, fontSize: 8.5),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            
+            pw.SizedBox(height: 8),
+            pw.Divider(thickness: 1, color: PdfColors.grey300),
+            pw.SizedBox(height: 6),
+
+            if (descuento > 0) ...[
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Subtotal:', style: pw.TextStyle(font: font, fontSize: 9)),
+                  pw.Text(formatCurrency(subtotal), style: pw.TextStyle(font: font, fontSize: 9)),
+                ],
+              ),
+              pw.SizedBox(height: 2),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Descuento:', style: pw.TextStyle(font: font, fontSize: 9)),
+                  pw.Text('-${formatCurrency(descuento)}', style: pw.TextStyle(font: font, fontSize: 9)),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+            ],
+            
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('TOTAL:', style: pw.TextStyle(font: fontBold, fontSize: 12)),
+                pw.Text(formatCurrency(total), style: pw.TextStyle(font: fontBold, fontSize: 12)),
+              ],
+            ),
+
+            pw.SizedBox(height: 16),
+            pw.Divider(thickness: 1, color: PdfColors.grey400),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              '¡Gracias por su compra!',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: font, fontSize: 9),
+            ),
+            pw.Text(
+              'Arctic Stock',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColors.grey500),
+            ),
+            pw.SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdfA4(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items, pw.MemoryImage logoImage) async {
+    final pdf = pw.Document();
+    final font = pw.Font.helvetica();
+    final fontBold = pw.Font.helveticaBold();
+
+    final ventaId = header['id'] as int? ?? 0;
+    final fechaRaw = header['fecha'] as String?;
+    String fecha = '';
+    if (fechaRaw != null) {
+      try {
+        final parsed = DateTime.parse(fechaRaw);
+        fecha = DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      } catch (_) {
+        fecha = fechaRaw.split('T').first;
+      }
+    }
+    final cliente = (header['clienteNombre']?.toString().isNotEmpty ?? false)
+        ? header['clienteNombre']
+        : 'Consumidor Final';
+    final vendedor = (header['usuarioNombre']?.toString().isNotEmpty ?? false)
+        ? header['usuarioNombre']
+        : '—';
+    final metodo = header['metodoPago'] ?? '—';
+    final total = (header['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (header['subtotal'] as num?)?.toDouble() ?? total;
+    final descuento = (header['descuento'] as num?)?.toDouble() ?? 0.0;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  children: [
+                    pw.Image(logoImage, width: 48, height: 48),
+                    pw.SizedBox(width: 12),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'ARCTIC STOCK',
+                          style: pw.TextStyle(font: fontBold, fontSize: 20, color: PdfColor.fromHex('#0284C7')),
+                        ),
+                        pw.Text(
+                          'Sistema de Ventas y Control de Stock',
+                          style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromHex('#0284C7'),
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      ),
+                      child: pw.Text(
+                        'COMPROBANTE',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.white),
+                      ),
+                    ),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      'Venta Nº: #$ventaId',
+                      style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.grey900),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            
+            pw.SizedBox(height: 24),
+            pw.Divider(thickness: 1, color: PdfColor.fromHex('#E2E8F0')),
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'DETALLES DEL CLIENTE',
+                        style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColor.fromHex('#64748B')),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Text(
+                        cliente,
+                        style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.grey900),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Cliente Registrado',
+                        style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey500),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'DETALLES DE LA TRANSACCIÓN',
+                        style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColor.fromHex('#64748B')),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Text('Fecha: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Text(fecha, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text('Vendedor: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Text(vendedor, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text('Método de Pago: ', style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey700)),
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: pw.BoxDecoration(
+                              color: PdfColor.fromHex('#F0FDFA'),
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                              border: pw.Border.all(color: PdfColor.fromHex('#CCFBF1'), width: 1),
+                            ),
+                            child: pw.Text(
+                              metodo,
+                              style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#0F766E')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 24),
+
+            pw.Table(
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.2),
+                1: const pw.FlexColumnWidth(3.5),
+                2: const pw.FlexColumnWidth(1),
+                3: const pw.FlexColumnWidth(1.5),
+                4: const pw.FlexColumnWidth(1.5),
+              },
+              border: const pw.TableBorder(
+                horizontalInside: pw.BorderSide(width: 0.5, color: PdfColors.grey300),
+                bottom: pw.BorderSide(width: 1, color: PdfColors.grey400),
+              ),
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor.fromHex('#F8FAFC'),
+                  ),
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('CÓDIGO', style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('DESCRIPCIÓN DEL PRODUCTO', style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('CANTIDAD', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('P. UNITARIO', textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('TOTAL', textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColor.fromHex('#475569'))),
+                    ),
+                  ],
+                ),
+                for (final it in items)
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text((it['codigo'] ?? '—').toString(), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text((it['producto'] ?? '').toString(), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey900)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(it['cantidad'].toString(), textAlign: pw.TextAlign.center, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(formatCurrency(it['precioUnitario'] ?? 0.0), textAlign: pw.TextAlign.right, style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(formatCurrency(it['subtotal'] ?? 0.0), textAlign: pw.TextAlign.right, style: pw.TextStyle(font: fontBold, fontSize: 10, color: PdfColors.grey900)),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  flex: 3,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'TÉRMINOS Y CONDICIONES',
+                        style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColor.fromHex('#94A3B8')),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Este documento sirve como comprobante oficial de la transacción. Para cualquier reclamo o devolución, presente este comprobante.',
+                        style: pw.TextStyle(font: font, fontSize: 8, color: PdfColor.fromHex('#94A3B8')),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 40),
+                pw.Expanded(
+                  flex: 2,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      if (descuento > 0) ...[
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Subtotal:', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey600)),
+                            pw.Text(formatCurrency(subtotal), style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey800)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Descuento:', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.red500)),
+                            pw.Text('-${formatCurrency(descuento)}', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.red500)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Divider(thickness: 1, color: PdfColors.grey300),
+                        pw.SizedBox(height: 6),
+                      ],
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('TOTAL NETO:', style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey900)),
+                          pw.Text(
+                            formatCurrency(total),
+                            style: pw.TextStyle(font: fontBold, fontSize: 15, color: PdfColor.fromHex('#0284C7')),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            pw.Spacer(),
+
+            pw.Divider(thickness: 1, color: PdfColor.fromHex('#E2E8F0')),
+            pw.SizedBox(height: 8),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  '¡Gracias por confiar en nosotros!',
+                  style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey500),
+                ),
+                pw.Text(
+                  'Arctic Stock • www.arcticstock.com',
+                  style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColors.grey500),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  Future<Uint8List> _generarPdfComprobante(
+      Map<String, dynamic> header, List<Map<String, dynamic>> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final tipoTicket = prefs.getString('tipo_ticket') ?? 'ticket_58mm';
+
+    final logoData = await rootBundle.load('assets/logo/logo_sin_titulo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
+    if (tipoTicket == 'pdf_normal') {
+      return _generarPdfA4(header, items, logoImage);
+    } else if (tipoTicket == 'ticket_80mm') {
+      return _generarPdf80mm(header, items, logoImage);
+    } else {
+      return _generarPdf58mm(header, items, logoImage);
+    }
   }
 }

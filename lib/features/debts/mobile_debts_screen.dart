@@ -285,23 +285,82 @@ class _MobileDebtsScreenState extends State<MobileDebtsScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _registrarPago(id, monto, clienteNombre),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Pagar',
-                    style: GoogleFonts.manrope(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF22C55E),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      final confirm = await showArticDialog<bool>(
+                        context: context,
+                        builder: (c) => ArticDialogCard(
+                          title: 'Eliminar Deuda',
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c, false),
+                              child: Text('Cancelar', style: GoogleFonts.manrope(color: subtitleColor)),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEF4444),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () => Navigator.pop(c, true),
+                              child: Text('Eliminar', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                          child: Text(
+                            '¿Está seguro de que desea eliminar la deuda de $clienteNombre por ${formatCurrency(monto)}? Esta acción no se puede deshacer.',
+                            style: GoogleFonts.manrope(color: textColor),
+                          ),
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        setState(() => _loading = true);
+                        try {
+                          await _dbService.deleteDeuda(id);
+                          _showSnackbar('✅ Deuda eliminada correctamente');
+                          _loadDeudas();
+                        } catch (e) {
+                          setState(() => _loading = false);
+                          _showSnackbar('❌ Error al eliminar deuda: $e');
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFEF4444),
+                        size: 14,
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => _registrarPago(id, monto, clienteNombre),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Pagar',
+                        style: GoogleFonts.manrope(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF22C55E),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

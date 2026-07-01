@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/db_service.dart';
 import '../../../services/sync_service.dart';
@@ -14,7 +15,14 @@ import '../../screens/quick_inquiry_screen.dart';
 import '../../widgets/artic_image_cropper.dart';
 
 class MobileMoreScreen extends StatefulWidget {
-  const MobileMoreScreen({super.key});
+  final bool initialShowChangeEmployee;
+  final VoidCallback? onChangeEmployeeShown;
+
+  const MobileMoreScreen({
+    super.key,
+    this.initialShowChangeEmployee = false,
+    this.onChangeEmployeeShown,
+  });
 
   @override
   State<MobileMoreScreen> createState() => _MobileMoreScreenState();
@@ -23,6 +31,32 @@ class MobileMoreScreen extends StatefulWidget {
 class _MobileMoreScreenState extends State<MobileMoreScreen> {
   final DBService _dbService = DBService();
   final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialShowChangeEmployee) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _cerrarSesionEmpleado(context);
+        if (widget.onChangeEmployeeShown != null) {
+          widget.onChangeEmployeeShown!();
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MobileMoreScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialShowChangeEmployee && !oldWidget.initialShowChangeEmployee) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _cerrarSesionEmpleado(context);
+        if (widget.onChangeEmployeeShown != null) {
+          widget.onChangeEmployeeShown!();
+        }
+      });
+    }
+  }
 
   void _cerrarSesion(BuildContext context) async {
     final confirm = await showDialog<bool>(
@@ -247,8 +281,20 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
                   style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0EA5E9)),
                   onPressed: () async {
                     setDialogState(() {});
-                    await syncService.syncData(force: true);
+                    final success = await syncService.syncData(force: true);
                     setDialogState(() {});
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? '¡Sincronización completada con éxito!'
+                                : 'Error al sincronizar. Revisa tu conexión de red.',
+                          ),
+                          backgroundColor: success ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        ),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.sync, size: 16),
                   label: const Text("Sincronizar ahora"),
@@ -453,6 +499,19 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
           const SizedBox(height: 12),
           _buildMenuCard(
             context,
+            icon: Icons.print_outlined,
+            color: const Color(0xFF8B5CF6),
+            title: 'Tamaño de Ticket',
+            subtitle: 'Seleccionar formato (A4, 58mm, 80mm) para compartir',
+            textColor: textColor,
+            subtitleColor: subtitleColor,
+            cardColor: cardColor,
+            borderColor: borderColor,
+            onTap: () => _mostrarConfiguracionTicket(context),
+          ),
+          const SizedBox(height: 12),
+          _buildMenuCard(
+            context,
             icon: Icons.person_outline,
             color: const Color(0xFF0EA5E9),
             title: 'Mi Perfil',
@@ -553,6 +612,118 @@ class _MobileMoreScreenState extends State<MobileMoreScreen> {
         ),
         trailing: const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
         onTap: onTap,
+      ),
+    );
+  }
+
+  void _mostrarConfiguracionTicket(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentTicket = prefs.getString('tipo_ticket') ?? 'ticket_58mm';
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Tamaño de Ticket',
+            style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: textColor),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.picture_as_pdf_outlined,
+                  color: currentTicket == 'pdf_normal' ? const Color(0xFF0EA5E9) : const Color(0xFF64748B),
+                ),
+                title: Text(
+                  'PDF A4',
+                  style: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w600,
+                    color: currentTicket == 'pdf_normal' ? const Color(0xFF0EA5E9) : textColor,
+                  ),
+                ),
+                subtitle: Text(
+                  'Optimizado para hojas PDF estándar A4.',
+                  style: GoogleFonts.manrope(fontSize: 12),
+                ),
+                trailing: currentTicket == 'pdf_normal' ? const Icon(Icons.check_circle, color: Color(0xFF0EA5E9)) : null,
+                onTap: () async {
+                  await prefs.setString('tipo_ticket', 'pdf_normal');
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _showSuccessSnackbar('Formato PDF A4 seleccionado');
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.receipt_long_outlined,
+                  color: currentTicket == 'ticket_58mm' ? const Color(0xFF0EA5E9) : const Color(0xFF64748B),
+                ),
+                title: Text(
+                  'Ticket 58 mm',
+                  style: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w600,
+                    color: currentTicket == 'ticket_58mm' ? const Color(0xFF0EA5E9) : textColor,
+                  ),
+                ),
+                subtitle: Text(
+                  'Diseño compacto para impresoras de 58 mm.',
+                  style: GoogleFonts.manrope(fontSize: 12),
+                ),
+                trailing: currentTicket == 'ticket_58mm' ? const Icon(Icons.check_circle, color: Color(0xFF0EA5E9)) : null,
+                onTap: () async {
+                  await prefs.setString('tipo_ticket', 'ticket_58mm');
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _showSuccessSnackbar('Formato Ticket 58 mm seleccionado');
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.print_outlined,
+                  color: currentTicket == 'ticket_80mm' ? const Color(0xFF0EA5E9) : const Color(0xFF64748B),
+                ),
+                title: Text(
+                  'Ticket 80 mm',
+                  style: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w600,
+                    color: currentTicket == 'ticket_80mm' ? const Color(0xFF0EA5E9) : textColor,
+                  ),
+                ),
+                subtitle: Text(
+                  'Diseño estándar para impresoras de 80 mm.',
+                  style: GoogleFonts.manrope(fontSize: 12),
+                ),
+                trailing: currentTicket == 'ticket_80mm' ? const Icon(Icons.check_circle, color: Color(0xFF0EA5E9)) : null,
+                onTap: () async {
+                  await prefs.setString('tipo_ticket', 'ticket_80mm');
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _showSuccessSnackbar('Formato Ticket 80 mm seleccionado');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message, style: GoogleFonts.manrope()),
+          ],
+        ),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

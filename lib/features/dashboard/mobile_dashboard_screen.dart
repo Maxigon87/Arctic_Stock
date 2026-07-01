@@ -7,7 +7,14 @@ import '../../../services/db_service.dart';
 import '../../../utils/currency_formatter.dart';
 
 class MobileDashboardScreen extends StatefulWidget {
-  const MobileDashboardScreen({super.key});
+  final Function(Map<String, dynamic>)? onNavigateToSales;
+  final VoidCallback? onNavigateToMoreWithChangeEmployee;
+
+  const MobileDashboardScreen({
+    super.key,
+    this.onNavigateToSales,
+    this.onNavigateToMoreWithChangeEmployee,
+  });
 
   @override
   State<MobileDashboardScreen> createState() => _MobileDashboardScreenState();
@@ -101,30 +108,33 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         scrolledUnderElevation: 0,
         actions: [
           if (_dbService.activeUserName != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
-                    backgroundImage: (_dbService.activeUserAvatar != null && _dbService.activeUserAvatar!.isNotEmpty)
-                        ? MemoryImage(base64Decode(_dbService.activeUserAvatar!))
-                        : null,
-                    child: (_dbService.activeUserAvatar == null || _dbService.activeUserAvatar!.isEmpty)
-                        ? Text(
-                            _dbService.activeUserName!.isNotEmpty ? _dbService.activeUserName![0].toUpperCase() : 'U',
-                            style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9), fontSize: 14),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _dbService.activeUserName!,
-                    style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
-                  ),
-                ],
+            GestureDetector(
+              onTap: widget.onNavigateToMoreWithChangeEmployee,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: const Color(0xFF0EA5E9).withOpacity(0.1),
+                      backgroundImage: (_dbService.activeUserAvatar != null && _dbService.activeUserAvatar!.isNotEmpty)
+                          ? MemoryImage(base64Decode(_dbService.activeUserAvatar!))
+                          : null,
+                      child: (_dbService.activeUserAvatar == null || _dbService.activeUserAvatar!.isEmpty)
+                          ? Text(
+                              _dbService.activeUserName!.isNotEmpty ? _dbService.activeUserName![0].toUpperCase() : 'U',
+                              style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: const Color(0xFF0EA5E9), fontSize: 14),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _dbService.activeUserName!,
+                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -374,88 +384,95 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         if (method == 'Fiado') methodColor = const Color(0xFFEF4444);
         if (method == 'Debito' || method == 'Credito' || method == 'Transferencia') methodColor = const Color(0xFF0EA5E9);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: innerBgColor,
-                  borderRadius: BorderRadius.circular(12),
+        return GestureDetector(
+          onTap: () {
+            if (widget.onNavigateToSales != null) {
+              widget.onNavigateToSales!(sale);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: innerBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.receipt_outlined, color: Color(0xFF0EA5E9), size: 22),
                 ),
-                child: const Icon(Icons.receipt_outlined, color: Color(0xFF0EA5E9), size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Venta #$id',
+                        style: GoogleFonts.manrope(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$clientName • $formattedDate',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          color: subtitleColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (user.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Vendido por: $user',
+                          style: GoogleFonts.manrope(
+                            fontSize: 11,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      'Venta #$id',
+                      formatCurrency(total),
                       style: GoogleFonts.manrope(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
                         color: textColor,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$clientName • $formattedDate',
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        color: subtitleColor,
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: methodColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                    if (user.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'Vendido por: $user',
+                      child: Text(
+                        method,
                         style: GoogleFonts.manrope(
-                          fontSize: 11,
-                          color: const Color(0xFF94A3B8),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: methodColor,
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    formatCurrency(total),
-                    style: GoogleFonts.manrope(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: methodColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      method,
-                      style: GoogleFonts.manrope(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: methodColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

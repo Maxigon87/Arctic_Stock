@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter/widgets.dart';
@@ -6,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'db_service.dart';
 import 'auth_service.dart';
 import 'connectivity_helper.dart';
+import 'image_service.dart';
 
 class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   static final SyncService _instance = SyncService._internal();
@@ -122,13 +124,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // Ejecutar sincronización bidireccional completa
-  Future<void> syncData({bool force = false}) async {
-    if (_isSyncing) return;
+  Future<bool> syncData({bool force = false}) async {
+    if (_isSyncing) return false;
 
     final hasInternet = await ConnectivityHelper.hasInternet();
     if (!hasInternet) {
       debugPrint("Sincronización cancelada: No hay conexión a internet. Trabajando offline.");
-      return;
+      return false;
     }
 
     _isSyncing = true;
@@ -140,7 +142,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
         debugPrint("Sincronización cancelada: No hay negocio autenticado.");
         _isSyncing = false;
         notifyListeners();
-        return;
+        return false;
       }
 
       // Cargar la última fecha de sincronización de la base de datos si no está cargada en memoria
@@ -164,7 +166,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       if (pending.isEmpty && !force) {
         _isSyncing = false;
         notifyListeners();
-        return;
+        return true;
       }
 
       if (pending.isNotEmpty) {
@@ -184,9 +186,11 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       await _syncPull(negocioId);
 
       debugPrint("Sincronización finalizada.");
+      return true;
     } catch (e, stack) {
       debugPrint("Error durante la sincronización: $e");
       debugPrint(stack.toString());
+      return false;
     } finally {
       _isSyncing = false;
       _dbService.notifyDbChange();
@@ -259,6 +263,30 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
             itemMap.remove('ventaId');
             return itemMap;
           }).toList();
+        }
+
+        // Lógica específica para Productos: subir imagen local a Firebase Storage si aplica
+        if (table == 'productos') {
+          final imageUrl = data['imageUrl'] as String?;
+          if (imageUrl != null && imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
+            try {
+              final file = File(imageUrl);
+              if (await file.exists()) {
+                final bytes = await file.readAsBytes();
+                final downloadUrl = await ImageService().uploadProductImage(localId, bytes);
+                if (downloadUrl != null) {
+                  data['imageUrl'] = downloadUrl;
+                  // Actualizar en SQLite
+                  await db.rawUpdate(
+                    'UPDATE productos SET imageUrl = ?, last_updated = ? WHERE id = ?',
+                    [downloadUrl, DateTime.now().toIso8601String(), localId],
+                  );
+                }
+              }
+            } catch (e) {
+              debugPrint("Error subiendo imagen local durante sync: $e");
+            }
+          }
         }
 
         try {
@@ -493,11 +521,6 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   Map<String, dynamic> _mapRemoteToLocal(String table, Map<String, dynamic> remote, String docId) {
     final local = Map<String, dynamic>.from(remote);
     local['firebase_id'] = docId;
-
-    // Procesar campos específicos si es necesario
-    if (table == 'ventas') {
-      local.remove('items'); // Los items se manejan en tabla aparte
-    }
     return local;
   }
 

@@ -56,6 +56,15 @@ class _ArticCachedImageState extends State<ArticCachedImage> {
       return;
     }
 
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      setState(() {
+        _localFile = File(url);
+        _isLoading = false;
+        _hasError = false;
+      });
+      return;
+    }
+
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final cacheDir = Directory(p.join(appDir.path, 'cached_product_images'));
